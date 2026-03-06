@@ -180,6 +180,7 @@ export default function BoardPage() {
   useEffect(() => {
     if (!boardId) {
       // TODO: setar pelo seu id real
+      setBoardIdAction('') // deixa vazio pra não chamar API errado
       setBoardIdAction('60b37bbd-7d0c-4698-99e4-d9cddaccb375')
       // Deixo vazio pra não chamar API errado
     }
