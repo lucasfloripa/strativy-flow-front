@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
 // BoardPage.tsx
 // Tudo em 1 arquivo: axios + jotai + styled-components + dnd-kit (UI-only reorder, sem chamadas de move)
 
@@ -180,11 +180,11 @@ export default function BoardPage() {
   useEffect(() => {
     if (!boardId) {
       // TODO: setar pelo seu id real
-      setBoardIdAction('') // deixa vazio pra não chamar API errado
+      setBoardId('') // deixa vazio pra não chamar API errado
       setBoardIdAction('60b37bbd-7d0c-4698-99e4-d9cddaccb375')
       // Deixo vazio pra não chamar API errado
     }
-  }, [boardId, setBoardIdAction])
+  }, [boardId, setBoardIdAction, setBoardId])
 
   const fetchBoardFull = useCallback(async () => {
     if (!boardId) return
