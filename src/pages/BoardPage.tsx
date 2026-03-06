@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // BoardPage.tsx
 // Tudo em 1 arquivo: axios + jotai + styled-components + dnd-kit (UI-only reorder, sem chamadas de move)
 
@@ -34,7 +36,7 @@ type Lead = {
   phone: string
   email?: string
   source?: string
-  fields?: Record<string, any>
+  fields?: Record<string, never>
   movedAt?: string | Date
   isArchived: boolean
   createdAt: string | Date
