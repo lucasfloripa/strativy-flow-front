@@ -86,7 +86,7 @@ type UpdateLeadPayload = {
 // Axios
 // ----------------------------
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+  baseURL: 'https://darleen-observant-comfortlessly.ngrok-free.dev',
   timeout: 15000
 })
 
