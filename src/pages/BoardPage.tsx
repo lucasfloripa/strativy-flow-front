@@ -87,6 +87,9 @@ type UpdateLeadPayload = {
 // ----------------------------
 const api = axios.create({
   baseURL: 'https://darleen-observant-comfortlessly.ngrok-free.dev',
+  headers: {
+    'ngrok-skip-browser-warning': 'true'
+  },
   timeout: 15000
 })
 
