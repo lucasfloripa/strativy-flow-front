@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
  
 // BoardPage.tsx
-// Tudo em 1 arquivo: axios + jotai + styled-components + dnd-kit (UI-only reorder, sem chamadas de move)
+// Tudo em 1 arquivo: axios + jotai + styled-components + dnd-kit
+// UI-only reorder dentro da mesma coluna + modal ao clicar no lead + edição básica + modal de settings
 
-import React, { useCallback, useEffect, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import styled, { createGlobalStyle } from 'styled-components'
+import { Settings, X, RefreshCw } from 'lucide-react'
 import { atom, useAtom, useSetAtom } from 'jotai'
 
 import {
@@ -25,7 +27,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 // ----------------------------
-// Types (baseado no teu backend /full)
+// Types (baseado no teu backend /full e /leads/:id)
 // ----------------------------
 type Lead = {
   id: string
@@ -36,7 +38,9 @@ type Lead = {
   phone: string
   email?: string
   source?: string
-  fields?: Record<string, never>
+  fields?: Record<string, any>
+  lastInboundMessageId?: string
+  lastAutoReplyMessageId?: string
   movedAt?: string | Date
   isArchived: boolean
   createdAt: string | Date
@@ -69,15 +73,23 @@ type BoardFullResponse = {
   columns: BoardColumn[]
 }
 
+type UpdateLeadPayload = {
+  name?: string
+  phone?: string
+  email?: string
+  source?: string
+  fields?: Record<string, any>
+  isArchived?: boolean
+}
+
 // ----------------------------
-// Axios (ajusta BASE_URL conforme teu setup)
+// Axios
 // ----------------------------
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000', // ajuste
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
   timeout: 15000
 })
 
-// Se você tiver token depois, coloca aqui
 api.interceptors.request.use((config) => {
   // const token = localStorage.getItem('access_token')
   // if (token) config.headers.Authorization = `Bearer ${token}`
@@ -87,10 +99,18 @@ api.interceptors.request.use((config) => {
 // ----------------------------
 // Jotai state
 // ----------------------------
-const boardIdAtom = atom<string>('') // você pode setar via route param no useEffect
+const boardIdAtom = atom<string>('')
+
 const boardFullAtom = atom<BoardFullResponse | null>(null)
 const isLoadingAtom = atom<boolean>(false)
 const errorAtom = atom<string | null>(null)
+
+const selectedLeadIdAtom = atom<string | null>(null)
+const selectedLeadAtom = atom<Lead | null>(null)
+const isLeadModalLoadingAtom = atom<boolean>(false)
+const leadModalErrorAtom = atom<string | null>(null)
+
+const isSettingsModalOpenAtom = atom<boolean>(false)
 
 const setBoardIdAtom = atom(null, (_get, set, id: string) => {
   set(boardIdAtom, id)
@@ -99,9 +119,8 @@ const setBoardIdAtom = atom(null, (_get, set, id: string) => {
 // ----------------------------
 // Helpers
 // ----------------------------
-function formatPhone(phone: string) {
-  // simples: não muda muito, só quebra linha/visual
-  return phone?.trim()
+function formatPhone(phone?: string) {
+  return phone?.trim() || '—'
 }
 
 function getFirstLetters(name: string) {
@@ -118,21 +137,350 @@ function sortColumnsAndLeads(data: BoardFullResponse): BoardFullResponse {
       ...c,
       leads: [...(c.leads ?? [])].sort((a, b) => a.position - b.position)
     }))
+
   return { ...data, columns }
+}
+
+function safeJsonParse(value: string): Record<string, any> {
+  if (!value.trim()) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch {
+    throw new Error('O campo fields precisa ser um JSON válido')
+  }
+}
+
+function normalizeOptionalString(value: string) {
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
+}
+
+// ----------------------------
+// Modal de settings
+// ----------------------------
+function SettingsModal() {
+  const [isOpen, setIsOpen] = useAtom(isSettingsModalOpenAtom)
+
+  const closeModal = useCallback(() => {
+    setIsOpen(false)
+  }, [setIsOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, closeModal])
+
+  if (!isOpen) return null
+
+  return (
+    <ModalOverlay
+      onClick={() => {
+        closeModal()
+      }}
+    >
+      <SettingsModalCard
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+      >
+        <SettingsModalHeader>
+          <SettingsModalTitle>Configurações</SettingsModalTitle>
+
+          <SettingsCloseIconButton
+            type="button"
+            onClick={closeModal}
+            aria-label="Fechar configurações"
+            title="Fechar"
+          >
+            <X size={18} />
+          </SettingsCloseIconButton>
+        </SettingsModalHeader>
+
+        <SettingsModalBody>
+          <SettingsActionButton type="button">
+            Editar Usuario
+          </SettingsActionButton>
+
+          <SettingsSpacer />
+
+          <SettingsActionButton type="button">
+            Logout
+          </SettingsActionButton>
+        </SettingsModalBody>
+      </SettingsModalCard>
+    </ModalOverlay>
+  )
+}
+
+// ----------------------------
+// Modal do lead
+// ----------------------------
+function LeadDetailsModal() {
+  const [selectedLeadId, setSelectedLeadId] = useAtom(selectedLeadIdAtom)
+  const [selectedLead, setSelectedLead] = useAtom(selectedLeadAtom)
+  const [isLoading, setLoading] = useAtom(isLeadModalLoadingAtom)
+  const [error, setError] = useAtom(leadModalErrorAtom)
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [source, setSource] = useState('')
+
+  const syncFormWithLead = useCallback((lead: Lead | null) => {
+    setName(lead?.name ?? '')
+    setPhone(lead?.phone ?? '')
+    setEmail(lead?.email ?? '')
+    setSource(lead?.source ?? '')
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setSelectedLeadId(null)
+    setSelectedLead(null)
+    setError(null)
+    setLoading(false)
+    setIsEditing(false)
+    setIsSaving(false)
+    syncFormWithLead(null)
+  }, [setSelectedLeadId, setSelectedLead, setError, setLoading, syncFormWithLead])
+
+  const fetchLead = useCallback(async () => {
+    if (!selectedLeadId) return
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const res = await api.get<Lead>(`/leads/${selectedLeadId}`)
+      setSelectedLead(res.data)
+      syncFormWithLead(res.data)
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ??
+        e?.message ??
+        'Erro ao carregar lead'
+      setError(String(msg))
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedLeadId, setSelectedLead, setLoading, setError, syncFormWithLead])
+
+  useEffect(() => {
+    if (selectedLeadId) {
+      void fetchLead()
+    }
+  }, [selectedLeadId, fetchLead])
+
+  useEffect(() => {
+    if (!selectedLeadId) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeModal()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedLeadId, closeModal])
+
+  const handleStartEdit = () => {
+    syncFormWithLead(selectedLead)
+    setError(null)
+    setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    syncFormWithLead(selectedLead)
+    setError(null)
+    setIsEditing(false)
+  }
+
+  const handleSave = async () => {
+    if (!selectedLead) return
+
+    try {
+      setIsSaving(true)
+      setError(null)
+
+      const payload: UpdateLeadPayload = {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: normalizeOptionalString(email),
+        source: normalizeOptionalString(source),
+        fields: safeJsonParse('{}')
+      }
+
+      const res = await api.patch<Lead>(`/leads/${selectedLead.id}`, payload)
+      setSelectedLead(res.data)
+      syncFormWithLead(res.data)
+      setIsEditing(false)
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.message ??
+        e?.message ??
+        'Erro ao salvar lead'
+      setError(String(msg))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (!selectedLeadId) return null
+
+  return (
+    <ModalOverlay
+      onClick={() => {
+        if (!isSaving) closeModal()
+      }}
+    >
+      <ModalCard
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+      >
+        <ModalHeader>
+          <ModalTitleArea>
+            <ModalAvatar>{getFirstLetters(selectedLead?.name ?? 'Lead')}</ModalAvatar>
+
+            <div>
+              <ModalTitle>{selectedLead?.name ?? 'Detalhes do lead'}</ModalTitle>
+              <ModalSubtitle>
+                {isLoading ? 'Carregando dados...' : 'Informações completas do lead'}
+              </ModalSubtitle>
+            </div>
+          </ModalTitleArea>
+        </ModalHeader>
+
+        {error ? <ModalError>{error}</ModalError> : null}
+
+        {isLoading ? (
+          <ModalLoading>Carregando lead...</ModalLoading>
+        ) : selectedLead ? (
+          <>
+            <SectionTitle>Dados do lead</SectionTitle>
+
+            <InfoList>
+              <InfoRow>
+                <InfoLabel>Nome</InfoLabel>
+                {isEditing ? (
+                  <InfoInput
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Nome"
+                  />
+                ) : (
+                  <InfoValue>{selectedLead.name || '—'}</InfoValue>
+                )}
+              </InfoRow>
+
+              <InfoRow>
+                <InfoLabel>Telefone</InfoLabel>
+                {isEditing ? (
+                  <InfoInput
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Telefone"
+                  />
+                ) : (
+                  <InfoValue>{formatPhone(selectedLead.phone)}</InfoValue>
+                )}
+              </InfoRow>
+
+              <InfoRow>
+                <InfoLabel>Email</InfoLabel>
+                {isEditing ? (
+                  <InfoInput
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email"
+                  />
+                ) : (
+                  <InfoValue>{selectedLead.email || '—'}</InfoValue>
+                )}
+              </InfoRow>
+
+              <InfoRow>
+                <InfoLabel>Origem</InfoLabel>
+                {isEditing ? (
+                  <InfoInput
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="Origem"
+                  />
+                ) : (
+                  <InfoValue>{selectedLead.source || '—'}</InfoValue>
+                )}
+              </InfoRow>
+            </InfoList>
+
+            <ModalFooter>
+              {isEditing ? (
+                <FooterButtons>
+                  <DangerButton
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                  >
+                    Cancelar
+                  </DangerButton>
+
+                  <SuccessButton
+                    type="button"
+                    onClick={() => {
+                      void handleSave()
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? 'Salvando...' : 'Salvar'}
+                  </SuccessButton>
+                </FooterButtons>
+              ) : (
+                <FooterButtons>
+                  <NeutralButton type="button" onClick={handleStartEdit}>
+                    Editar
+                  </NeutralButton>
+
+                  <NeutralButton type="button" onClick={closeModal}>
+                    Fechar
+                  </NeutralButton>
+                </FooterButtons>
+              )}
+            </ModalFooter>
+          </>
+        ) : (
+          <ModalLoading>Nenhum lead encontrado.</ModalLoading>
+        )}
+      </ModalCard>
+    </ModalOverlay>
+  )
 }
 
 // ----------------------------
 // DnD: Sortable Lead Card
 // ----------------------------
 function SortableLeadCard({
-  lead,
-  columnName
+  lead
 }: {
   lead: Lead
-  columnName: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: lead.id })
+
+  const setSelectedLeadId = useSetAtom(selectedLeadIdAtom)
+  const setSelectedLead = useSetAtom(selectedLeadAtom)
+  const setLeadModalError = useSetAtom(leadModalErrorAtom)
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -141,9 +489,20 @@ function SortableLeadCard({
   }
 
   return (
-    <LeadCard ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <LeadCard
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => {
+        setSelectedLead(null)
+        setLeadModalError(null)
+        setSelectedLeadId(lead.id)
+      }}
+    >
       <LeadTopRow>
         <Avatar>{getFirstLetters(lead.name)}</Avatar>
+
         <LeadTitle>
           <LeadName>{lead.name}</LeadName>
           <LeadSub>{formatPhone(lead.phone)}</LeadSub>
@@ -151,7 +510,6 @@ function SortableLeadCard({
       </LeadTopRow>
 
       <LeadMetaRow>
-        <Pill title="Coluna atual">{columnName}</Pill>
         {lead.source ? <Pill title="Origem">{lead.source}</Pill> : null}
       </LeadMetaRow>
 
@@ -173,21 +531,18 @@ export default function BoardPage() {
   const [isLoading, setLoading] = useAtom(isLoadingAtom)
   const [error, setError] = useAtom(errorAtom)
   const setBoardIdAction = useSetAtom(setBoardIdAtom)
+  const setIsSettingsModalOpen = useSetAtom(isSettingsModalOpenAtom)
 
-  // EXEMPLO: se você não estiver usando router ainda,
-  // seta manualmente um boardId aqui.
-  // Se usa React Router, substitui isso por useParams().
   useEffect(() => {
     if (!boardId) {
-      // TODO: setar pelo seu id real
-      setBoardId('') // deixa vazio pra não chamar API errado
+      setBoardId('')
       setBoardIdAction('60b37bbd-7d0c-4698-99e4-d9cddaccb375')
-      // Deixo vazio pra não chamar API errado
     }
   }, [boardId, setBoardIdAction, setBoardId])
 
   const fetchBoardFull = useCallback(async () => {
     if (!boardId) return
+
     try {
       setError(null)
       setLoading(true)
@@ -199,6 +554,7 @@ export default function BoardPage() {
         e?.response?.data?.message ??
         e?.message ??
         'Erro ao carregar board'
+
       setError(String(msg))
     } finally {
       setLoading(false)
@@ -209,31 +565,30 @@ export default function BoardPage() {
     void fetchBoardFull()
   }, [fetchBoardFull])
 
-  // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 }
     })
   )
 
-  // Mapa rápido de colunas pra achar onde está um lead
   const leadIdToColumnId = useMemo(() => {
     const map = new Map<string, string>()
+
     if (!data) return map
+
     for (const col of data.columns) {
       for (const lead of col.leads ?? []) {
         map.set(lead.id, col.id)
       }
     }
+
     return map
   }, [data])
 
-  // UI-only reorder:
-  // - reordena SOMENTE dentro da mesma coluna
-  // - não move entre colunas (você pediu pra não pensar nas chamadas de mover card agora)
   const onDragEnd = useCallback(
     (event: DragEndEvent) => {
       if (!data) return
+
       const { active, over } = event
       if (!over) return
       if (active.id === over.id) return
@@ -244,11 +599,17 @@ export default function BoardPage() {
       const fromColumnId = leadIdToColumnId.get(activeId)
       const toColumnId = leadIdToColumnId.get(overId)
 
-      // Só reorder dentro da mesma coluna
       if (!fromColumnId || !toColumnId) return
       if (fromColumnId !== toColumnId) return
 
-      const next = { ...data, columns: data.columns.map((c) => ({ ...c, leads: [...c.leads] })) }
+      const next = {
+        ...data,
+        columns: data.columns.map((c) => ({
+          ...c,
+          leads: [...c.leads]
+        }))
+      }
+
       const col = next.columns.find((c) => c.id === fromColumnId)
       if (!col) return
 
@@ -269,6 +630,7 @@ export default function BoardPage() {
   return (
     <>
       <GlobalStyle />
+
       <Page>
         <TopBar>
           <TopBarInner>
@@ -277,54 +639,51 @@ export default function BoardPage() {
               <BrandText>Strativy Flow</BrandText>
             </BrandLeft>
 
-            <TopBarRight>
-              {/* Campo pra colar boardId se você quiser testar sem router */}
-              <BoardIdInput
-                value={boardId}
-                onChange={(e) => setBoardIdAction(e.target.value)}
-                placeholder="Cole aqui o boardId (UUID) e aperte Atualizar"
-              />
-
-              <PrimaryButton onClick={fetchBoardFull} disabled={!boardId || isLoading}>
-                {isLoading ? 'Carregando...' : 'Atualizar leads'}
-              </PrimaryButton>
-            </TopBarRight>
+            <TopBarActions>
+              <SettingsButton
+                type="button"
+                onClick={() => {
+                  setIsSettingsModalOpen(true)
+                }}
+                aria-label="Abrir configurações"
+                title="Configurações"
+              >
+                <Settings size={18} />
+              </SettingsButton>
+            </TopBarActions>
           </TopBarInner>
         </TopBar>
 
         <BoardOuter>
           <BoardShell>
-            {/* Header do board */}
             <BoardHeader>
               <BoardTitle>
                 {data?.board?.name ?? 'Seu Board'}
-                <BoardSubtitle>
-                  {data ? `${data.columns.length} colunas` : '—'}
-                </BoardSubtitle>
               </BoardTitle>
 
-              {error ? <ErrorBadge>{error}</ErrorBadge> : null}
+              <BoardHeaderRight>
+                <RefreshIconButton
+                  type="button"
+                  onClick={() => {
+                    void fetchBoardFull()
+                  }}
+                  disabled={!boardId || isLoading}
+                  aria-label="Atualizar leads"
+                  title="Atualizar leads"
+                >
+                  <RefreshCw size={18} />
+                </RefreshIconButton>
+
+                {error ? <ErrorBadge>{error}</ErrorBadge> : null}
+              </BoardHeaderRight>
             </BoardHeader>
 
-            {/* Barra de navegação dentro do board (borda arredondada de ponta a ponta) */}
-            <BoardNav>
-              <NavPill>Board</NavPill>
-              <NavPillMuted>
-                {data?.board?.isArchived ? 'Arquivado' : 'Ativo'}
-              </NavPillMuted>
-              <NavSpacer />
-              <NavHint>
-                DnD (UI): reordena dentro da coluna
-              </NavHint>
-            </BoardNav>
-
-            {/* Colunas + Leads */}
             <ColumnsArea>
               {!data ? (
                 <EmptyState>
-                  <EmptyTitle>Informe um boardId</EmptyTitle>
+                  <EmptyTitle>Board não carregado</EmptyTitle>
                   <EmptyText>
-                    Cole o UUID do board no campo acima e clique em <b>Atualizar leads</b>.
+                    Clique em <b>Atualizar leads</b> para buscar os dados.
                   </EmptyText>
                 </EmptyState>
               ) : (
@@ -353,7 +712,6 @@ export default function BoardPage() {
                                 <SortableLeadCard
                                   key={lead.id}
                                   lead={lead}
-                                  columnName={col.name}
                                 />
                               ))
                             )}
@@ -368,19 +726,29 @@ export default function BoardPage() {
           </BoardShell>
         </BoardOuter>
       </Page>
+
+      <LeadDetailsModal />
+      <SettingsModal />
     </>
   )
 }
 
 // ----------------------------
-// Styles (white bg + black text)
+// Styles
 // ----------------------------
 const GlobalStyle = createGlobalStyle`
   :root {
     color-scheme: light;
   }
-  * { box-sizing: border-box; }
-  html, body, #root { height: 100%; }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
   body {
     margin: 0;
     background: #ffffff;
@@ -397,7 +765,7 @@ const Page = styled.div`
 
 const TopBar = styled.div`
   width: 100%;
-  padding: 16px 18px;
+  padding: 16px 14px;
   border-bottom: 1px solid #e9e9e9;
   background: #ffffff;
   position: sticky;
@@ -406,7 +774,7 @@ const TopBar = styled.div`
 `
 
 const TopBarInner = styled.div`
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   gap: 16px;
@@ -415,6 +783,12 @@ const TopBarInner = styled.div`
 `
 
 const BrandLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const TopBarActions = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
@@ -432,39 +806,38 @@ const BrandText = styled.div`
   letter-spacing: -0.2px;
 `
 
-const TopBarRight = styled.div`
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  width: min(860px, 100%);
-  justify-content: flex-end;
-`
-
-const BoardIdInput = styled.input`
-  width: min(520px, 100%);
+const SettingsButton = styled.button`
+  width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid #e2e2e2;
-  padding: 0 12px;
-  outline: none;
-  color: #111111;
+  border: 1px solid #dcdcdc;
   background: #ffffff;
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 
-  &:focus {
-    border-color: #cfcfcf;
-    box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+  &:hover {
+    background: #f7f7f7;
   }
 `
 
-const PrimaryButton = styled.button`
+const RefreshIconButton = styled.button`
+  width: 40px;
   height: 40px;
   border-radius: 10px;
-  padding: 0 14px;
-  border: 1px solid #111111;
-  background: #111111;
+  border: 1px solid #dcdcdc;
+  background: #84cc16;
   color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  font-weight: 700;
+
+  &:hover {
+    background: #65a30d;
+  }
 
   &:disabled {
     opacity: 0.55;
@@ -473,12 +846,11 @@ const PrimaryButton = styled.button`
 `
 
 const BoardOuter = styled.div`
-  max-width: 1200px;
-  margin: 18px auto 32px auto;
-  padding: 0 18px;
+  width: 100%;
+  margin: 14px auto 28px auto;
+  padding: 0 10px;
 `
 
-// “component board geral” com borda arredondada
 const BoardShell = styled.div`
   border: 1px solid #e6e6e6;
   border-radius: 18px;
@@ -494,6 +866,13 @@ const BoardHeader = styled.div`
   padding: 6px 6px 12px 6px;
 `
 
+const BoardHeaderRight = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+`
+
 const BoardTitle = styled.div`
   display: flex;
   flex-direction: column;
@@ -501,12 +880,6 @@ const BoardTitle = styled.div`
   font-size: 18px;
   font-weight: 900;
   letter-spacing: -0.2px;
-`
-
-const BoardSubtitle = styled.div`
-  font-size: 12px;
-  font-weight: 600;
-  color: #5b5b5b;
 `
 
 const ErrorBadge = styled.div`
@@ -518,47 +891,6 @@ const ErrorBadge = styled.div`
   font-size: 12px;
   font-weight: 700;
   max-width: 520px;
-`
-
-// “outra borda arredondada indo de uma ponta a outra da tela, dentro do board geral”
-const BoardNav = styled.div`
-  width: 100%;
-  border: 1px solid #ededed;
-  border-radius: 16px;
-  background: #fafafa;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`
-
-const NavPill = styled.div`
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #111111;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-`
-
-const NavPillMuted = styled.div`
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #111111;
-  border: 1px solid #e5e5e5;
-  font-size: 12px;
-  font-weight: 800;
-`
-
-const NavSpacer = styled.div`
-  flex: 1;
-`
-
-const NavHint = styled.div`
-  font-size: 12px;
-  color: #4d4d4d;
-  font-weight: 600;
 `
 
 const ColumnsArea = styled.div`
@@ -721,4 +1053,248 @@ const EmptyText = styled.div`
   font-size: 13px;
   color: #555;
   font-weight: 600;
+`
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 17, 17, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+`
+
+const ModalCard = styled.div`
+  width: min(680px, 100%);
+  max-height: min(86vh, 900px);
+  overflow-y: auto;
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+`
+
+const SettingsModalCard = styled.div`
+  width: min(420px, 100%);
+  border: 1px solid #e6e6e6;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+`
+
+const ModalHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+`
+
+const SettingsModalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+`
+
+const ModalTitleArea = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+`
+
+const ModalAvatar = styled.div`
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #111111;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 14px;
+`
+
+const ModalTitle = styled.div`
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+`
+
+const SettingsModalTitle = styled.div`
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+`
+
+const ModalSubtitle = styled.div`
+  margin-top: 4px;
+  font-size: 13px;
+  color: #5b5b5b;
+  font-weight: 600;
+`
+
+const SettingsCloseIconButton = styled.button`
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #d9d9d9;
+  background: #ffffff;
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: #f7f7f7;
+  }
+`
+
+const ModalError = styled.div`
+  border: 1px solid #ffdddd;
+  background: #fff2f2;
+  color: #7a0b0b;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 16px;
+`
+
+const ModalLoading = styled.div`
+  border: 1px solid #ededed;
+  background: #fafafa;
+  color: #333333;
+  padding: 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+`
+
+const SectionTitle = styled.div`
+  margin-top: 18px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #111111;
+`
+
+const InfoList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+const InfoRow = styled.div`
+  border: 1px solid #ededed;
+  background: #fcfcfc;
+  border-radius: 14px;
+  padding: 12px;
+`
+
+const InfoLabel = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b6b6b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 8px;
+`
+
+const InfoValue = styled.div<{ $preWrap?: boolean }>`
+  font-size: 13px;
+  font-weight: 700;
+  color: #111111;
+  line-height: 1.45;
+  white-space: ${(props) => (props.$preWrap ? 'pre-wrap' : 'normal')};
+  word-break: break-word;
+`
+
+const InfoInput = styled.input`
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #dcdcdc;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111111;
+  padding: 0 12px;
+  outline: none;
+  font-size: 13px;
+  font-weight: 600;
+
+  &:focus {
+    border-color: #bdbdbd;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+  }
+`
+
+const ModalFooter = styled.div`
+  margin-top: 18px;
+`
+
+const FooterButtons = styled.div`
+  display: flex;
+  gap: 10px;
+  width: 100%;
+`
+
+const FooterButtonBase = styled.button`
+  flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+`
+
+const NeutralButton = styled(FooterButtonBase)`
+  background: #ededed;
+  color: #111111;
+  border-color: #dfdfdf;
+`
+
+const DangerButton = styled(FooterButtonBase)`
+  background: #d9534f;
+  color: #ffffff;
+  border-color: #c8423e;
+`
+
+const SuccessButton = styled(FooterButtonBase)`
+  background: #2e9b57;
+  color: #ffffff;
+  border-color: #27874b;
+`
+
+const SettingsModalBody = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const SettingsActionButton = styled.button`
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid #dfdfdf;
+  background: #f3f3f3;
+  color: #111111;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+`
+
+const SettingsSpacer = styled.div`
+  height: 42px;
 `
