@@ -4358,6 +4358,7 @@ function SortableLeadCard({
 
   return (
     <LeadCard
+      $menuOpen={isMoveMenuOpen}
       ref={setNodeRef}
       style={style}
       {...(isDragDisabled ? {} : attributes)}
@@ -6381,9 +6382,9 @@ const AddColumnButton = styled.button`
   }
 `
 
-const LeadCard = styled.div`
+const LeadCard = styled.div<{ $menuOpen?: boolean }>`
   position: relative;
-  z-index: 0;
+  z-index: ${(props) => (props.$menuOpen ? 140 : 0)};
   border: 1px solid var(--app-border-strong);
   border-radius: 16px;
   background: var(--app-surface);
@@ -6589,9 +6590,13 @@ const LeadActionButtons = styled.div`
 
 const LeadMoveMenuWrapper = styled.div`
   position: relative;
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
+
+  @media (max-width: 450px) {
+    display: inline-flex;
+  }
 `
 
 const LeadMoveButton = styled.button`
@@ -6621,7 +6626,7 @@ const LeadMoveDropdown = styled.div`
   background: var(--app-surface);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
   padding: 6px;
-  z-index: 80;
+  z-index: 180;
 `
 
 const LeadMoveOptionButton = styled.button<{ $active?: boolean }>`
