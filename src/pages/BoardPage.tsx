@@ -6144,7 +6144,7 @@ const BottomBrandDot = styled.span`
   width: 11px;
   height: 11px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--app-text);
 `
 
 const BottomBrandText = styled.span`
