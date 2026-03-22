@@ -5180,6 +5180,8 @@ export default function BoardPage() {
           <BottomBrandText>Strativy.co</BottomBrandText>
         </BottomBrand>
 
+        <BottomVersion>v1.0</BottomVersion>
+
         <BoardOuter>
           <BoardShell>
             <BoardHeader>
@@ -5379,7 +5381,6 @@ export default function BoardPage() {
                         placeholder="Nome, telefone, email"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        autoFocus
                       />
 
                       <MobileNavMenuDivider />
@@ -5929,6 +5930,10 @@ const MobileNavMenuSearchInput = styled.input`
   @media (max-width: 920px) {
     min-width: 0;
   }
+
+  @media (max-width: 450px) {
+    font-size: 16px;
+  }
 `
 
 const MobileNavMenuDivider = styled.div`
@@ -6155,6 +6160,24 @@ const BottomBrandText = styled.span`
 
   @media (max-width: 450px) {
     font-size: 16px;
+  }
+`
+
+const BottomVersion = styled.span`
+  position: fixed;
+  right: 24px;
+  bottom: 22px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  z-index: 50;
+  pointer-events: none;
+
+  @media (max-width: 450px) {
+    right: 10px;
+    bottom: 14px;
+    font-size: 11px;
   }
 `
 const ErrorBadge = styled.div`
