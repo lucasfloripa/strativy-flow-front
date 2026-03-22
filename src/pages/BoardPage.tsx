@@ -4099,7 +4099,12 @@ function ColumnActionsMenu({
   }, [isOpen, setOpenedColumnMenuId])
 
   return (
-    <ColumnMenuWrapper ref={wrapperRef}>
+    <ColumnMenuWrapper
+      ref={wrapperRef}
+      onClick={(event) => {
+        event.stopPropagation()
+      }}
+    >
       <ColumnMoreButton
         type="button"
         aria-label={`Mais opções da coluna ${column.name}`}
@@ -4171,16 +4176,24 @@ function ColumnActionsMenu({
   )
 }
 
-function SortableLeadCard({ lead }: { lead: Lead }) {
+function SortableLeadCard({
+  lead,
+  isDragDisabled
+}: {
+  lead: Lead
+  isDragDisabled?: boolean
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: lead.id })
+    useSortable({ id: lead.id, disabled: Boolean(isDragDisabled) })
 
-  const [, setBoardData] = useAtom(boardFullAtom)
+  const [boardData, setBoardData] = useAtom(boardFullAtom)
   const setOpenCreateFollowupOnLeadOpen = useSetAtom(openCreateFollowupOnLeadOpenAtom)
   const setSelectedLeadId = useSetAtom(selectedLeadIdAtom)
   const [selectedLead, setSelectedLead] = useAtom(selectedLeadAtom)
   const setLeadModalError = useSetAtom(leadModalErrorAtom)
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
+  const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false)
+  const moveMenuRef = useRef<HTMLDivElement | null>(null)
 
   const isFavorite = Boolean(lead.isFavorite)
   const sourceBadge = getLeadSourceBadge(lead.source)
@@ -4239,12 +4252,116 @@ function SortableLeadCard({ lead }: { lead: Lead }) {
     }
   }, [isFavorite, isFavoriteUpdating, lead.id, updateLeadLocally])
 
+  const moveLeadFromCard = useCallback(
+    (nextColumnId: string) => {
+      if (!nextColumnId || nextColumnId === lead.columnId) {
+        setIsMoveMenuOpen(false)
+        return
+      }
+
+      const movedAt = new Date().toISOString()
+
+      setBoardData((current) => {
+        if (!current) return current
+
+        let movedLead: Lead | null = null
+
+        const detachedColumns = current.columns.map((column) => {
+          if (column.id !== lead.columnId) return column
+
+          const remainingLeads = column.leads.filter((item) => {
+            if (item.id === lead.id) {
+              movedLead = {
+                ...item,
+                columnId: nextColumnId,
+                movedAt,
+                lastActivityAt: movedAt,
+                updatedAt: movedAt
+              }
+              return false
+            }
+            return true
+          })
+
+          return {
+            ...column,
+            leads: remainingLeads.map((item, index) => ({ ...item, position: index }))
+          }
+        })
+
+        if (!movedLead) return current
+
+        const movedLeadSnapshot: Lead = movedLead
+
+        return {
+          ...current,
+          columns: detachedColumns.map((column) => {
+            if (column.id !== nextColumnId) return column
+
+            const nextLeads = [...column.leads, { ...movedLeadSnapshot, position: column.leads.length }]
+            return { ...column, leads: nextLeads }
+          })
+        }
+      })
+
+      _mockMoveLead(lead.id, nextColumnId, boardData)
+      _mockPatchLead(lead.id, {
+        columnId: nextColumnId,
+        movedAt,
+        lastActivityAt: movedAt,
+        updatedAt: movedAt
+      })
+
+      if (selectedLead?.id === lead.id) {
+        setSelectedLead((prev) =>
+          prev
+            ? {
+                ...prev,
+                columnId: nextColumnId,
+                movedAt,
+                lastActivityAt: movedAt,
+                updatedAt: movedAt
+              }
+            : prev
+        )
+      }
+
+      setIsMoveMenuOpen(false)
+    },
+    [boardData, lead.columnId, lead.id, selectedLead?.id, setBoardData, setSelectedLead]
+  )
+
+  useEffect(() => {
+    if (!isMoveMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!moveMenuRef.current?.contains(target)) {
+        setIsMoveMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMoveMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMoveMenuOpen])
+
   return (
     <LeadCard
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(isDragDisabled ? {} : attributes)}
+      {...(isDragDisabled ? {} : listeners)}
       onClick={() => {
         setOpenCreateFollowupOnLeadOpen(false)
         setSelectedLead(null)
@@ -4296,6 +4413,49 @@ function SortableLeadCard({ lead }: { lead: Lead }) {
             >
               <Star size={14} strokeWidth={2.2} />
             </LeadFavoriteButton>
+
+            <LeadMoveMenuWrapper
+              ref={moveMenuRef}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+              }}
+            >
+              <LeadMoveButton
+                type="button"
+                aria-label="Mover lead"
+                title="Mover lead"
+                onClick={() => {
+                  setIsMoveMenuOpen((prev) => !prev)
+                }}
+              >
+                <ArrowRight size={13} strokeWidth={2.2} />
+              </LeadMoveButton>
+
+              {isMoveMenuOpen ? (
+                <LeadMoveDropdown>
+                  <MoveColumnLabel>Mover para</MoveColumnLabel>
+                  {(boardData?.columns ?? []).map((column) => {
+                    const isCurrent = column.id === lead.columnId
+
+                    return (
+                      <LeadMoveOptionButton
+                        key={column.id}
+                        type="button"
+                        $active={isCurrent}
+                        onClick={() => {
+                          moveLeadFromCard(column.id)
+                        }}
+                      >
+                        {column.name}
+                      </LeadMoveOptionButton>
+                    )
+                  })}
+                </LeadMoveDropdown>
+              ) : null}
+            </LeadMoveMenuWrapper>
           </LeadActionButtons>
         </LeadTitle>
       </LeadTopRow>
@@ -4366,9 +4526,11 @@ function DroppableColumnBody({
 
 function DroppableColumnHeader({
   columnId,
+  onClick,
   children
 }: {
   columnId: string
+  onClick?: () => void
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -4376,7 +4538,7 @@ function DroppableColumnHeader({
   })
 
   return (
-    <ColumnHeader ref={setNodeRef} $isOver={isOver}>
+    <ColumnHeader ref={setNodeRef} $isOver={isOver} onClick={onClick}>
       {children}
     </ColumnHeader>
   )
@@ -5340,11 +5502,22 @@ export default function BoardPage() {
 
                       return (
                       <Column key={col.id}>
-                        <DroppableColumnHeader columnId={col.id}>
+                        <DroppableColumnHeader
+                          columnId={col.id}
+                          onClick={() => {
+                            if (!isNarrowMobile) return
+
+                            setOpenMobileColumnMap((prev) => ({
+                              ...prev,
+                              [col.id]: !prev[col.id]
+                            }))
+                          }}
+                        >
                           <ColumnTitleGroup>
                             <ColumnAccordionToggle
                               type="button"
-                              onClick={() => {
+                              onClick={(event) => {
+                                event.stopPropagation()
                                 setOpenMobileColumnMap((prev) => ({
                                   ...prev,
                                   [col.id]: !prev[col.id]
@@ -5421,7 +5594,11 @@ export default function BoardPage() {
                               }
                               return leads
                             })()).map((lead) => (
-                              <SortableLeadCard key={lead.id} lead={lead} />
+                              <SortableLeadCard
+                                key={lead.id}
+                                lead={lead}
+                                isDragDisabled={isNarrowMobile}
+                              />
                             ))}
                           </SortableContext>
 
@@ -6177,16 +6354,21 @@ const AddColumnButton = styled.button`
 
 const LeadCard = styled.div`
   position: relative;
+  z-index: 0;
   border: 1px solid var(--app-border-strong);
   border-radius: 16px;
   background: var(--app-surface);
   padding: 12px;
   cursor: grab;
   user-select: none;
-  overflow: hidden;
+  overflow: visible;
 
   &:active {
     cursor: grabbing;
+  }
+
+  &:focus-within {
+    z-index: 90;
   }
 
   @media (max-width: 450px) {
@@ -6371,9 +6553,63 @@ const LeadNewSparkle = styled.span`
 
 const LeadActionButtons = styled.div`
   display: inline-flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 8px;
+`
+
+const LeadMoveMenuWrapper = styled.div`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const LeadMoveButton = styled.button`
+  border: 0;
+  background: transparent;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a3a3a3;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--app-text);
+  }
+`
+
+const LeadMoveDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 170px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 80;
+`
+
+const LeadMoveOptionButton = styled.button<{ $active?: boolean }>`
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: ${(props) => (props.$active ? 'var(--app-hover)' : 'transparent')};
+  color: var(--app-text);
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: ${(props) => (props.$active ? 800 : 700)};
+  cursor: pointer;
+
+  &:hover {
+    background: var(--app-hover);
+  }
 `
 
 const LeadFavoriteButton = styled.button<{ $active: boolean }>`
