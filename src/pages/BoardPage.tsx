@@ -2783,12 +2783,12 @@ function LeadDetailsModal({
       const visualStatus = getSingleFollowUpVisualStatus(f)
 
       return (
-        <>
+        <FollowUpItemMetaLine>
           <FollowUpItemStatus $status={visualStatus}>
             {getFollowUpStatusLabel(visualStatus)}
           </FollowUpItemStatus>
           <FollowUpItemDate>{formatFollowUpDateTimeExact(f.dueAt)}</FollowUpItemDate>
-        </>
+        </FollowUpItemMetaLine>
       )
     })()}
   </FollowUpItemMainLine>
@@ -7616,6 +7616,20 @@ const FollowUpItemMainLine = styled.div`
   min-width: 0;
   flex: 1;
 
+  @media (max-width: 450px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+`
+
+const FollowUpItemMetaLine = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 0;
+
   ${FollowUpItemDate} {
     flex-shrink: 0;
     white-space: nowrap;
@@ -7623,6 +7637,12 @@ const FollowUpItemMainLine = styled.div`
 
   ${FollowUpItemStatus} {
     white-space: nowrap;
+  }
+
+  @media (max-width: 450px) {
+    width: 100%;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 `
 
@@ -7644,6 +7664,10 @@ const FollowUpItemTitle = styled.button`
   text-overflow: ellipsis;
   cursor: default;
   -webkit-touch-callout: none;
+
+  @media (max-width: 450px) {
+    width: 100%;
+  }
 
   &::before {
     content: '';
