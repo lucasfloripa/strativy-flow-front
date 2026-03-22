@@ -5781,7 +5781,7 @@ const BoardOuter = styled.div`
   overflow: hidden;
 
   @media (max-width: 450px) {
-    padding: 2px 6px 10px;
+    padding: 2px 6px 44px;
   }
 `
 
@@ -6119,7 +6119,9 @@ const BottomBrand = styled.div`
   pointer-events: none;
 
   @media (max-width: 450px) {
-    display: none;
+    left: 10px;
+    bottom: 12px;
+    gap: 8px;
   }
 `
 
@@ -6134,7 +6136,7 @@ const BottomFixedBackground = styled.div`
   pointer-events: none;
 
   @media (max-width: 450px) {
-    height: 0;
+    height: 40px;
   }
 `
 
@@ -6150,6 +6152,10 @@ const BottomBrandText = styled.span`
   font-size: 20px;
   font-weight: 700;
   line-height: 1;
+
+  @media (max-width: 450px) {
+    font-size: 16px;
+  }
 `
 const ErrorBadge = styled.div`
   border: 1px solid #ffdddd;
@@ -6372,7 +6378,7 @@ const LeadCard = styled.div`
   }
 
   @media (max-width: 450px) {
-    touch-action: none;
+    touch-action: pan-y;
   }
 `
 
