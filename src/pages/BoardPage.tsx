@@ -182,8 +182,97 @@ type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'fa
 type ColumnSettingsView = 'details' | 'automations'
 type ColumnColorKey = 'blue' | 'green' | 'red' | 'yellow'
 type ThemeMode = 'light' | 'dark'
+type AppRelease = {
+  version: string
+  functionalChanges: string[]
+}
+type V11StoryPhaseAction = {
+  label: string
+  nextPhase?: number
+  close?: boolean
+}
+type V11StoryDescriptionLine = {
+  text: string
+  asHeadline?: boolean
+}
+type V11StoryPhase = {
+  id: number
+  headline: string
+  descriptionLines?: V11StoryDescriptionLine[]
+  actions: V11StoryPhaseAction[]
+}
 
 const THEME_STORAGE_KEY = 'strativy-theme-mode'
+
+const APP_RELEASES: AppRelease[] = [
+  {
+    version: 'v1.0',
+    functionalChanges: [
+      'Visualização do board com colunas e leads.',
+      'Busca e filtros rápidos para localizar leads.',
+      'Criação e movimentação de leads entre colunas.',
+      'Favoritar leads e acompanhar follow-ups.',
+      'Automações e configurações básicas por coluna.'
+    ]
+  },
+  {
+    version: 'v1.1',
+    functionalChanges: []
+  }
+]
+
+const V11_STORY_PHASES: V11StoryPhase[] = [
+  {
+    id: 1,
+    headline: 'Ah Hay… só mais uma coisinha 😄',
+    actions: [{ label: 'Próximo', nextPhase: 2 }]
+  },
+  {
+    id: 2,
+    headline: 'Não vou precisar de mais 12 anos pra te ver. Certo ? 🙄',
+    actions: [
+      { label: '😅 Sim', nextPhase: 3 },
+      { label: '😂 Talvez', nextPhase: 3 }
+    ]
+  },
+  {
+    id: 3,
+    headline: 'Ufa 😮‍💨',
+    actions: [{ label: 'Continuar', nextPhase: 4 }]
+  },
+  {
+    id: 4,
+    headline: 'Na entrega desse app...',
+    descriptionLines: [
+      { text: 'rolaria uma jantinha né?', asHeadline: true },
+      { text: '(prometo que é só uma janta 😄)' }
+    ],
+    actions: [
+      { label: 'Sim 🙂', nextPhase: 5 },
+      { label: 'Com certeza 😌', nextPhase: 5 }
+    ]
+  },
+  {
+    id: 5,
+    headline: 'Oba ☺️',
+    actions: [{ label: 'Próximo', nextPhase: 6 }]
+  },
+  {
+    id: 6,
+    headline: 'Tenha certeza de uma coisa',
+    descriptionLines: [
+      { text: 'o que for preciso pra fazer dar certo,', asHeadline: true },
+      { text: 'eu vou fazer 🙂', asHeadline: true },
+      { text: '(e não tô falando só do app)' }
+    ],
+    actions: [{ label: 'Próximo', nextPhase: 7 }]
+  },
+  {
+    id: 7,
+    headline: 'Agradecido 🙏',
+    actions: [{ label: 'Encerrar', close: true }]
+  }
+]
 
 const COLUMN_COLOR_OPTIONS: Array<{
   key: ColumnColorKey
@@ -4574,6 +4663,10 @@ export default function BoardPage() {
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false)
   const [isMobileNavMenuOpen, setIsMobileNavMenuOpen] = useState(false)
   const [isMobileSettingsDropdownOpen, setIsMobileSettingsDropdownOpen] = useState(false)
+  const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
+  const [selectedAppVersion, setSelectedAppVersion] = useState<string>(APP_RELEASES[0]?.version ?? '')
+  const [isV11StoryModalOpen, setIsV11StoryModalOpen] = useState(false)
+  const [v11StoryPhaseId, setV11StoryPhaseId] = useState<number>(1)
   const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia('(max-width: 450px)').matches
@@ -4682,11 +4775,52 @@ export default function BoardPage() {
     ]
   }, [data?.board])
 
+  const selectedAppRelease = useMemo(
+    () => APP_RELEASES.find((release) => release.version === selectedAppVersion) ?? APP_RELEASES[0],
+    [selectedAppVersion]
+  )
+  const currentV11StoryPhase = useMemo(
+    () => V11_STORY_PHASES.find((phase) => phase.id === v11StoryPhaseId) ?? V11_STORY_PHASES[0],
+    [v11StoryPhaseId]
+  )
+
   useEffect(() => {
     if (!boardOptions.length) return
 
     setSelectedBoardOptionId((prev) => (prev ? prev : boardOptions[0].id))
   }, [boardOptions])
+
+  useEffect(() => {
+    if (!isVersionModalOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsVersionModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isVersionModalOpen])
+
+  useEffect(() => {
+    if (!isV11StoryModalOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsV11StoryModalOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isV11StoryModalOpen])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -5181,7 +5315,16 @@ export default function BoardPage() {
           <BottomBrandText>Strativy.co</BottomBrandText>
         </BottomBrand>
 
-        <BottomVersion>v1.0</BottomVersion>
+        <BottomVersion
+          type="button"
+          onClick={() => {
+            setIsVersionModalOpen(true)
+          }}
+          aria-label="Abrir histórico de versões"
+          title="Histórico de versões"
+        >
+          v1.0
+        </BottomVersion>
 
         <BoardOuter>
           <BoardShell>
@@ -5641,6 +5784,135 @@ export default function BoardPage() {
           </BoardShell>
         </BoardOuter>
       </Page>
+
+      {isVersionModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsVersionModalOpen(false)
+          }}
+        >
+          <SettingsModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>Versões do app</SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsVersionModalOpen(false)
+                }}
+                aria-label="Fechar histórico de versões"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            <InfoList>
+              <InfoRow>
+                <InfoLabel>Selecionar versão</InfoLabel>
+                <InfoSelect
+                  value={selectedAppVersion}
+                  onChange={(event) => {
+                    const nextVersion = event.target.value
+
+                    if (nextVersion === 'v1.1') {
+                      setV11StoryPhaseId(1)
+                      setIsV11StoryModalOpen(true)
+                      setSelectedAppVersion('v1.0')
+                      return
+                    }
+
+                    setSelectedAppVersion(nextVersion)
+                  }}
+                >
+                  {APP_RELEASES.map((release) => (
+                    <option key={release.version} value={release.version}>
+                      {release.version}
+                    </option>
+                  ))}
+                </InfoSelect>
+              </InfoRow>
+
+              <VersionNotesCard>
+                <InfoLabel>Funcionalidades da versão</InfoLabel>
+                <VersionNotesTitle>{selectedAppRelease?.version ?? 'v1.0'}</VersionNotesTitle>
+                <VersionNotesList>
+                  {(selectedAppRelease?.functionalChanges ?? []).map((item) => (
+                    <VersionNotesItem key={item}>{item}</VersionNotesItem>
+                  ))}
+                </VersionNotesList>
+              </VersionNotesCard>
+            </InfoList>
+          </SettingsModalCard>
+        </ModalOverlay>
+      ) : null}
+
+      {isV11StoryModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsV11StoryModalOpen(false)
+          }}
+        >
+          <V11StoryModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>v1.1</SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsV11StoryModalOpen(false)
+                }}
+                aria-label="Fechar fase v1.1"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            <V11StoryContent>
+              <V11StoryHeadline>{currentV11StoryPhase.headline}</V11StoryHeadline>
+              {currentV11StoryPhase.descriptionLines?.length ? (
+                <V11StoryDescription>
+                  {currentV11StoryPhase.descriptionLines.map((line) => (
+                    <V11StoryDescriptionLineText key={line.text} $headline={Boolean(line.asHeadline)}>
+                      {line.text}
+                    </V11StoryDescriptionLineText>
+                  ))}
+                </V11StoryDescription>
+              ) : null}
+            </V11StoryContent>
+
+            <V11StoryActions>
+              {currentV11StoryPhase.actions.map((action) => (
+                <V11StoryActionButton
+                  key={action.label}
+                  type="button"
+                  onClick={() => {
+                    if (action.close) {
+                      setIsV11StoryModalOpen(false)
+                      return
+                    }
+
+                    if (action.nextPhase) {
+                      setV11StoryPhaseId(action.nextPhase)
+                    }
+                  }}
+                >
+                  {action.label}
+                </V11StoryActionButton>
+              ))}
+            </V11StoryActions>
+          </V11StoryModalCard>
+        </ModalOverlay>
+      ) : null}
 
       <LeadDetailsModal onRefreshBoard={fetchBoardFull} />
       <SettingsModal />
@@ -6164,16 +6436,31 @@ const BottomBrandText = styled.span`
   }
 `
 
-const BottomVersion = styled.span`
+const BottomVersion = styled.button`
   position: fixed;
   right: 24px;
   bottom: 22px;
+  border: 0;
+  background: transparent;
+  padding: 0;
   color: var(--app-text-muted);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
   z-index: 50;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
+
+  &:hover {
+    color: var(--app-text);
+  }
+
+  &:focus-visible {
+    outline: none;
+    color: var(--app-text);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+  }
 
   @media (max-width: 450px) {
     right: 10px;
@@ -7159,6 +7446,108 @@ const InfoValue = styled.div<{ $preWrap?: boolean }>`
   line-height: 1.45;
   white-space: ${(props) => (props.$preWrap ? 'pre-wrap' : 'normal')};
   word-break: break-word;
+`
+
+const VersionNotesCard = styled(InfoRow)`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+const VersionNotesTitle = styled.div`
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--app-text);
+`
+
+const VersionNotesList = styled.ul`
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const VersionNotesItem = styled.li`
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text);
+  line-height: 1.45;
+`
+
+const V11StoryModalCard = styled(SettingsModalCard)`
+  max-width: 470px;
+`
+
+const V11StoryContent = styled.div`
+  margin-top: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-soft);
+  border-radius: 14px;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+`
+
+const V11StoryHeadline = styled.div`
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--app-text);
+  line-height: 1.3;
+
+  @media (max-width: 450px) {
+    font-size: 18px;
+  }
+`
+
+const V11StoryDescription = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  line-height: 1.4;
+`
+
+const V11StoryDescriptionLineText = styled.span<{ $headline: boolean }>`
+  font-size: ${(props) => (props.$headline ? '20px' : '14px')};
+  font-weight: ${(props) => (props.$headline ? 900 : 700)};
+  color: ${(props) => (props.$headline ? 'var(--app-text)' : 'var(--app-text-muted)')};
+  line-height: ${(props) => (props.$headline ? 1.3 : 1.4)};
+
+  @media (max-width: 450px) {
+    font-size: ${(props) => (props.$headline ? '18px' : '14px')};
+  }
+`
+
+const V11StoryActions = styled.div`
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  width: 100%;
+
+  @media (max-width: 450px) {
+    flex-direction: column;
+  }
+`
+
+const V11StoryActionButton = styled.button`
+  flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-soft);
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+
+  &:hover {
+    background: var(--app-hover);
+  }
 `
 
 const LeadInfoBlockLabel = styled(InfoLabel)`
