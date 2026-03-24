@@ -186,21 +186,6 @@ type AppRelease = {
   version: string
   functionalChanges: string[]
 }
-type V11StoryPhaseAction = {
-  label: string
-  nextPhase?: number
-  close?: boolean
-}
-type V11StoryDescriptionLine = {
-  text: string
-  asHeadline?: boolean
-}
-type V11StoryPhase = {
-  id: number
-  headline: string
-  descriptionLines?: V11StoryDescriptionLine[]
-  actions: V11StoryPhaseAction[]
-}
 
 const THEME_STORAGE_KEY = 'strativy-theme-mode'
 
@@ -214,63 +199,6 @@ const APP_RELEASES: AppRelease[] = [
       'Favoritar leads e acompanhar follow-ups.',
       'Automações e configurações básicas por coluna.'
     ]
-  },
-  {
-    version: 'v1.1',
-    functionalChanges: []
-  }
-]
-
-const V11_STORY_PHASES: V11StoryPhase[] = [
-  {
-    id: 1,
-    headline: 'Ah Hay… só mais uma coisinha 😄',
-    actions: [{ label: 'Próximo', nextPhase: 2 }]
-  },
-  {
-    id: 2,
-    headline: 'Não vou precisar de mais 12 anos pra te ver. Certo ? 🙄',
-    actions: [
-      { label: '😅 Sim', nextPhase: 3 },
-      { label: '😂 Talvez', nextPhase: 3 }
-    ]
-  },
-  {
-    id: 3,
-    headline: 'Ufa 😮‍💨',
-    actions: [{ label: 'Continuar', nextPhase: 4 }]
-  },
-  {
-    id: 4,
-    headline: 'Na entrega desse app...',
-    descriptionLines: [
-      { text: 'rolaria uma jantinha né?', asHeadline: true },
-      { text: '(prometo que é só uma janta 😄)' }
-    ],
-    actions: [
-      { label: 'Sim 🙂', nextPhase: 5 },
-      { label: 'Com certeza 😌', nextPhase: 5 }
-    ]
-  },
-  {
-    id: 5,
-    headline: 'Oba ☺️',
-    actions: [{ label: 'Próximo', nextPhase: 6 }]
-  },
-  {
-    id: 6,
-    headline: 'Tenha certeza de uma coisa',
-    descriptionLines: [
-      { text: 'o que for preciso pra fazer dar certo,', asHeadline: true },
-      { text: 'eu vou fazer 🙂', asHeadline: true },
-      { text: '(e não tô falando só do app)' }
-    ],
-    actions: [{ label: 'Próximo', nextPhase: 7 }]
-  },
-  {
-    id: 7,
-    headline: 'Agradecido 🙏',
-    actions: [{ label: 'Encerrar', close: true }]
   }
 ]
 
@@ -463,6 +391,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(11) 99123-4567',
           email: 'joao.silva@empresa.com.br',
           source: 'whatsapp',
+          fields: {
+            initialMessage: 'Oi! Vi o anúncio e queria entender melhor como funciona para equipe com vários atendentes.'
+          },
           notes: 'Cliente interessado no plano enterprise. Já realizou uma demonstração e gostou muito do produto. Ponto de contato: João (CEO). Empresa com 150 funcionários no setor de logística.',
           isFavorite: true,
           isArchived: false,
@@ -484,6 +415,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(21) 98765-4321',
           email: 'maria.santos@gmail.com',
           source: 'instagram',
+          fields: {
+            initialMessage: 'Cheguei pelo Instagram. Vocês atendem negócio local com equipe pequena?'
+          },
           notes: '',
           isFavorite: false,
           isArchived: false,
@@ -505,6 +439,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(19) 99876-5432',
           email: 'bruno.almeida@comercial.com.br',
           source: 'facebook',
+          fields: {
+            initialMessage: 'Olá, gostaria de receber uma proposta para o plano profissional ainda essa semana.'
+          },
           notes: 'Lead novo na operação comercial. Demonstrou interesse no plano profissional e está aguardando retorno com proposta ajustada.',
           isFavorite: false,
           isArchived: false,
@@ -542,6 +479,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(31) 97654-3210',
           email: 'carlos.mendes@negocio.com',
           source: 'facebook',
+          fields: {
+            initialMessage: 'Tem integração com ERP legado? Esse é o principal ponto para a nossa decisão.'
+          },
           notes: 'Reunião realizada há 6 dias. Mostrou interesse no plano Pro com customizações. Aguardando aprovação do board e proposta de integração com sistema legado.',
           isFavorite: true,
           isArchived: false,
@@ -563,6 +503,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(41) 96543-2109',
           email: 'ana.costa@startup.io',
           source: 'facebook',
+          fields: {
+            initialMessage: 'Estou avaliando para o time de vendas. Conseguimos migrar dados do sistema antigo?'
+          },
           notes: 'Startup em fase de crescimento acelerado. Potencial de expansão de contrato em 6 meses. Precisa de migração de dados do sistema anterior.',
           isFavorite: false,
           isArchived: false,
@@ -596,6 +539,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(51) 95432-1098',
           email: 'roberto.lima@consultoria.com.br',
           source: 'whatsapp',
+          fields: {
+            initialMessage: 'Quero uma proposta com relatório gerencial incluso para apresentar ao conselho.'
+          },
           notes: 'Proposta enviada há 11 dias. Valor: R$ 4.800/mês. Aguardando decisão do conselho. Solicitou adição de módulo de relatórios gerenciais no contrato.',
           isFavorite: false,
           isArchived: false,
@@ -617,6 +563,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(61) 94321-0987',
           email: 'juliana@techcompany.io',
           source: 'whatsapp',
+          fields: {
+            initialMessage: 'Boa tarde! Temos operação em crescimento e buscamos um plano com suporte prioritário.'
+          },
           notes: 'Empresa de tecnologia com 200 funcionários. Proposta customizada elaborada pelo time de soluções. Ponto de contato: Juliana (Diretora Comercial). Negociação em fase final — aguardando assinatura do contrato anual no valor de R$ 12.000/mês.',
           isFavorite: true,
           isArchived: false,
@@ -653,6 +602,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(71) 93210-9876',
           email: 'fernando@grupooliveira.com',
           source: 'instagram',
+          fields: {
+            initialMessage: 'Tenho interesse em entender o onboarding e o tempo de implantação antes de fechar.'
+          },
           notes: 'Contrato assinado em 15/03/2026. Plano Business – 12 meses. Cliente indicou mais 2 contatos da rede. Chave de acesso enviada por email.',
           isFavorite: false,
           isArchived: false,
@@ -674,6 +626,9 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(81) 92109-8765',
           email: 'patricia@varejista.com.br',
           source: 'whatsapp',
+          fields: {
+            initialMessage: 'Precisamos garantir integração com SAP para seguir com a contratação.'
+          },
           notes: 'Cliente de varejo com alto volume de pedidos. Ativação pendente de integração com ERP legado SAP. Time técnico alocado.',
           isFavorite: true,
           isArchived: false,
@@ -1468,7 +1423,9 @@ function CreateLeadModal({
         phone: phone.trim(),
         email: normalizeOptionalString(email),
         source: normalizeOptionalString(source),
-        fields: {}
+        fields: {
+          initialMessage: ''
+        }
       }
 
       // await api.post('/leads', payload)
@@ -3071,6 +3028,13 @@ function LeadDetailsModal({
                       </InfoRow>
 
                       <InfoRow>
+                        <LeadInfoBlockLabel>💬 Contexto inicial</LeadInfoBlockLabel>
+                        <InfoValue>
+                          {String(selectedLead.fields?.initialMessage ?? '').trim() || 'Sem contexto inicial'}
+                        </InfoValue>
+                      </InfoRow>
+
+                      <InfoRow>
                         <LeadInfoRowHeader>
                           <LeadInfoBlockLabel>ℹ️ Informações</LeadInfoBlockLabel>
                           {!isContactEditMode ? (
@@ -4665,8 +4629,6 @@ export default function BoardPage() {
   const [isMobileSettingsDropdownOpen, setIsMobileSettingsDropdownOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [selectedAppVersion, setSelectedAppVersion] = useState<string>(APP_RELEASES[0]?.version ?? '')
-  const [isV11StoryModalOpen, setIsV11StoryModalOpen] = useState(false)
-  const [v11StoryPhaseId, setV11StoryPhaseId] = useState<number>(1)
   const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia('(max-width: 450px)').matches
@@ -4779,10 +4741,6 @@ export default function BoardPage() {
     () => APP_RELEASES.find((release) => release.version === selectedAppVersion) ?? APP_RELEASES[0],
     [selectedAppVersion]
   )
-  const currentV11StoryPhase = useMemo(
-    () => V11_STORY_PHASES.find((phase) => phase.id === v11StoryPhaseId) ?? V11_STORY_PHASES[0],
-    [v11StoryPhaseId]
-  )
 
   useEffect(() => {
     if (!boardOptions.length) return
@@ -4805,22 +4763,6 @@ export default function BoardPage() {
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [isVersionModalOpen])
-
-  useEffect(() => {
-    if (!isV11StoryModalOpen) return
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsV11StoryModalOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isV11StoryModalOpen])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -5817,16 +5759,7 @@ export default function BoardPage() {
                 <InfoSelect
                   value={selectedAppVersion}
                   onChange={(event) => {
-                    const nextVersion = event.target.value
-
-                    if (nextVersion === 'v1.1') {
-                      setV11StoryPhaseId(1)
-                      setIsV11StoryModalOpen(true)
-                      setSelectedAppVersion('v1.0')
-                      return
-                    }
-
-                    setSelectedAppVersion(nextVersion)
+                    setSelectedAppVersion(event.target.value)
                   }}
                 >
                   {APP_RELEASES.map((release) => (
@@ -5848,69 +5781,6 @@ export default function BoardPage() {
               </VersionNotesCard>
             </InfoList>
           </SettingsModalCard>
-        </ModalOverlay>
-      ) : null}
-
-      {isV11StoryModalOpen ? (
-        <ModalOverlay
-          onClick={() => {
-            setIsV11StoryModalOpen(false)
-          }}
-        >
-          <V11StoryModalCard
-            onClick={(event) => {
-              event.stopPropagation()
-            }}
-          >
-            <SettingsModalHeader>
-              <SettingsModalTitle>v1.1</SettingsModalTitle>
-
-              <SettingsCloseIconButton
-                type="button"
-                onClick={() => {
-                  setIsV11StoryModalOpen(false)
-                }}
-                aria-label="Fechar fase v1.1"
-                title="Fechar"
-              >
-                <X size={18} />
-              </SettingsCloseIconButton>
-            </SettingsModalHeader>
-
-            <V11StoryContent>
-              <V11StoryHeadline>{currentV11StoryPhase.headline}</V11StoryHeadline>
-              {currentV11StoryPhase.descriptionLines?.length ? (
-                <V11StoryDescription>
-                  {currentV11StoryPhase.descriptionLines.map((line) => (
-                    <V11StoryDescriptionLineText key={line.text} $headline={Boolean(line.asHeadline)}>
-                      {line.text}
-                    </V11StoryDescriptionLineText>
-                  ))}
-                </V11StoryDescription>
-              ) : null}
-            </V11StoryContent>
-
-            <V11StoryActions>
-              {currentV11StoryPhase.actions.map((action) => (
-                <V11StoryActionButton
-                  key={action.label}
-                  type="button"
-                  onClick={() => {
-                    if (action.close) {
-                      setIsV11StoryModalOpen(false)
-                      return
-                    }
-
-                    if (action.nextPhase) {
-                      setV11StoryPhaseId(action.nextPhase)
-                    }
-                  }}
-                >
-                  {action.label}
-                </V11StoryActionButton>
-              ))}
-            </V11StoryActions>
-          </V11StoryModalCard>
         </ModalOverlay>
       ) : null}
 
@@ -7473,81 +7343,6 @@ const VersionNotesItem = styled.li`
   font-weight: 700;
   color: var(--app-text);
   line-height: 1.45;
-`
-
-const V11StoryModalCard = styled(SettingsModalCard)`
-  max-width: 470px;
-`
-
-const V11StoryContent = styled.div`
-  margin-top: 8px;
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-soft);
-  border-radius: 14px;
-  padding: 18px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  text-align: center;
-`
-
-const V11StoryHeadline = styled.div`
-  font-size: 20px;
-  font-weight: 900;
-  color: var(--app-text);
-  line-height: 1.3;
-
-  @media (max-width: 450px) {
-    font-size: 18px;
-  }
-`
-
-const V11StoryDescription = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--app-text-muted);
-  line-height: 1.4;
-`
-
-const V11StoryDescriptionLineText = styled.span<{ $headline: boolean }>`
-  font-size: ${(props) => (props.$headline ? '20px' : '14px')};
-  font-weight: ${(props) => (props.$headline ? 900 : 700)};
-  color: ${(props) => (props.$headline ? 'var(--app-text)' : 'var(--app-text-muted)')};
-  line-height: ${(props) => (props.$headline ? 1.3 : 1.4)};
-
-  @media (max-width: 450px) {
-    font-size: ${(props) => (props.$headline ? '18px' : '14px')};
-  }
-`
-
-const V11StoryActions = styled.div`
-  margin-top: 14px;
-  display: flex;
-  gap: 10px;
-  width: 100%;
-
-  @media (max-width: 450px) {
-    flex-direction: column;
-  }
-`
-
-const V11StoryActionButton = styled.button`
-  flex: 1;
-  min-height: 46px;
-  border-radius: 12px;
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-soft);
-  color: var(--app-text);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
-
-  &:hover {
-    background: var(--app-hover);
-  }
 `
 
 const LeadInfoBlockLabel = styled(InfoLabel)`
