@@ -194,6 +194,14 @@ const THEME_STORAGE_KEY = 'strativy-theme-mode'
 
 const APP_RELEASES: AppRelease[] = [
   {
+    version: 'v1.1',
+    functionalChanges: [
+      'Implementamos toasts em toda a aplicação para dar feedback imediato em ações de sucesso, aviso e erro.',
+      "Adicionamos o campo 'Contexto inicial' nos detalhes do lead para facilitar a leitura do histórico de entrada.",
+      'Reorganizamos o menu da engrenagem com opções mais claras de dados do usuário, preferências e notificações.'
+    ]
+  },
+  {
     version: 'v1.0',
     functionalChanges: [
       'Visualização do board com colunas e leads.',
@@ -4884,6 +4892,11 @@ export default function BoardPage() {
     [selectedAppVersion]
   )
 
+  const currentAppDateLabel = useMemo(
+    () => new Intl.DateTimeFormat('pt-BR').format(new Date()),
+    []
+  )
+
   useEffect(() => {
     if (!boardOptions.length) return
 
@@ -5432,7 +5445,7 @@ export default function BoardPage() {
           aria-label="Abrir histórico de versões"
           title="Histórico de versões"
         >
-          v1.0
+          {`${currentAppDateLabel} · ${APP_RELEASES[0]?.version ?? 'v1.1'}`}
         </BottomVersion>
 
         <BoardOuter>
