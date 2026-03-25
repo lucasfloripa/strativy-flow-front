@@ -25,9 +25,11 @@ import {
   Star,
   Clock3,
   ArrowLeft,
-  Sun,
-  Moon,
-  Menu
+  Menu,
+  Bell,
+  CircleUser,
+  Settings2,
+  LogOut
 } from 'lucide-react'
 import { atom, useAtom, useSetAtom } from 'jotai'
 
@@ -387,7 +389,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
         {
           id: 'lead-1',
           boardId: 'mock-board-1', columnId: 'col-1', position: 0,
-          name: 'João Silva',
+          name: 'João da Silva Pereira',
           phone: '(11) 99123-4567',
           email: 'joao.silva@empresa.com.br',
           source: 'whatsapp',
@@ -411,7 +413,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
         {
           id: 'lead-2',
           boardId: 'mock-board-1', columnId: 'col-1', position: 1,
-          name: 'Maria Santos',
+          name: 'Maria Fernanda dos Santos Oliveira',
           phone: '(21) 98765-4321',
           email: 'maria.santos@gmail.com',
           source: 'instagram',
@@ -435,7 +437,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
         {
           id: 'lead-9',
           boardId: 'mock-board-1', columnId: 'col-1', position: 2,
-          name: 'Bruno Almeida',
+          name: 'Bruno Henrique Almeida de Souza',
           phone: '(19) 99876-5432',
           email: 'bruno.almeida@comercial.com.br',
           source: 'facebook',
@@ -839,6 +841,13 @@ function formatPhone(phone?: string) {
   return phone?.trim() || '—'
 }
 
+function getLeadFirstName(name?: string | null) {
+  const trimmedName = name?.trim() ?? ''
+  if (!trimmedName) return ''
+
+  return trimmedName.split(/\s+/)[0] ?? ''
+}
+
 function sortColumnsAndLeads(data: BoardFullResponse): BoardFullResponse {
   const columns = [...data.columns]
     .sort((a, b) => a.position - b.position)
@@ -995,7 +1004,7 @@ function SettingsModal() {
         }}
       >
         <SettingsModalHeader>
-          <SettingsModalTitle>Configurações</SettingsModalTitle>
+          <SettingsModalTitle>Ações da coluna</SettingsModalTitle>
 
           <SettingsCloseIconButton
             type="button"
@@ -1057,7 +1066,6 @@ function ColumnActionsModal({
   ])
 
   useEffect(() => {
-    if (!selectedColumn) return
     syncForm(selectedColumn)
   }, [selectedColumn, syncForm])
 
@@ -1146,7 +1154,7 @@ function ColumnActionsModal({
         }}
       >
         <SettingsModalHeader>
-          <SettingsModalTitle>{selectedColumn.name}</SettingsModalTitle>
+          <SettingsModalTitle>Ações da coluna</SettingsModalTitle>
 
           <SettingsCloseIconButton
             type="button"
@@ -1174,7 +1182,7 @@ function ColumnActionsModal({
                 }}
                 disabled={isSaving}
               >
-                {isSaving ? 'Apagando...' : 'Sim'}
+                Sim
               </DangerButton>
 
               <NeutralButton
@@ -2546,7 +2554,7 @@ function LeadDetailsModal({
                         }
                       }}
                     >
-                      {selectedLead?.name ?? 'Detalhes do lead'}
+                      {getLeadFirstName(selectedLead?.name) || 'Detalhes do lead'}
                     </ModalTitleClickable>
 
                     {selectedLead ? (
@@ -3072,6 +3080,11 @@ function LeadDetailsModal({
                             </LeadInfoActions>
                           )}
                         </LeadInfoRowHeader>
+
+                        <LeadContactLine>
+                          <LeadContactKey>Nome completo:</LeadContactKey>
+                          <LeadContactValue>{selectedLead.name?.trim() || '—'}</LeadContactValue>
+                        </LeadContactLine>
 
                         <LeadContactLine>
                           <LeadContactKey>Telefone:</LeadContactKey>
@@ -4627,6 +4640,9 @@ export default function BoardPage() {
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false)
   const [isMobileNavMenuOpen, setIsMobileNavMenuOpen] = useState(false)
   const [isMobileSettingsDropdownOpen, setIsMobileSettingsDropdownOpen] = useState(false)
+  const [isUserDataModalOpen, setIsUserDataModalOpen] = useState(false)
+  const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false)
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [selectedAppVersion, setSelectedAppVersion] = useState<string>(APP_RELEASES[0]?.version ?? '')
   const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
@@ -4635,6 +4651,7 @@ export default function BoardPage() {
   })
   const [openMobileColumnMap, setOpenMobileColumnMap] = useState<Record<string, boolean>>({})
   const [selectedBoardOptionId, setSelectedBoardOptionId] = useState<string>('')
+  const [isLeadEntryNotificationEnabled, setIsLeadEntryNotificationEnabled] = useState(true)
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (typeof window === 'undefined') return 'light'
 
@@ -4763,6 +4780,23 @@ export default function BoardPage() {
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [isVersionModalOpen])
+
+  useEffect(() => {
+    if (!isUserDataModalOpen && !isPreferencesModalOpen && !isNotificationsModalOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setIsUserDataModalOpen(false)
+      setIsPreferencesModalOpen(false)
+      setIsNotificationsModalOpen(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isUserDataModalOpen, isPreferencesModalOpen, isNotificationsModalOpen])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -5423,13 +5457,39 @@ export default function BoardPage() {
                         <SettingsDropdownOption
                           type="button"
                           onClick={() => {
-                            setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+                            setIsUserDataModalOpen(true)
                             setIsSettingsDropdownOpen(false)
                           }}
                         >
                           <SettingsOptionWithIcon>
-                            {themeMode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                            {themeMode === 'dark' ? 'Tema claro' : 'Tema escuro'}
+                          <CircleUser size={14} />
+                          Dados do usuário
+                          </SettingsOptionWithIcon>
+                        </SettingsDropdownOption>
+
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setIsPreferencesModalOpen(true)
+                            setIsSettingsDropdownOpen(false)
+                          }}
+                        >
+                          <SettingsOptionWithIcon>
+                          <Settings2 size={14} />
+                          Preferências
+                          </SettingsOptionWithIcon>
+                        </SettingsDropdownOption>
+
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setIsNotificationsModalOpen(true)
+                            setIsSettingsDropdownOpen(false)
+                          }}
+                        >
+                          <SettingsOptionWithIcon>
+                            <Bell size={14} />
+                            Notificações
                           </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
 
@@ -5439,7 +5499,10 @@ export default function BoardPage() {
                             setIsSettingsDropdownOpen(false)
                           }}
                         >
-                          Logout
+                          <SettingsOptionWithIcon>
+                            <LogOut size={14} />
+                            Logout
+                          </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
                       </SettingsDropdownMenu>
                     ) : null}
@@ -5539,13 +5602,33 @@ export default function BoardPage() {
                         <SettingsDropdownOption
                           type="button"
                           onClick={() => {
-                            setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+                            setIsUserDataModalOpen(true)
+                            setIsMobileSettingsDropdownOpen(false)
+                          }}
+                        >
+                          Dados do usuário
+                        </SettingsDropdownOption>
+
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setIsPreferencesModalOpen(true)
+                            setIsMobileSettingsDropdownOpen(false)
+                          }}
+                        >
+                          Preferências
+                        </SettingsDropdownOption>
+
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setIsNotificationsModalOpen(true)
                             setIsMobileSettingsDropdownOpen(false)
                           }}
                         >
                           <SettingsOptionWithIcon>
-                            {themeMode === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-                            {themeMode === 'dark' ? 'Tema claro' : 'Tema escuro'}
+                            <Bell size={14} />
+                            Notificações
                           </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
 
@@ -5784,6 +5867,140 @@ export default function BoardPage() {
         </ModalOverlay>
       ) : null}
 
+      {isUserDataModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsUserDataModalOpen(false)
+          }}
+        >
+          <SettingsModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>Dados do usuário</SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsUserDataModalOpen(false)
+                }}
+                aria-label="Fechar modal de dados do usuário"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            <InfoList>
+              <InfoRow>
+                <InfoLabel>Email</InfoLabel>
+                <InfoValue>lucas.floripa@strativy.co</InfoValue>
+              </InfoRow>
+            </InfoList>
+          </SettingsModalCard>
+        </ModalOverlay>
+      ) : null}
+
+      {isPreferencesModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsPreferencesModalOpen(false)
+          }}
+        >
+          <SettingsModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>Preferências</SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsPreferencesModalOpen(false)
+                }}
+                aria-label="Fechar modal de preferências"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            <PreferencesBody>
+              <PreferenceRow>
+                <PreferenceLabel>Tema escuro</PreferenceLabel>
+                <PreferenceToggle
+                  type="button"
+                  $active={themeMode === 'dark'}
+                  onClick={() => {
+                    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+                  }}
+                  aria-label={themeMode === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+                  title={themeMode === 'dark' ? 'Tema escuro ativo' : 'Tema claro ativo'}
+                >
+                  <PreferenceToggleDot $active={themeMode === 'dark'} />
+                </PreferenceToggle>
+              </PreferenceRow>
+            </PreferencesBody>
+          </SettingsModalCard>
+        </ModalOverlay>
+      ) : null}
+
+      {isNotificationsModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsNotificationsModalOpen(false)
+          }}
+        >
+          <SettingsModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>
+                  Notificações
+              </SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsNotificationsModalOpen(false)
+                }}
+                aria-label="Fechar modal de notificações"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            <PreferencesBody>
+              <PreferenceRow>
+                <PreferenceLabel>Entrada de lead</PreferenceLabel>
+                <PreferenceToggle
+                  type="button"
+                  $active={isLeadEntryNotificationEnabled}
+                  onClick={() => {
+                    setIsLeadEntryNotificationEnabled((prev) => !prev)
+                  }}
+                  aria-label={isLeadEntryNotificationEnabled
+                    ? 'Desativar notificação de entrada de lead'
+                    : 'Ativar notificação de entrada de lead'}
+                  title={isLeadEntryNotificationEnabled
+                    ? 'Notificação de entrada de lead ativa'
+                    : 'Notificação de entrada de lead inativa'}
+                >
+                  <PreferenceToggleDot $active={isLeadEntryNotificationEnabled} />
+                </PreferenceToggle>
+              </PreferenceRow>
+            </PreferencesBody>
+          </SettingsModalCard>
+        </ModalOverlay>
+      ) : null}
+
       <LeadDetailsModal onRefreshBoard={fetchBoardFull} />
       <SettingsModal />
       <ColumnActionsModal onRefreshBoard={fetchBoardFull} />
@@ -5915,6 +6132,47 @@ const SettingsOptionWithIcon = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 8px;
+`
+
+const PreferencesBody = styled.div`
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-soft);
+  border-radius: 12px;
+  padding: 12px;
+`
+
+const PreferenceRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`
+
+const PreferenceLabel = styled.div`
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--app-text);
+`
+
+const PreferenceToggle = styled.button<{ $active: boolean }>`
+  width: 46px;
+  height: 26px;
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: ${(props) => (props.$active ? 'var(--app-text)' : 'var(--app-surface)')};
+  display: flex;
+  align-items: center;
+  justify-content: ${(props) => (props.$active ? 'flex-end' : 'flex-start')};
+  cursor: pointer;
+  transition: background 0.16s ease;
+`
+
+const PreferenceToggleDot = styled.span<{ $active: boolean }>`
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: ${(props) => (props.$active ? 'var(--app-surface)' : 'var(--app-text)')};
 `
 
 const BoardOuter = styled.div`
@@ -7512,7 +7770,6 @@ const LeadContactLine = styled.div`
 `
 
 const LeadContactKey = styled.span`
-  width: 70px;
   flex-shrink: 0;
   color: var(--app-text);
   font-weight: 900;
