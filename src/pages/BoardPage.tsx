@@ -6006,7 +6006,6 @@ export default function BoardPage() {
 
               <VersionNotesCard>
                 <InfoLabel>Funcionalidades da versão</InfoLabel>
-                <VersionNotesTitle>{selectedAppRelease?.version ?? 'v1.0'}</VersionNotesTitle>
                 <VersionNotesList>
                   {(selectedAppRelease?.functionalChanges ?? []).map((item) => (
                     <VersionNotesItem key={item}>{item}</VersionNotesItem>
