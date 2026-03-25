@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // import axios from 'axios'
 import styled, { createGlobalStyle } from 'styled-components'
+import { toast } from 'react-hot-toast'
 import {
   Settings,
   X,
@@ -841,6 +842,79 @@ function formatPhone(phone?: string) {
   return phone?.trim() || '—'
 }
 
+const TOAST_MESSAGES = {
+  success: {
+    createLead: 'Lead criado com sucesso',
+    createColumn: 'Coluna criada com sucesso',
+    editColumn: 'Coluna editada com sucesso',
+    editColumnColor: 'Cor da coluna editada com sucesso',
+    deleteColumn: 'Coluna excluída com sucesso',
+    createFollowup: 'Follow-up criado com sucesso',
+    saveNotes: 'Notas salvas com sucesso',
+    editFollowup: 'Follow-up editado com sucesso',
+    completeFollowup: 'Follow-up marcado como concluído',
+    favoriteLead: 'Lead favoritado com sucesso',
+    editLead: 'Lead editado com sucesso',
+    deleteItem: 'Lead excluído com sucesso',
+    saveAutomation: 'Automação salva com sucesso',
+    deleteAutomation: 'Automação excluída com sucesso',
+    moveLeadColumn: 'Lead movido para coluna'
+  },
+  error: {
+    saveLead: 'Falha ao salvar lead',
+    createFollowup: 'Falha ao criar follow-up',
+    updateFollowup: 'Falha ao editar follow-up',
+    updateFollowupStatus: 'Falha ao atualizar status do follow-up',
+    loadBoard: 'Falha ao carregar Board',
+    integration: 'Falha na integração',
+    unexpected: 'Erro inesperado'
+  }
+}
+
+const getMoveLeadColumnToastMessage = (columnName?: string | null) => {
+  const safeColumnName = columnName?.trim() || 'Sem coluna'
+  return `${TOAST_MESSAGES.success.moveLeadColumn} '${safeColumnName}'`
+}
+
+const toastSuccess = (message: string) => {
+  toast.success(message)
+}
+
+const toastWarning = (message: string) => {
+  toast(message, {
+    icon: '⚠️',
+    style: {
+      background: '#eab308',
+      color: '#ffffff'
+    }
+  })
+}
+
+const toastError = (message: string) => {
+  toast.error(message)
+}
+
+function toastErrorFromException(error: unknown, defaultMessage: string) {
+  const rawMessage =
+    error instanceof Error
+      ? error.message
+      : typeof (error as { message?: unknown })?.message === 'string'
+        ? String((error as { message?: unknown }).message)
+        : ''
+
+  if (/integra[cç][aã]o/i.test(rawMessage)) {
+    toastError(TOAST_MESSAGES.error.integration)
+    return
+  }
+
+  if (defaultMessage.trim()) {
+    toastError(defaultMessage)
+    return
+  }
+
+  toastError(TOAST_MESSAGES.error.unexpected)
+}
+
 function getLeadFirstName(name?: string | null) {
   const trimmedName = name?.trim() ?? ''
   if (!trimmedName) return ''
@@ -1114,6 +1188,7 @@ function ColumnActionsModal({
       )
 
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.editColumn)
       setMode('edit')
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao atualizar coluna'
@@ -1135,6 +1210,7 @@ function ColumnActionsModal({
         (c) => c.id !== selectedColumn.id
       )
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.deleteColumn)
       closeModal()
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao apagar coluna'
@@ -1154,7 +1230,7 @@ function ColumnActionsModal({
         }}
       >
         <SettingsModalHeader>
-          <SettingsModalTitle>Ações da coluna</SettingsModalTitle>
+          <SettingsModalTitle>Excluir coluna</SettingsModalTitle>
 
           <SettingsCloseIconButton
             type="button"
@@ -1171,8 +1247,7 @@ function ColumnActionsModal({
 
         {mode === 'delete' ? (
           <SettingsModalBody>
-            <DeleteConfirmTitle>Apagar coluna</DeleteConfirmTitle>
-            <DeleteConfirmText>Você tem certeza?</DeleteConfirmText>
+            <DeleteConfirmText>Você tem certeza que deseja excluir esta coluna ?</DeleteConfirmText>
 
             <FooterButtons>
               <DangerButton
@@ -1298,6 +1373,7 @@ function CreateColumnModal({
       }
       MOCK_BOARD_STATE.columns = [...MOCK_BOARD_STATE.columns, newCol]
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.createColumn)
       closeModal()
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar coluna'
@@ -1460,10 +1536,12 @@ function CreateLeadModal({
         c.id === targetColId ? { ...c, leads: [...c.leads, newLead] } : c
       )
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.createLead)
       closeModal()
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar lead'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsSaving(false)
     }
@@ -2031,9 +2109,11 @@ function LeadDetailsModal({
         _mockPatchLead(selectedLead.id, payload)
         applyLeadUpdate(mockUpdatedLead)
         await onRefreshBoard()
+        toastSuccess(TOAST_MESSAGES.success.editLead)
       } catch (e: any) {
         const msg = e instanceof Error ? e.message : 'Erro ao atualizar lead'
         setError(String(msg))
+        toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
         setName(selectedLead.name ?? '')
         setSource(selectedLead.source ?? '')
         setContactSource(selectedLead.source ?? '')
@@ -2078,9 +2158,11 @@ function LeadDetailsModal({
       applyLeadUpdate(mockUpdatedContact)
       await onRefreshBoard()
       setIsContactEditMode(false)
+      toastSuccess(TOAST_MESSAGES.success.editLead)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao salvar contato'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
     } finally {
       setIsContactSaving(false)
     }
@@ -2119,6 +2201,9 @@ function LeadDetailsModal({
     try {
       // await api.patch(`/leads/${selectedLead.id}/favorite`, { isFavorite: nextValue })
       _mockPatchLead(selectedLead.id, { isFavorite: nextValue })
+      if (nextValue) {
+        toastSuccess(TOAST_MESSAGES.success.favoriteLead)
+      }
     } catch {
       updateFavoriteLocally(previousValue)
     } finally {
@@ -2151,10 +2236,12 @@ function LeadDetailsModal({
         )
 
         await onRefreshBoard()
+        toastSuccess(getMoveLeadColumnToastMessage(targetColumn?.name))
       } catch (e: any) {
         const msg =
           e?.response?.data?.message ?? e?.message ?? 'Erro ao mover lead de coluna'
         setError(String(msg))
+        toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
       } finally {
         setIsColumnChanging(false)
       }
@@ -2184,9 +2271,11 @@ function LeadDetailsModal({
       syncFormWithLead(mockSavedLead)
       await onRefreshBoard()
       setIsEditModeActive(false)
+      toastSuccess(TOAST_MESSAGES.success.editLead)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao salvar lead'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
     } finally {
       setIsSaving(false)
     }
@@ -2206,10 +2295,12 @@ function LeadDetailsModal({
       }))
       await onRefreshBoard()
       setIsDeleteConfirmOpen(false)
+      toastSuccess(TOAST_MESSAGES.success.deleteItem)
       closeModal()
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao excluir lead'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsDeleting(false)
     }
@@ -2251,9 +2342,11 @@ function LeadDetailsModal({
       setNewFollowupValue('')
       setNewFollowupDate('')
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.createFollowup)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar follow-up'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.createFollowup)
     }
   }
 
@@ -2299,9 +2392,11 @@ function LeadDetailsModal({
 
       cancelInlineEditFollowup()
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.editFollowup)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao atualizar follow-up'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.updateFollowup)
     }
   }
 
@@ -2331,10 +2426,12 @@ function LeadDetailsModal({
 
       setFollowupToDeleteId(null)
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.deleteItem)
     } catch (e: any) {
       const msg =
         e?.response?.data?.message ?? e?.message ?? 'Erro ao excluir follow-up'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsDeletingFollowup(false)
     }
@@ -2367,10 +2464,12 @@ function LeadDetailsModal({
       }
 
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.completeFollowup)
     } catch (e: any) {
       const msg =
         e?.response?.data?.message ?? e?.message ?? 'Erro ao atualizar status do follow-up'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.updateFollowupStatus)
     }
   }
 
@@ -2404,6 +2503,7 @@ function LeadDetailsModal({
       const msg =
         e?.response?.data?.message ?? e?.message ?? 'Erro ao atualizar status do follow-up'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.updateFollowupStatus)
     }
   }
 
@@ -2452,6 +2552,7 @@ function LeadDetailsModal({
 
           skipNextNotesAutosaveRef.current = true
           setNotes(getLeadNotes(mockSavedNotes))
+          toastSuccess(TOAST_MESSAGES.success.saveNotes)
         } catch (e: any) {
           const msg = e instanceof Error ? e.message : 'Erro ao salvar notas'
           setError(String(msg))
@@ -3450,6 +3551,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
       )
       setColumnName(nextName)
       await onRefreshBoard()
+      toastSuccess(TOAST_MESSAGES.success.editColumn)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao atualizar nome da coluna'
       setSaveError(String(msg))
@@ -3461,7 +3563,10 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   }, [column, columnName, onRefreshBoard, setColumn])
 
   const patchOnEnter = useCallback(
-    async (nextItems: EntryAutomationListItem[]) => {
+    async (
+      nextItems: EntryAutomationListItem[],
+      successMessage = TOAST_MESSAGES.success.saveAutomation
+    ) => {
       if (!column) return
       try {
         setIsSaving(true)
@@ -3475,9 +3580,11 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
         c.id === column.id ? { ...c, onEnter: onEnterPayload } : c
       )
       await onRefreshBoard()
+      toastSuccess(successMessage)
       } catch (e: any) {
         const msg = e?.response?.data?.message ?? e?.message ?? 'Erro ao salvar automação'
         setSaveError(String(msg))
+        toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
       } finally {
         setIsSaving(false)
       }
@@ -3553,7 +3660,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     setFollowupWhenType('hours')
     setFollowupWhenValue('')
     setFollowupSpecificDate('')
-    await patchOnEnter(nextItems)
+    await patchOnEnter(nextItems, TOAST_MESSAGES.success.saveAutomation)
   }, [
     editingEntryAutomationId,
     entryAutomationItems,
@@ -3568,7 +3675,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     async (automationId: string) => {
       const nextItems = entryAutomationItems.filter((item) => item.id !== automationId)
       setEntryAutomationItems(nextItems)
-      await patchOnEnter(nextItems)
+      await patchOnEnter(nextItems, TOAST_MESSAGES.success.deleteAutomation)
     },
     [entryAutomationItems, patchOnEnter]
   )
@@ -3587,6 +3694,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
         startConfiguringFollowup()
       } else {
         if (entryAutomationItems.some((item) => item.action === action)) {
+          toastWarning('Essa automação já foi adicionada para esta coluna')
           setIsEntryActionSelectorOpen(false)
           return
         }
@@ -3596,7 +3704,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
         ]
         setEntryAutomationItems(nextItems)
         setIsEntryActionSelectorOpen(false)
-        await patchOnEnter(nextItems)
+        await patchOnEnter(nextItems, TOAST_MESSAGES.success.saveAutomation)
       }
     },
     [startConfiguringFollowup, entryAutomationItems, patchOnEnter]
@@ -3735,8 +3843,12 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                               type="button"
                               $active={selectedColumnColor === option.key}
                               onClick={() => {
+                                const hasChanged = selectedColumnColor !== option.key
                                 setSelectedColumnColor(option.key)
                                 setIsColumnColorOpen(false)
+                                if (hasChanged) {
+                                  toastSuccess(TOAST_MESSAGES.success.editColumnColor)
+                                }
                               }}
                             >
                               <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
@@ -4078,18 +4190,12 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                     </AutomationsEntryArea>
                   ) : activeTab === 'exit' ? (
                     <AutomationsEmptyState>
-                      <AutomationsEmptyTitle>Nenhuma automação de saída</AutomationsEmptyTitle>
                       <AutomationsEmptyText>
-                        Automatizações acionadas quando um lead sai desta coluna.
+                        Em breve você poderá configurar ações de saída de lead.
                       </AutomationsEmptyText>
-                      <AutomationsCreateButton type="button">
-                        <Plus size={14} strokeWidth={2.4} />
-                        Criar primeira ação
-                      </AutomationsCreateButton>
                     </AutomationsEmptyState>
                   ) : (
                     <AutomationsEmptyState>
-                      <AutomationsEmptyTitle>Nenhuma automação de tempo</AutomationsEmptyTitle>
                       <AutomationsEmptyText>
                         Em breve você poderá configurar ações baseadas em tempo.
                       </AutomationsEmptyText>
@@ -4119,12 +4225,14 @@ const COLUMN_SORT_OPTIONS: { key: ColumnSortKey; label: string }[] = [
 function ColumnActionsMenu({
   column,
   onAddLead,
+  onDeleteColumn,
   onOpenSettings,
   activeSort,
   onSort
 }: {
   column: BoardColumn
   onAddLead: (column: BoardColumn) => void
+  onDeleteColumn: (column: BoardColumn) => void
   onOpenSettings: (column: BoardColumn) => void
   activeSort?: ColumnSortKey
   onSort: (columnId: string, sort: ColumnSortKey) => void
@@ -4236,6 +4344,16 @@ function ColumnActionsMenu({
               return count > 0 ? <AutomationsCountBadge>{count}</AutomationsCountBadge> : null
             })()}
           </CreateDropdownButton>
+
+          <CreateDropdownButton
+            type="button"
+            onClick={() => {
+              setOpenedColumnMenuId(null)
+              onDeleteColumn(column)
+            }}
+          >
+            Excluir coluna
+          </CreateDropdownButton>
         </ColumnDropdown>
       ) : null}
     </ColumnMenuWrapper>
@@ -4311,6 +4429,9 @@ function SortableLeadCard({
     try {
       // await api.patch(`/leads/${lead.id}/favorite`, { isFavorite: nextValue })
       _mockPatchLead(lead.id, { isFavorite: nextValue })
+      if (nextValue) {
+        toastSuccess(TOAST_MESSAGES.success.favoriteLead)
+      }
     } catch {
       updateLeadLocally({ isFavorite: previousValue })
     } finally {
@@ -4628,6 +4749,9 @@ export default function BoardPage() {
   const setIsAutomationsModalOpen = useSetAtom(isAutomationsModalOpenAtom)
   const setAutomationsModalColumn = useSetAtom(automationsModalColumnAtom)
   const setColumnSettingsInitialView = useSetAtom(columnSettingsInitialViewAtom)
+  const setSelectedColumn = useSetAtom(selectedColumnAtom)
+  const setIsColumnModalOpen = useSetAtom(isColumnModalOpenAtom)
+  const setColumnModalMode = useSetAtom(columnModalModeAtom)
 
   const [createLeadColumnId, setCreateLeadColumnId] = useState<string>('')
 
@@ -4689,6 +4813,7 @@ export default function BoardPage() {
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar board'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.loadBoard)
     } finally {
       setLoading(false)
     }
@@ -5192,6 +5317,10 @@ export default function BoardPage() {
 
       const activeId = String(active.id)
       const overId = String(over.id)
+      const originalColumnId =
+        (dragSnapshot ?? data).columns.find((column) =>
+          column.leads.some((lead) => lead.id === activeId)
+        )?.id ?? null
 
       // During sortable drops, `over` can be the same as `active`.
       // In this case the UI state may already be correctly previewed by `onDragOver`,
@@ -5259,6 +5388,10 @@ export default function BoardPage() {
 
         if (columnHasAutomations) {
           await fetchBoardFull()
+        }
+
+        if (originalColumnId && originalColumnId !== targetColumnId) {
+          toastSuccess(getMoveLeadColumnToastMessage(targetColumn?.name))
         }
       } catch (e) {
         console.error('Erro ao mover lead:', e)
@@ -5726,6 +5859,11 @@ export default function BoardPage() {
                               setColumnSettingsInitialView('details')
                               setAutomationsModalColumn(column)
                               setIsAutomationsModalOpen(true)
+                            }}
+                            onDeleteColumn={(column) => {
+                              setSelectedColumn(column)
+                              setColumnModalMode('delete')
+                              setIsColumnModalOpen(true)
                             }}
                           />
                         </DroppableColumnHeader>
@@ -6434,6 +6572,7 @@ const BoardOptionName = styled.span`
 
 const FiltersDropdownWrapper = styled.div`
   position: relative;
+  z-index: 1200;
 `
 
 const FiltersDropdownMenu = styled.div`
@@ -6446,7 +6585,7 @@ const FiltersDropdownMenu = styled.div`
   background: var(--app-surface);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
   padding: 6px;
-  z-index: 90;
+  z-index: 1300;
 `
 
 const FiltersDropdownOption = styled.button`
@@ -8969,14 +9108,6 @@ const AutomationsFormButton = styled.button<{ $primary?: boolean }>`
   &:active {
     transform: scale(0.98);
   }
-`
-
-const DeleteConfirmTitle = styled.div`
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: -0.2px;
-  color: #111111;
-  margin-bottom: 8px;
 `
 
 const DeleteConfirmText = styled.div`
