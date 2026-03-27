@@ -26,11 +26,14 @@ import {
   Star,
   Clock3,
   ArrowLeft,
-  Menu,
+  Filter,
   Bell,
   CircleUser,
   Settings2,
-  LogOut
+  LogOut,
+  Flame,
+  Sun,
+  Snowflake
 } from 'lucide-react'
 import { atom, useAtom, useSetAtom } from 'jotai'
 
@@ -60,12 +63,16 @@ import { CSS } from '@dnd-kit/utilities'
 // ----------------------------
 type FollowUpBoardStatus = 'none' | 'scheduled' | 'today' | 'overdue'
 type LeadSourceBadgeType = 'whatsapp' | 'facebook' | 'instagram' | 'default'
+type LeadTemperatureBadgeType = LeadTemperature
 type LeadFilterKey =
   | 'favorite'
   | 'none'
   | 'scheduled'
   | 'today'
   | 'overdue'
+  | 'hot'
+  | 'warm'
+  | 'cold'
 
 type FollowupFilterKey = 'scheduled' | 'today' | 'overdue' | 'done'
 
@@ -87,6 +94,10 @@ type LeadFollowUp = {
   updatedAt: string
 }
 
+type LeadTemperature = 'hot' | 'warm' | 'cold'
+type LeadOutcome = 'won' | 'lost'
+type LeadState = 'active' | 'archived'
+
 type Lead = {
   id: string
   boardId: string
@@ -97,7 +108,9 @@ type Lead = {
   email?: string
   source?: string
   notes?: string
-  status?: string
+  temperature: LeadTemperature | null
+  outcome: LeadOutcome | null
+  state: LeadState
   fields?: Record<string, any>
   isFavorite?: boolean
   followUpSummary?: LeadFollowUpSummary
@@ -105,7 +118,6 @@ type Lead = {
   lastAutoReplyMessageId?: string
   lastActivityAt?: string | Date | null
   movedAt?: string | Date
-  isArchived: boolean
   createdAt: string | Date
   updatedAt: string | Date
 }
@@ -155,8 +167,10 @@ type UpdateLeadPayload = {
   email?: string
   source?: string
   notes?: string
+  temperature?: LeadTemperature | null
+  outcome?: LeadOutcome | null
+  state?: LeadState
   fields?: Record<string, any>
-  isArchived?: boolean
 }
 
 type CreateLeadPayload = {
@@ -167,6 +181,9 @@ type CreateLeadPayload = {
   email?: string
   source?: string
   notes?: string
+  temperature?: LeadTemperature | null
+  outcome?: LeadOutcome | null
+  state?: LeadState
   fields?: Record<string, any>
 }
 
@@ -181,18 +198,37 @@ type CreateColumnPayload = {
 
 type ColumnModalMode = 'edit' | 'delete'
 type LeadModalViewMode = 'followups' | 'notes' | 'details' | 'edit'
-type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'favorites'
+type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'favorites' | 'temperature'
 type ColumnSettingsView = 'details' | 'automations'
 type ColumnColorKey = 'blue' | 'green' | 'red' | 'yellow'
 type ThemeMode = 'light' | 'dark'
 type AppRelease = {
   version: string
+  createdAtLabel?: string
   functionalChanges: string[]
 }
 
 const THEME_STORAGE_KEY = 'strativy-theme-mode'
+const DEFAULT_LEAD_TEMPERATURE: LeadTemperature = 'warm'
+const DEFAULT_LEAD_STATE: LeadState = 'active'
+const DEFAULT_LEAD_OUTCOME: LeadOutcome | null = null
+const LEAD_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }> = [
+  { value: 'hot', label: 'Quente' },
+  { value: 'warm', label: 'Morno' },
+  { value: 'cold', label: 'Frio' }
+]
 
 const APP_RELEASES: AppRelease[] = [
+  {
+    version: 'v1.2',
+    createdAtLabel: '27/03/2026',
+    functionalChanges: [
+      'Adicionamos temperatura nos leads com os estados Quente, Morno e Frio, incluindo exibição visual em badges no card.',
+      'Permitimos editar e remover a temperatura tanto no modal do lead quanto nas ações rápidas do card.',
+      'Incluímos filtros globais por temperatura para facilitar a leitura e segmentação dos leads no board.',
+      'Adicionamos ordenação por temperatura dentro das colunas para priorizar leads mais quentes no fluxo.'
+    ]
+  },
   {
     version: 'v1.1',
     functionalChanges: [
@@ -402,12 +438,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(11) 99123-4567',
           email: 'joao.silva@empresa.com.br',
           source: 'whatsapp',
+          temperature: 'hot',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Oi! Vi o anúncio e queria entender melhor como funciona para equipe com vários atendentes.'
           },
           notes: 'Cliente interessado no plano enterprise. Já realizou uma demonstração e gostou muito do produto. Ponto de contato: João (CEO). Empresa com 150 funcionários no setor de logística.',
           isFavorite: true,
-          isArchived: false,
           lastActivityAt: undefined,
           createdAt: _mockDate(-6 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-4 * 3600 * 1000),
@@ -426,12 +464,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(21) 98765-4321',
           email: 'maria.santos@gmail.com',
           source: 'instagram',
+          temperature: null,
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Cheguei pelo Instagram. Vocês atendem negócio local com equipe pequena?'
           },
           notes: '',
           isFavorite: false,
-          isArchived: false,
           lastActivityAt: undefined,
           createdAt: _mockDate(-30 * 60 * 1000),
           updatedAt: _mockDate(-30 * 60 * 1000),
@@ -450,12 +490,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(19) 99876-5432',
           email: 'bruno.almeida@comercial.com.br',
           source: 'facebook',
+          temperature: 'warm',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Olá, gostaria de receber uma proposta para o plano profissional ainda essa semana.'
           },
           notes: 'Lead novo na operação comercial. Demonstrou interesse no plano profissional e está aguardando retorno com proposta ajustada.',
           isFavorite: false,
-          isArchived: false,
           lastActivityAt: _mockDate(-2 * 24 * 3600 * 1000),
           createdAt: _mockDate(-3 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-2 * 24 * 3600 * 1000),
@@ -490,12 +532,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(31) 97654-3210',
           email: 'carlos.mendes@negocio.com',
           source: 'facebook',
+          temperature: 'hot',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Tem integração com ERP legado? Esse é o principal ponto para a nossa decisão.'
           },
           notes: 'Reunião realizada há 6 dias. Mostrou interesse no plano Pro com customizações. Aguardando aprovação do board e proposta de integração com sistema legado.',
           isFavorite: true,
-          isArchived: false,
           lastActivityAt: _mockDate(-1 * 24 * 3600 * 1000),
           createdAt: _mockDate(-11 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-1 * 24 * 3600 * 1000),
@@ -514,12 +558,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(41) 96543-2109',
           email: 'ana.costa@startup.io',
           source: 'facebook',
+          temperature: 'hot',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Estou avaliando para o time de vendas. Conseguimos migrar dados do sistema antigo?'
           },
           notes: 'Startup em fase de crescimento acelerado. Potencial de expansão de contrato em 6 meses. Precisa de migração de dados do sistema anterior.',
           isFavorite: false,
-          isArchived: false,
           lastActivityAt: _mockDate(-3 * 24 * 3600 * 1000),
           createdAt: _mockDate(-21 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-3 * 24 * 3600 * 1000),
@@ -550,12 +596,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(51) 95432-1098',
           email: 'roberto.lima@consultoria.com.br',
           source: 'whatsapp',
+          temperature: 'cold',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Quero uma proposta com relatório gerencial incluso para apresentar ao conselho.'
           },
           notes: 'Proposta enviada há 11 dias. Valor: R$ 4.800/mês. Aguardando decisão do conselho. Solicitou adição de módulo de relatórios gerenciais no contrato.',
           isFavorite: false,
-          isArchived: false,
           lastActivityAt: _mockDate(-30 * 24 * 3600 * 1000),
           createdAt: _mockDate(-49 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-11 * 24 * 3600 * 1000),
@@ -574,12 +622,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(61) 94321-0987',
           email: 'juliana@techcompany.io',
           source: 'whatsapp',
+          temperature: 'hot',
+          outcome: null,
+          state: 'active',
           fields: {
             initialMessage: 'Boa tarde! Temos operação em crescimento e buscamos um plano com suporte prioritário.'
           },
           notes: 'Empresa de tecnologia com 200 funcionários. Proposta customizada elaborada pelo time de soluções. Ponto de contato: Juliana (Diretora Comercial). Negociação em fase final — aguardando assinatura do contrato anual no valor de R$ 12.000/mês.',
           isFavorite: true,
-          isArchived: false,
           lastActivityAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
           createdAt: _mockDate(-65 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-12 * 3600 * 1000),
@@ -613,12 +663,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(71) 93210-9876',
           email: 'fernando@grupooliveira.com',
           source: 'instagram',
+          temperature: 'warm',
+          outcome: 'won',
+          state: 'active',
           fields: {
             initialMessage: 'Tenho interesse em entender o onboarding e o tempo de implantação antes de fechar.'
           },
           notes: 'Contrato assinado em 15/03/2026. Plano Business – 12 meses. Cliente indicou mais 2 contatos da rede. Chave de acesso enviada por email.',
           isFavorite: false,
-          isArchived: false,
           lastActivityAt: _mockDate(-6 * 24 * 3600 * 1000),
           createdAt: _mockDate(-60 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-6 * 24 * 3600 * 1000),
@@ -637,12 +689,14 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           phone: '(81) 92109-8765',
           email: 'patricia@varejista.com.br',
           source: 'whatsapp',
+          temperature: 'warm',
+          outcome: 'won',
+          state: 'active',
           fields: {
             initialMessage: 'Precisamos garantir integração com SAP para seguir com a contratação.'
           },
           notes: 'Cliente de varejo com alto volume de pedidos. Ativação pendente de integração com ERP legado SAP. Time técnico alocado.',
           isFavorite: true,
-          isArchived: false,
           lastActivityAt: _mockDate(-2 * 24 * 3600 * 1000),
           createdAt: _mockDate(-39 * 24 * 3600 * 1000),
           updatedAt: _mockDate(-2 * 24 * 3600 * 1000),
@@ -1005,6 +1059,25 @@ function getLeadSourceBadge(source?: string | null) {
   }
 }
 
+function getLeadTemperatureBadge(temperature?: LeadTemperature | null) {
+  const labelMap: Record<LeadTemperatureBadgeType, string> = {
+    hot: 'Quente',
+    warm: 'Morno',
+    cold: 'Frio'
+  }
+
+  if (!temperature) {
+    return null
+  }
+
+  const type = temperature
+
+  return {
+    type,
+    label: labelMap[type]
+  }
+}
+
 function getLeadActivityBadge(lead?: Lead | null) {
   if (!lead?.lastActivityAt) {
     return {
@@ -1013,7 +1086,7 @@ function getLeadActivityBadge(lead?: Lead | null) {
     }
   }
 
-  if (lead.status === 'done') {
+  if (lead.state === 'archived' || lead.outcome !== null) {
     return null
   }
 
@@ -1515,6 +1588,9 @@ function CreateLeadModal({
         phone: phone.trim(),
         email: normalizeOptionalString(email),
         source: normalizeOptionalString(source),
+        temperature: DEFAULT_LEAD_TEMPERATURE,
+        outcome: DEFAULT_LEAD_OUTCOME,
+        state: DEFAULT_LEAD_STATE,
         fields: {
           initialMessage: ''
         }
@@ -1532,8 +1608,10 @@ function CreateLeadModal({
         email: payload.email,
         source: payload.source,
         notes: '',
+        temperature: payload.temperature ?? DEFAULT_LEAD_TEMPERATURE,
+        outcome: payload.outcome ?? DEFAULT_LEAD_OUTCOME,
+        state: payload.state ?? DEFAULT_LEAD_STATE,
         isFavorite: false,
-        isArchived: false,
         lastActivityAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -1805,6 +1883,7 @@ function LeadDetailsModal({
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
   const [isColumnChanging, setIsColumnChanging] = useState(false)
   const [isMoveColumnMenuOpen, setIsMoveColumnMenuOpen] = useState(false)
+  const [isTemperatureMenuOpen, setIsTemperatureMenuOpen] = useState(false)
   const [isFollowupFiltersOpen, setIsFollowupFiltersOpen] = useState(false)
   const [selectedFollowupFilters, setSelectedFollowupFilters] = useState<FollowupFilterKey[]>([])
   const [editingHeaderField, setEditingHeaderField] = useState<'name' | 'source' | null>(null)
@@ -1816,9 +1895,11 @@ function LeadDetailsModal({
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [source, setSource] = useState('')
+  const [temperature, setTemperature] = useState<LeadTemperature | null>(null)
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactSource, setContactSource] = useState('')
+  const [contactTemperature, setContactTemperature] = useState<LeadTemperature | null>(null)
 
   const [notes, setNotes] = useState('')
   const [isNotesDirty, setIsNotesDirty] = useState(false)
@@ -1841,6 +1922,7 @@ function LeadDetailsModal({
   const skipNextNotesAutosaveRef = useRef(true)
   const createFollowupInputRef = useRef<HTMLInputElement | null>(null)
   const moveColumnMenuRef = useRef<HTMLDivElement | null>(null)
+  const temperatureMenuRef = useRef<HTMLDivElement | null>(null)
   const followupFiltersRef = useRef<HTMLDivElement | null>(null)
 
   const syncFormWithLead = useCallback((lead: Lead | null) => {
@@ -1848,9 +1930,11 @@ function LeadDetailsModal({
     setPhone(lead?.phone ?? '')
     setEmail(lead?.email ?? '')
     setSource(lead?.source ?? '')
+    setTemperature(lead?.temperature ?? null)
     setContactPhone(lead?.phone ?? '')
     setContactEmail(lead?.email ?? '')
     setContactSource(lead?.source ?? '')
+    setContactTemperature(lead?.temperature ?? null)
     setNotes(getLeadNotes(lead))
     setIsNotesDirty(false)
     skipNextNotesAutosaveRef.current = true
@@ -1884,6 +1968,7 @@ function LeadDetailsModal({
     setIsDeleteConfirmOpen(false)
     setIsDeleting(false)
     setIsMoveColumnMenuOpen(false)
+    setIsTemperatureMenuOpen(false)
     setIsFollowupFiltersOpen(false)
     setSelectedFollowupFilters([])
     setFollowups([])
@@ -1973,6 +2058,11 @@ function LeadDetailsModal({
         return
       }
 
+      if (isTemperatureMenuOpen) {
+        setIsTemperatureMenuOpen(false)
+        return
+      }
+
       if (isFollowupFiltersOpen) {
         setIsFollowupFiltersOpen(false)
         return
@@ -1993,6 +2083,7 @@ function LeadDetailsModal({
     followupToDeleteId,
     isDeletingFollowup,
     isMoveColumnMenuOpen,
+    isTemperatureMenuOpen,
     isFollowupFiltersOpen
   ])
 
@@ -2011,6 +2102,22 @@ function LeadDetailsModal({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isMoveColumnMenuOpen])
+
+  useEffect(() => {
+    if (!isTemperatureMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!temperatureMenuRef.current?.contains(target)) {
+        setIsTemperatureMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isTemperatureMenuOpen])
 
   useEffect(() => {
     if (!isFollowupFiltersOpen) return
@@ -2076,11 +2183,47 @@ function LeadDetailsModal({
       setPhone(updated.phone ?? '')
       setEmail(updated.email ?? '')
       setSource(updated.source ?? '')
+      setTemperature(updated.temperature ?? null)
       setContactPhone(updated.phone ?? '')
       setContactEmail(updated.email ?? '')
       setContactSource(updated.source ?? '')
+      setContactTemperature(updated.temperature ?? null)
     },
     [setSelectedLead]
+  )
+
+  const updateLeadTemperature = useCallback(
+    async (nextTemperature: LeadTemperature | null) => {
+      if (!selectedLead) return
+
+      if (selectedLead.temperature === nextTemperature) {
+        setIsTemperatureMenuOpen(false)
+        return
+      }
+
+      try {
+        setIsContactSaving(true)
+        setError(null)
+
+        const payload: UpdateLeadPayload = {
+          temperature: nextTemperature
+        }
+
+        const mockUpdatedLead: Lead = { ...selectedLead, ...payload }
+        _mockPatchLead(selectedLead.id, payload)
+        applyLeadUpdate(mockUpdatedLead)
+        await onRefreshBoard()
+        toastSuccess(TOAST_MESSAGES.success.editLead)
+      } catch (e: any) {
+        const msg = e instanceof Error ? e.message : 'Erro ao atualizar temperatura'
+        setError(String(msg))
+        toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
+      } finally {
+        setIsContactSaving(false)
+        setIsTemperatureMenuOpen(false)
+      }
+    },
+    [selectedLead, setError, applyLeadUpdate, onRefreshBoard]
   )
 
   const saveHeaderField = useCallback(
@@ -2137,6 +2280,7 @@ function LeadDetailsModal({
     setContactPhone(phone)
     setContactEmail(email)
     setContactSource(source)
+    setContactTemperature(temperature)
     setIsContactEditMode(true)
   }
 
@@ -2144,6 +2288,7 @@ function LeadDetailsModal({
     setContactPhone(phone)
     setContactEmail(email)
     setContactSource(source)
+    setContactTemperature(temperature)
     setIsContactEditMode(false)
   }
 
@@ -2157,7 +2302,8 @@ function LeadDetailsModal({
       const payload: UpdateLeadPayload = {
         phone: contactPhone.trim(),
         email: normalizeOptionalString(contactEmail),
-        source: normalizeOptionalString(contactSource)
+        source: normalizeOptionalString(contactSource),
+        temperature: contactTemperature
       }
 
       // const res = await api.patch<Lead>(`/leads/${selectedLead.id}`, payload)
@@ -2174,7 +2320,7 @@ function LeadDetailsModal({
     } finally {
       setIsContactSaving(false)
     }
-  }, [selectedLead, contactPhone, contactEmail, contactSource, setError, applyLeadUpdate, onRefreshBoard])
+  }, [selectedLead, contactPhone, contactEmail, contactSource, contactTemperature, setError, applyLeadUpdate, onRefreshBoard])
 
   const updateFavoriteLocally = useCallback(
     (nextValue: boolean) => {
@@ -2269,6 +2415,7 @@ function LeadDetailsModal({
         phone: phone.trim(),
         email: normalizeOptionalString(email),
         source: normalizeOptionalString(source),
+        temperature,
         notes
       }
 
@@ -2601,6 +2748,7 @@ function LeadDetailsModal({
     ? getSingleFollowUpVisualStatus(nextFollowup)
     : undefined
   const contactSourceBadge = getLeadSourceBadge(contactSource)
+  const contactTemperatureBadge = getLeadTemperatureBadge(contactTemperature)
   const currentColumnName = boardData?.columns.find(
     (column) => column.id === selectedLead?.columnId
   )?.name
@@ -3222,6 +3370,57 @@ function LeadDetailsModal({
                         </LeadContactLine>
 
                         <LeadContactLine>
+                          <LeadContactKey>Temperatura:</LeadContactKey>
+                          <LeadTemperaturePickerWrapper ref={temperatureMenuRef}>
+                            <LeadTemperaturePickerButton
+                              type="button"
+                              onClick={() => setIsTemperatureMenuOpen((prev) => !prev)}
+                              disabled={isContactSaving}
+                            >
+                              {contactTemperatureBadge ? (
+                                <LeadTemperatureBadge $type={contactTemperatureBadge.type}>
+                                  {contactTemperatureBadge.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
+                                  {contactTemperatureBadge.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
+                                  {contactTemperatureBadge.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
+                                  {contactTemperatureBadge.label}
+                                </LeadTemperatureBadge>
+                              ) : (
+                                <LeadContactValue>—</LeadContactValue>
+                              )}
+                            </LeadTemperaturePickerButton>
+
+                            {isTemperatureMenuOpen ? (
+                              <LeadTemperatureMenu>
+                                {LEAD_TEMPERATURE_OPTIONS.map((option) => (
+                                  <LeadTemperatureMenuButton
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => {
+                                      void updateLeadTemperature(option.value)
+                                    }}
+                                  >
+                                    {option.value === 'hot' ? <Flame size={13} strokeWidth={2.4} /> : null}
+                                    {option.value === 'warm' ? <Sun size={13} strokeWidth={2.4} /> : null}
+                                    {option.value === 'cold' ? <Snowflake size={13} strokeWidth={2.4} /> : null}
+                                    <span>{option.label}</span>
+                                  </LeadTemperatureMenuButton>
+                                ))}
+
+                                <LeadTemperatureMenuButton
+                                  type="button"
+                                  onClick={() => {
+                                    void updateLeadTemperature(null)
+                                  }}
+                                >
+                                  <X size={13} strokeWidth={2.4} />
+                                  <span>Remover temperatura</span>
+                                </LeadTemperatureMenuButton>
+                              </LeadTemperatureMenu>
+                            ) : null}
+                          </LeadTemperaturePickerWrapper>
+                        </LeadContactLine>
+
+                        <LeadContactLine>
                           <LeadContactKey>Origem:</LeadContactKey>
                           {isContactEditMode ? (
                             <LeadContactInlineInput
@@ -3270,6 +3469,21 @@ function LeadDetailsModal({
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="Email"
                         />
+                      </InfoRow>
+
+                      <InfoRow>
+                        <InfoLabel>Temperatura</InfoLabel>
+                        <InfoSelect
+                          value={temperature ?? ''}
+                          onChange={(e) => setTemperature((e.target.value || null) as LeadTemperature | null)}
+                        >
+                          <option value="">Sem temperatura</option>
+                          {LEAD_TEMPERATURE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </InfoSelect>
                       </InfoRow>
 
                       <InfoRow>
@@ -4225,6 +4439,7 @@ const COLUMN_SORT_OPTIONS: { key: ColumnSortKey; label: string }[] = [
   { key: 'next-followup', label: 'Próximo follow-up' },
   { key: 'no-followup', label: 'Sem follow-up' },
   { key: 'favorites', label: 'Favoritos' },
+  { key: 'temperature', label: 'Temperatura' },
 ]
 
 // ----------------------------
@@ -4385,10 +4600,16 @@ function SortableLeadCard({
   const setLeadModalError = useSetAtom(leadModalErrorAtom)
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
   const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false)
+  const [isTemperatureMenuOpen, setIsTemperatureMenuOpen] = useState(false)
+  const [isQuickActionsMenuOpen, setIsQuickActionsMenuOpen] = useState(false)
+  const [isQuickActionsTemperatureMenuOpen, setIsQuickActionsTemperatureMenuOpen] = useState(false)
   const moveMenuRef = useRef<HTMLDivElement | null>(null)
+  const temperatureMenuRef = useRef<HTMLDivElement | null>(null)
+  const quickActionsMenuRef = useRef<HTMLDivElement | null>(null)
 
   const isFavorite = Boolean(lead.isFavorite)
   const sourceBadge = getLeadSourceBadge(lead.source)
+  const temperatureBadge = getLeadTemperatureBadge(lead.temperature)
   const activityBadge = getLeadActivityBadge(lead)
 
   const followUpStatus = getLeadFollowUpStatus(lead)
@@ -4526,6 +4747,25 @@ function SortableLeadCard({
     [boardData, lead.columnId, lead.id, selectedLead?.id, setBoardData, setSelectedLead]
   )
 
+  const updateTemperatureFromCard = useCallback(
+    (nextTemperature: LeadTemperature | null) => {
+      if (lead.temperature === nextTemperature) {
+        setIsTemperatureMenuOpen(false)
+        setIsQuickActionsTemperatureMenuOpen(false)
+        setIsQuickActionsMenuOpen(false)
+        return
+      }
+
+      updateLeadLocally({ temperature: nextTemperature })
+      _mockPatchLead(lead.id, { temperature: nextTemperature })
+      setIsTemperatureMenuOpen(false)
+      setIsQuickActionsTemperatureMenuOpen(false)
+      setIsQuickActionsMenuOpen(false)
+      toastSuccess(TOAST_MESSAGES.success.editLead)
+    },
+    [lead.id, lead.temperature, updateLeadLocally]
+  )
+
   useEffect(() => {
     if (!isMoveMenuOpen) return
 
@@ -4551,6 +4791,58 @@ function SortableLeadCard({
     }
   }, [isMoveMenuOpen])
 
+  useEffect(() => {
+    if (!isQuickActionsMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!quickActionsMenuRef.current?.contains(target)) {
+        setIsQuickActionsMenuOpen(false)
+        setIsQuickActionsTemperatureMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsQuickActionsMenuOpen(false)
+        setIsQuickActionsTemperatureMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isQuickActionsMenuOpen])
+
+  useEffect(() => {
+    if (!isTemperatureMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!temperatureMenuRef.current?.contains(target)) {
+        setIsTemperatureMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsTemperatureMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isTemperatureMenuOpen])
+
   return (
     <LeadCard
       $menuOpen={isMoveMenuOpen}
@@ -4567,8 +4859,73 @@ function SortableLeadCard({
     >
       <LeadTopRow>
         <LeadTitle>
-          <LeadTitleInfo>
+          <LeadHeaderRow>
             <LeadName>{lead.name}</LeadName>
+
+            <LeadHeaderActions>
+              <LeadFavoriteButton
+                type="button"
+                aria-label={isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
+                title={isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
+                $active={isFavorite}
+                disabled={isFavoriteUpdating}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void toggleFavorite()
+                }}
+              >
+                <Star size={14} strokeWidth={2.2} />
+              </LeadFavoriteButton>
+
+              <LeadMoveMenuWrapper
+                ref={moveMenuRef}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                }}
+              >
+                <LeadMoveButton
+                  type="button"
+                  aria-label="Mover lead"
+                  title="Mover lead"
+                  onClick={() => {
+                    setIsMoveMenuOpen((prev) => !prev)
+                  }}
+                >
+                  <ArrowRight size={13} strokeWidth={2.2} />
+                </LeadMoveButton>
+
+                {isMoveMenuOpen ? (
+                  <LeadMoveDropdown>
+                    <MoveColumnLabel>Mover para</MoveColumnLabel>
+                    {(boardData?.columns ?? []).map((column) => {
+                      const isCurrent = column.id === lead.columnId
+
+                      return (
+                        <LeadMoveOptionButton
+                          key={column.id}
+                          type="button"
+                          $active={isCurrent}
+                          onClick={() => {
+                            moveLeadFromCard(column.id)
+                          }}
+                        >
+                          {column.name}
+                        </LeadMoveOptionButton>
+                      )
+                    })}
+                  </LeadMoveDropdown>
+                ) : null}
+              </LeadMoveMenuWrapper>
+            </LeadHeaderActions>
+          </LeadHeaderRow>
+
+          <LeadMetaRow>
             <LeadBadgesRow>
               {sourceBadge ? (
                 <LeadSourceBadge $type={sourceBadge.type}>
@@ -4578,7 +4935,7 @@ function SortableLeadCard({
 
               {activityBadge?.type === 'new' ? (
                 <LeadNewBadge>
-                  <LeadNewSparkle>🔥</LeadNewSparkle>
+                  <LeadNewFire aria-hidden="true">🔥</LeadNewFire>
                   {activityBadge.label}
                 </LeadNewBadge>
               ) : null}
@@ -4589,70 +4946,68 @@ function SortableLeadCard({
                   {activityBadge.label}
                 </LeadAgeBadge>
               ) : null}
-            </LeadBadgesRow>
-          </LeadTitleInfo>
 
-          <LeadActionButtons>
-            <LeadFavoriteButton
-              type="button"
-              aria-label={isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
-              title={isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
-              $active={isFavorite}
-              disabled={isFavoriteUpdating}
-              onPointerDown={(event) => {
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                void toggleFavorite()
-              }}
-            >
-              <Star size={14} strokeWidth={2.2} />
-            </LeadFavoriteButton>
-
-            <LeadMoveMenuWrapper
-              ref={moveMenuRef}
-              onPointerDown={(event) => {
-                event.stopPropagation()
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-              }}
-            >
-              <LeadMoveButton
-                type="button"
-                aria-label="Mover lead"
-                title="Mover lead"
-                onClick={() => {
-                  setIsMoveMenuOpen((prev) => !prev)
+              <LeadTemperaturePickerWrapper
+                ref={temperatureMenuRef}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
                 }}
               >
-                <ArrowRight size={13} strokeWidth={2.2} />
-              </LeadMoveButton>
+                <LeadTemperaturePickerButton
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setIsTemperatureMenuOpen((prev) => !prev)
+                  }}
+                  aria-label="Editar temperatura"
+                  title="Editar temperatura"
+                >
+                  {temperatureBadge ? (
+                    <LeadTemperatureBadge $type={temperatureBadge.type}>
+                      {temperatureBadge.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
+                      {temperatureBadge.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
+                      {temperatureBadge.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
+                      {temperatureBadge.label}
+                    </LeadTemperatureBadge>
+                  ) : null}
+                </LeadTemperaturePickerButton>
 
-              {isMoveMenuOpen ? (
-                <LeadMoveDropdown>
-                  <MoveColumnLabel>Mover para</MoveColumnLabel>
-                  {(boardData?.columns ?? []).map((column) => {
-                    const isCurrent = column.id === lead.columnId
-
-                    return (
-                      <LeadMoveOptionButton
-                        key={column.id}
+                {isTemperatureMenuOpen ? (
+                  <LeadTemperatureMenu>
+                    {LEAD_TEMPERATURE_OPTIONS.map((option) => (
+                      <LeadTemperatureMenuButton
+                        key={option.value}
                         type="button"
-                        $active={isCurrent}
-                        onClick={() => {
-                          moveLeadFromCard(column.id)
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          updateTemperatureFromCard(option.value)
                         }}
                       >
-                        {column.name}
-                      </LeadMoveOptionButton>
-                    )
-                  })}
-                </LeadMoveDropdown>
-              ) : null}
-            </LeadMoveMenuWrapper>
-          </LeadActionButtons>
+                        {option.value === 'hot' ? <Flame size={13} strokeWidth={2.4} /> : null}
+                        {option.value === 'warm' ? <Sun size={13} strokeWidth={2.4} /> : null}
+                        {option.value === 'cold' ? <Snowflake size={13} strokeWidth={2.4} /> : null}
+                        <span>{option.label}</span>
+                      </LeadTemperatureMenuButton>
+                    ))}
+
+                    <LeadTemperatureMenuButton
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        updateTemperatureFromCard(null)
+                      }}
+                    >
+                      <X size={13} strokeWidth={2.4} />
+                      <span>Remover temperatura</span>
+                    </LeadTemperatureMenuButton>
+                  </LeadTemperatureMenu>
+                ) : null}
+              </LeadTemperaturePickerWrapper>
+            </LeadBadgesRow>
+          </LeadMetaRow>
         </LeadTitle>
       </LeadTopRow>
 
@@ -4673,24 +5028,79 @@ function SortableLeadCard({
           </LeadFollowUpNextLine>
         </LeadFollowUpContent>
 
-        <QuickFollowupButton
-          $alignToNextLine={hideFollowUpCount}
-          type="button"
-          aria-label="Adicionar follow-up rápido"
-          title="Adicionar follow-up rápido"
+        <LeadQuickActionsWrapper
+          $alignToFollowupLines
+          ref={quickActionsMenuRef}
           onPointerDown={(event) => {
             event.stopPropagation()
           }}
           onClick={(event) => {
             event.stopPropagation()
-            setOpenCreateFollowupOnLeadOpen(true)
-            setSelectedLead(null)
-            setLeadModalError(null)
-            setSelectedLeadId(lead.id)
           }}
         >
-          <Plus size={14} strokeWidth={2.4} />
-        </QuickFollowupButton>
+          <LeadQuickActionsButton
+            type="button"
+            aria-label="Ações rápidas do lead"
+            title="Ações rápidas"
+            onClick={() => {
+              setIsQuickActionsMenuOpen((prev) => !prev)
+              setIsQuickActionsTemperatureMenuOpen(false)
+            }}
+          >
+            <Plus size={14} strokeWidth={2.4} />
+          </LeadQuickActionsButton>
+
+          {isQuickActionsMenuOpen ? (
+            <LeadQuickActionsDropdown>
+              <LeadQuickActionsOption
+                type="button"
+                onClick={() => {
+                  setOpenCreateFollowupOnLeadOpen(true)
+                  setSelectedLead(null)
+                  setLeadModalError(null)
+                  setSelectedLeadId(lead.id)
+                  setIsQuickActionsMenuOpen(false)
+                  setIsQuickActionsTemperatureMenuOpen(false)
+                }}
+              >
+                Adicionar Follow-up
+              </LeadQuickActionsOption>
+
+              <LeadQuickActionsSubmenuWrapper>
+                <LeadQuickActionsOption
+                  type="button"
+                  onClick={() => {
+                    setIsQuickActionsTemperatureMenuOpen((prev) => !prev)
+                  }}
+                >
+                  <span>Temperatura</span>
+                  <LeadQuickActionsChevron $open={isQuickActionsTemperatureMenuOpen}>›</LeadQuickActionsChevron>
+                </LeadQuickActionsOption>
+
+                {isQuickActionsTemperatureMenuOpen ? (
+                  <LeadQuickActionsSubmenu>
+                    {LEAD_TEMPERATURE_OPTIONS.map((option) => (
+                      <LeadQuickActionsSubmenuOption
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          updateTemperatureFromCard(
+                            lead.temperature === option.value ? null : option.value
+                          )
+                        }}
+                      >
+                        {option.value === 'hot' ? <Flame size={13} strokeWidth={2.4} /> : null}
+                        {option.value === 'warm' ? <Sun size={13} strokeWidth={2.4} /> : null}
+                        {option.value === 'cold' ? <Snowflake size={13} strokeWidth={2.4} /> : null}
+                        <span>{option.label}</span>
+                      </LeadQuickActionsSubmenuOption>
+                    ))}
+                  </LeadQuickActionsSubmenu>
+                ) : null}
+              </LeadQuickActionsSubmenuWrapper>
+            </LeadQuickActionsDropdown>
+          ) : null}
+        </LeadQuickActionsWrapper>
       </LeadFollowUpBlock>
 
       {lead.fields?.lastMessage ? (
@@ -4771,6 +5181,7 @@ export default function BoardPage() {
   const [isBoardSelectorOpen, setIsBoardSelectorOpen] = useState(false)
   const [isSettingsDropdownOpen, setIsSettingsDropdownOpen] = useState(false)
   const [isMobileNavMenuOpen, setIsMobileNavMenuOpen] = useState(false)
+  const [isMobileCreateDropdownOpen, setIsMobileCreateDropdownOpen] = useState(false)
   const [isMobileSettingsDropdownOpen, setIsMobileSettingsDropdownOpen] = useState(false)
   const [isUserDataModalOpen, setIsUserDataModalOpen] = useState(false)
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false)
@@ -4839,13 +5250,17 @@ export default function BoardPage() {
       if (!hasActiveFilters) return true
 
       const status = lead.followUpSummary?.status ?? 'none'
+      const temperature = lead.temperature
 
       return (
         (selectedFilters.has('favorite') && Boolean(lead.isFavorite)) ||
         (selectedFilters.has('none') && status === 'none') ||
         (selectedFilters.has('scheduled') && status === 'scheduled') ||
         (selectedFilters.has('today') && status === 'today') ||
-        (selectedFilters.has('overdue') && status === 'overdue')
+        (selectedFilters.has('overdue') && status === 'overdue') ||
+        (selectedFilters.has('hot') && temperature === 'hot') ||
+        (selectedFilters.has('warm') && temperature === 'warm') ||
+        (selectedFilters.has('cold') && temperature === 'cold')
       )
     }
 
@@ -4864,16 +5279,44 @@ export default function BoardPage() {
     return { ...data, columns: filteredColumns }
   }, [data, searchTerm, selectedLeadFilters])
 
-  const leadFilterOptions = useMemo(
+  const leadFilterGroups = useMemo(
     () => [
-      { key: 'favorite' as const, label: 'Favoritos' },
-      { key: 'none' as const, label: 'Sem follow-up' },
-      { key: 'scheduled' as const, label: 'Agendados' },
-      { key: 'today' as const, label: 'Hoje' },
-      { key: 'overdue' as const, label: 'Atrasados' }
+      {
+        title: null as string | null,
+        options: [{ key: 'favorite' as const, label: 'Favoritos' }]
+      },
+      {
+        title: 'Follow-up',
+        options: [
+          { key: 'none' as const, label: 'Sem follow-up' },
+          { key: 'scheduled' as const, label: 'Agendados' },
+          { key: 'today' as const, label: 'Hoje' },
+          { key: 'overdue' as const, label: 'Atrasados' }
+        ]
+      },
+      {
+        title: 'Temperatura',
+        options: [
+          { key: 'hot' as const, label: 'Quente' },
+          { key: 'warm' as const, label: 'Morno' },
+          { key: 'cold' as const, label: 'Frio' }
+        ]
+      }
     ],
     []
   )
+
+  const favoriteLeadFilterOption = leadFilterGroups[0]?.options[0]
+  const followupLeadFilterOptions = leadFilterGroups.find((group) => group.title === 'Follow-up')?.options ?? []
+  const temperatureLeadFilterOptions = leadFilterGroups.find((group) => group.title === 'Temperatura')?.options ?? []
+
+  const toggleLeadFilter = useCallback((key: LeadFilterKey) => {
+    setSelectedLeadFilters((prev) =>
+      prev.includes(key)
+        ? prev.filter((item) => item !== key)
+        : [...prev, key]
+    )
+  }, [])
 
   const boardOptions = useMemo(() => {
     if (!data?.board) return []
@@ -4890,11 +5333,6 @@ export default function BoardPage() {
   const selectedAppRelease = useMemo(
     () => APP_RELEASES.find((release) => release.version === selectedAppVersion) ?? APP_RELEASES[0],
     [selectedAppVersion]
-  )
-
-  const currentAppDateLabel = useMemo(
-    () => new Intl.DateTimeFormat('pt-BR').format(new Date()),
-    []
   )
 
   useEffect(() => {
@@ -5082,18 +5520,20 @@ export default function BoardPage() {
   }, [isSearchOpen])
 
   useEffect(() => {
-    if (!isMobileNavMenuOpen) return
+    if (!isMobileNavMenuOpen && !isMobileCreateDropdownOpen) return
 
     const onClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
       if (!mobileNavMenuRef.current?.contains(target)) {
         setIsMobileNavMenuOpen(false)
+        setIsMobileCreateDropdownOpen(false)
       }
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsMobileNavMenuOpen(false)
+        setIsMobileCreateDropdownOpen(false)
       }
     }
 
@@ -5104,7 +5544,7 @@ export default function BoardPage() {
       window.removeEventListener('mousedown', onClickOutside)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [isMobileNavMenuOpen])
+  }, [isMobileNavMenuOpen, isMobileCreateDropdownOpen])
 
   useEffect(() => {
     if (!isMobileSettingsDropdownOpen) return
@@ -5445,7 +5885,7 @@ export default function BoardPage() {
           aria-label="Abrir histórico de versões"
           title="Histórico de versões"
         >
-          {`${currentAppDateLabel} · ${APP_RELEASES[0]?.version ?? 'v1.1'}`}
+          {`${APP_RELEASES[0]?.createdAtLabel ?? ''} · ${APP_RELEASES[0]?.version ?? 'v1.2'}`}
         </BottomVersion>
 
         <BoardOuter>
@@ -5538,26 +5978,71 @@ export default function BoardPage() {
 
                     {isFiltersDropdownOpen ? (
                       <FiltersDropdownMenu>
-                        {leadFilterOptions.map((option) => {
-                          const isSelected = selectedLeadFilters.includes(option.key)
+                        {favoriteLeadFilterOption ? (
+                          <FiltersDropdownOption
+                            type="button"
+                            onClick={() => {
+                              toggleLeadFilter(favoriteLeadFilterOption.key)
+                            }}
+                          >
+                            <FiltersOptionLabel>{favoriteLeadFilterOption.label}</FiltersOptionLabel>
+                            {selectedLeadFilters.includes(favoriteLeadFilterOption.key)
+                              ? <Check size={14} />
+                              : <FiltersCheckPlaceholder />}
+                          </FiltersDropdownOption>
+                        ) : null}
 
-                          return (
-                            <FiltersDropdownOption
-                              key={option.key}
-                              type="button"
-                              onClick={() => {
-                                setSelectedLeadFilters((prev) =>
-                                  prev.includes(option.key)
-                                    ? prev.filter((key) => key !== option.key)
-                                    : [...prev, option.key]
-                                )
-                              }}
-                            >
-                              <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                              {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
-                            </FiltersDropdownOption>
-                          )
-                        })}
+                        <FiltersSubmenuWrapper>
+                          <FiltersSubmenuTrigger type="button">
+                            <span>Follow-up</span>
+                            <FiltersSubmenuChevron>›</FiltersSubmenuChevron>
+                          </FiltersSubmenuTrigger>
+
+                          <FiltersSubmenuPanel data-filters-submenu="panel">
+                            {followupLeadFilterOptions.map((option) => {
+                              const isSelected = selectedLeadFilters.includes(option.key)
+
+                              return (
+                                <FiltersDropdownOption
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => {
+                                    toggleLeadFilter(option.key)
+                                  }}
+                                >
+                                  <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
+                                  {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
+                                </FiltersDropdownOption>
+                              )
+                            })}
+                          </FiltersSubmenuPanel>
+                        </FiltersSubmenuWrapper>
+
+                        <FiltersSubmenuWrapper>
+                          <FiltersSubmenuTrigger type="button">
+                            <span>Temperatura</span>
+                            <FiltersSubmenuChevron>›</FiltersSubmenuChevron>
+                          </FiltersSubmenuTrigger>
+
+                          <FiltersSubmenuPanel data-filters-submenu="panel">
+                            {temperatureLeadFilterOptions.map((option) => {
+                              const isSelected = selectedLeadFilters.includes(option.key)
+
+                              return (
+                                <FiltersDropdownOption
+                                  key={option.key}
+                                  type="button"
+                                  onClick={() => {
+                                    toggleLeadFilter(option.key)
+                                  }}
+                                >
+                                  <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
+                                  {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
+                                </FiltersDropdownOption>
+                              )
+                            })}
+                          </FiltersSubmenuPanel>
+                        </FiltersSubmenuWrapper>
                       </FiltersDropdownMenu>
                     ) : null}
                   </FiltersDropdownWrapper>
@@ -5583,7 +6068,7 @@ export default function BoardPage() {
                     aria-label="Novo lead"
                     title="Novo lead"
                   >
-                    + Novo Lead
+                    + Novo lead
                   </HeaderActionButton>
 
                   <SettingsDropdownWrapper ref={settingsDropdownRef}>
@@ -5656,85 +6141,106 @@ export default function BoardPage() {
                 </BoardHeaderActions>
 
                 <BoardHeaderActionsMobile ref={mobileNavMenuRef}>
-                  <MobileNavMenuButton
-                    type="button"
-                    onClick={() => {
-                      setIsMobileSettingsDropdownOpen(false)
-                      setIsMobileNavMenuOpen((prev) => !prev)
-                    }}
-                    aria-label="Abrir menu"
-                    title="Menu"
-                  >
-                    <Menu size={18} />
-                  </MobileNavMenuButton>
+                  <SettingsDropdownWrapper>
+                    <SettingsButton
+                      type="button"
+                      onClick={() => {
+                        setIsMobileCreateDropdownOpen(false)
+                        setIsMobileSettingsDropdownOpen(false)
+                        setIsMobileNavMenuOpen((prev) => !prev)
+                      }}
+                      aria-label="Abrir filtros"
+                      title="Filtros"
+                    >
+                      <Filter size={18} />
+                    </SettingsButton>
 
-                  {isMobileNavMenuOpen ? (
-                    <MobileNavMenuDropdown>
-                      <MobileNavMenuSectionTitle>Buscar leads</MobileNavMenuSectionTitle>
-                      <MobileNavMenuSearchInput
-                        type="text"
-                        placeholder="Nome, telefone, email"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
+                    {isMobileNavMenuOpen ? (
+                      <MobileNavMenuDropdown>
+                        <MobileNavMenuSectionTitle>Buscar leads</MobileNavMenuSectionTitle>
+                        <MobileNavFilterSearchInput
+                          type="text"
+                          placeholder="Nome, telefone, email"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
 
-                      <MobileNavMenuDivider />
+                        <MobileNavMenuSectionTitle>Filtros</MobileNavMenuSectionTitle>
+                        <MobileNavFiltersList>
+                          {leadFilterGroups.map((group) => (
+                            <FiltersGroup key={group.title ?? 'favorites'}>
+                              {group.title ? <FiltersGroupTitle>{group.title}</FiltersGroupTitle> : null}
 
-                      <MobileNavMenuSectionTitle>Filtros</MobileNavMenuSectionTitle>
-                      <MobileNavFiltersList>
-                        {leadFilterOptions.map((option) => {
-                          const isSelected = selectedLeadFilters.includes(option.key)
+                              {group.options.map((option) => {
+                                const isSelected = selectedLeadFilters.includes(option.key)
 
-                          return (
-                            <FiltersDropdownOption
-                              key={option.key}
-                              type="button"
-                              onClick={() => {
-                                setSelectedLeadFilters((prev) =>
-                                  prev.includes(option.key)
-                                    ? prev.filter((key) => key !== option.key)
-                                    : [...prev, option.key]
+                                return (
+                                  <FiltersDropdownOption
+                                    key={option.key}
+                                    type="button"
+                                    onClick={() => {
+                                      toggleLeadFilter(option.key)
+                                    }}
+                                  >
+                                    <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
+                                    {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
+                                  </FiltersDropdownOption>
                                 )
-                              }}
-                            >
-                              <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                              {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
-                            </FiltersDropdownOption>
-                          )
-                        })}
-                      </MobileNavFiltersList>
+                              })}
+                            </FiltersGroup>
+                          ))}
+                        </MobileNavFiltersList>
+                      </MobileNavMenuDropdown>
+                    ) : null}
+                  </SettingsDropdownWrapper>
 
-                      <MobileNavMenuDivider />
+                  <SettingsDropdownWrapper>
+                    <SettingsButton
+                      type="button"
+                      onClick={() => {
+                        setIsMobileNavMenuOpen(false)
+                        setIsMobileSettingsDropdownOpen(false)
+                        setIsMobileCreateDropdownOpen((prev) => !prev)
+                      }}
+                      aria-label="Abrir menu de criação"
+                      title="Criar"
+                    >
+                      <Plus size={18} />
+                    </SettingsButton>
 
-                      <SettingsDropdownOption
-                        type="button"
-                        onClick={() => {
-                          setCreateColumnError(null)
-                          setIsCreateColumnModalOpen(true)
-                          setIsMobileNavMenuOpen(false)
-                        }}
-                      >
-                        + Nova coluna
-                      </SettingsDropdownOption>
+                    {isMobileCreateDropdownOpen ? (
+                      <SettingsDropdownMenu>
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setCreateColumnError(null)
+                            setIsCreateColumnModalOpen(true)
+                            setIsMobileCreateDropdownOpen(false)
+                          }}
+                        >
+                          Nova coluna
+                        </SettingsDropdownOption>
 
-                      <SettingsDropdownOption
-                        type="button"
-                        onClick={() => {
-                          setCreateLeadColumnId('')
-                          setIsCreateLeadModalOpen(true)
-                          setIsMobileNavMenuOpen(false)
-                        }}
-                      >
-                        + Novo lead
-                      </SettingsDropdownOption>
-                    </MobileNavMenuDropdown>
-                  ) : null}
+                        <SettingsDropdownOption
+                          type="button"
+                          onClick={() => {
+                            setCreateLeadColumnId('')
+                            setIsCreateLeadModalOpen(true)
+                            setIsMobileCreateDropdownOpen(false)
+                          }}
+                        >
+                          Novo lead
+                        </SettingsDropdownOption>
+                      </SettingsDropdownMenu>
+                    ) : null}
+                  </SettingsDropdownWrapper>
 
                   <SettingsDropdownWrapper ref={mobileSettingsDropdownRef}>
                     <SettingsButton
                       type="button"
                       onClick={() => {
                         setIsMobileNavMenuOpen(false)
+                        setIsMobileCreateDropdownOpen(false)
                         setIsMobileSettingsDropdownOpen((prev) => !prev)
                       }}
                       aria-label="Abrir menu de configurações"
@@ -5752,7 +6258,10 @@ export default function BoardPage() {
                             setIsMobileSettingsDropdownOpen(false)
                           }}
                         >
-                          Dados do usuário
+                          <SettingsOptionWithIcon>
+                            <CircleUser size={14} />
+                            Dados do usuário
+                          </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
 
                         <SettingsDropdownOption
@@ -5762,7 +6271,10 @@ export default function BoardPage() {
                             setIsMobileSettingsDropdownOpen(false)
                           }}
                         >
-                          Preferências
+                          <SettingsOptionWithIcon>
+                            <Settings2 size={14} />
+                            Preferências
+                          </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
 
                         <SettingsDropdownOption
@@ -5784,7 +6296,10 @@ export default function BoardPage() {
                             setIsMobileSettingsDropdownOpen(false)
                           }}
                         >
-                          Logout
+                          <SettingsOptionWithIcon>
+                            <LogOut size={14} />
+                            Logout
+                          </SettingsOptionWithIcon>
                         </SettingsDropdownOption>
                       </SettingsDropdownMenu>
                     ) : null}
@@ -5898,6 +6413,12 @@ export default function BoardPage() {
                                 if (s === 'scheduled') return 2
                                 return 3
                               }
+                              const temperatureOrder = (lead: Lead): number => {
+                                if (lead.temperature === 'hot') return 0
+                                if (lead.temperature === 'warm') return 1
+                                if (lead.temperature === 'cold') return 2
+                                return 3
+                              }
                               if (sort === 'newest') {
                                 leads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                               } else if (sort === 'oldest') {
@@ -5912,6 +6433,13 @@ export default function BoardPage() {
                                 })
                               } else if (sort === 'favorites') {
                                 leads.sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0))
+                              } else if (sort === 'temperature') {
+                                leads.sort((a, b) => {
+                                  const temperatureDifference = temperatureOrder(a) - temperatureOrder(b)
+                                  if (temperatureDifference !== 0) return temperatureDifference
+
+                                  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                                })
                               }
                               return leads
                             })()).map((lead) => (
@@ -6252,7 +6780,7 @@ const SettingsDropdownMenu = styled.div`
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 180px;
+  min-width: 115px;
   border: 1px solid var(--app-border);
   border-radius: 10px;
   background: var(--app-surface);
@@ -6412,24 +6940,6 @@ const BoardHeaderActionsMobile = styled.div`
   }
 `
 
-const MobileNavMenuButton = styled.button`
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--app-border-strong);
-  border-radius: 9px;
-  background: var(--app-surface);
-  color: var(--app-text);
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--app-hover);
-  }
-`
-
 const MobileNavMenuDropdown = styled.div`
   position: absolute;
   top: calc(100% + 8px);
@@ -6446,7 +6956,7 @@ const MobileNavMenuDropdown = styled.div`
   gap: 6px;
 
   @media (max-width: 450px) {
-    width: min(340px, calc(100vw - 24px));
+    width: min(200px, calc(100vw - 24px));
   }
 `
 
@@ -6459,7 +6969,7 @@ const MobileNavMenuSectionTitle = styled.span`
   padding: 2px 2px 0;
 `
 
-const MobileNavMenuSearchInput = styled.input`
+const MobileNavFilterSearchInput = styled.input`
   width: 100%;
   height: 34px;
   border: 1px solid var(--app-border);
@@ -6478,19 +6988,9 @@ const MobileNavMenuSearchInput = styled.input`
     outline-offset: 0;
   }
 
-  @media (max-width: 920px) {
-    min-width: 0;
-  }
-
   @media (max-width: 450px) {
     font-size: 16px;
   }
-`
-
-const MobileNavMenuDivider = styled.div`
-  height: 1px;
-  background: var(--app-border);
-  margin: 2px 0;
 `
 
 const MobileNavFiltersList = styled.div`
@@ -6591,7 +7091,7 @@ const FiltersDropdownMenu = styled.div`
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 220px;
+  min-width: 150px;
   border: 1px solid var(--app-border);
   border-radius: 10px;
   background: var(--app-surface);
@@ -6630,6 +7130,74 @@ const FiltersCheckPlaceholder = styled.span`
   width: 14px;
   height: 14px;
   display: inline-block;
+`
+
+const FiltersGroup = styled.div`
+  & + & {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--app-divider);
+  }
+`
+
+const FiltersGroupTitle = styled.div`
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+`
+
+const FiltersSubmenuWrapper = styled.div`
+  position: relative;
+
+  &:hover [data-filters-submenu='panel'],
+  &:focus-within [data-filters-submenu='panel'] {
+    display: block;
+  }
+`
+
+const FiltersSubmenuTrigger = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--app-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  &:hover {
+    background: var(--app-hover);
+  }
+`
+
+const FiltersSubmenuChevron = styled.span`
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--app-text-muted);
+`
+
+const FiltersSubmenuPanel = styled.div`
+  display: none;
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+  min-width: 170px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 1400;
 `
 
 const SearchDropdownWrapper = styled.div`
@@ -6792,8 +7360,8 @@ const ColumnsRow = styled.div`
 `
 
 const Column = styled.div`
-  min-width: 280px;
-  max-width: 280px;
+  min-width: 292px;
+  max-width: 292px;
   border: 1px solid var(--app-border-strong);
   border-radius: 16px;
   background: var(--app-surface);
@@ -6912,8 +7480,8 @@ const AddLeadButton = styled.button`
 `
 
 const AddColumnButton = styled.button`
-  min-width: 280px;
-  max-width: 280px;
+  min-width: 292px;
+  max-width: 292px;
   height: 100%;
   border: 1px dashed var(--app-border);
   border-radius: 16px;
@@ -6951,10 +7519,13 @@ const AddColumnButton = styled.button`
 const LeadCard = styled.div<{ $menuOpen?: boolean }>`
   position: relative;
   z-index: ${(props) => (props.$menuOpen ? 140 : 0)};
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid var(--app-border-strong);
   border-radius: 16px;
   background: var(--app-surface);
-  padding: 12px;
+  padding: 13px;
   cursor: grab;
   user-select: none;
   overflow: visible;
@@ -7019,25 +7590,6 @@ const LeadFollowUpNextLine = styled.div<{ $status: FollowUpBoardStatus }>`
   }};
 `
 
-const QuickFollowupButton = styled.button<{ $alignToNextLine?: boolean }>`
-  align-self: ${(props) => (props.$alignToNextLine ? 'center' : 'flex-end')};
-  border: 0;
-  background: transparent;
-  color: var(--app-text-muted);
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transform: ${(props) => (props.$alignToNextLine ? 'translateY(0)' : 'translateY(-11px)')};
-  margin-right: 2px;
-  cursor: pointer;
-  transition: color 0.16s ease;
-
-  &:hover {
-    color: var(--app-text);
-  }
-`
-
 const LeadTopRow = styled.div`
   display: flex;
   align-items: center;
@@ -7045,29 +7597,54 @@ const LeadTopRow = styled.div`
 
 const LeadTitle = styled.div`
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
 `
 
-const LeadTitleInfo = styled.div`
+const LeadHeaderRow = styled.div`
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+`
+
+const LeadHeaderActions = styled.div`
+  display: inline-flex;
   flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  gap: 8px;
+`
+
+const LeadMetaRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
 `
 
 const LeadBadgesRow = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex: 1;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
 `
 
 const LeadName = styled.div`
+  width: 190px;
   font-weight: 900;
   letter-spacing: -0.2px;
   line-height: 1.2;
+
+  @media (max-width: 450px) {
+    width: 100%;
+  }
 `
 
 const LeadSourceBadge = styled.span<{ $type: LeadSourceBadgeType }>`
@@ -7120,6 +7697,37 @@ const LeadAgeBadge = styled.span`
     0 1px 2px rgba(0, 0, 0, 0.08);
 `
 
+const LeadTemperatureBadge = styled.span<{ $type: LeadTemperatureBadgeType }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.15px;
+  color: ${(props) => (props.$type === 'cold' ? '#0f172a' : '#ffffff')};
+  border: ${(props) => (props.$type === 'cold' ? '1px solid #93c5fd' : 'none')};
+  background: ${(props) => {
+    switch (props.$type) {
+      case 'hot':
+        return 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)'
+      case 'warm':
+        return 'linear-gradient(180deg, #f59e0b 0%, #d97706 100%)'
+      case 'cold':
+        return 'linear-gradient(180deg, #e0f2fe 0%, #bfdbfe 100%)'
+      default:
+        return 'linear-gradient(180deg, #f1f1f1 0%, #dddddd 100%)'
+    }
+  }};
+  box-shadow: ${(props) => (props.$type === 'cold'
+    ? 'inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 2px rgba(0, 0, 0, 0.08)'
+    : 'none')};
+`
+
 const LeadNewBadge = styled.span`
   display: inline-flex;
   align-items: center;
@@ -7140,18 +7748,110 @@ const LeadNewBadge = styled.span`
     0 1px 2px rgba(0, 0, 0, 0.08);
 `
 
-const LeadNewSparkle = styled.span`
+const LeadNewFire = styled.span`
   display: inline-flex;
   align-items: center;
   line-height: 1;
   font-size: 11px;
 `
 
-const LeadActionButtons = styled.div`
+const LeadQuickActionsWrapper = styled.div<{ $alignToFollowupLines?: boolean }>`
+  position: relative;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  align-self: ${(props) => (props.$alignToFollowupLines ? 'center' : 'auto')};
+`
+
+const LeadQuickActionsButton = styled.button`
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a3a3a3;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--app-text);
+  }
+`
+
+const LeadQuickActionsDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 170px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 190;
+`
+
+const LeadQuickActionsOption = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-text);
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+
+  &:hover {
+    background: var(--app-hover);
+  }
+`
+
+const LeadQuickActionsSubmenuWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const LeadQuickActionsChevron = styled.span<{ $open: boolean }>`
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--app-text-muted);
+  transform: rotate(${(p) => (p.$open ? '90deg' : '0deg')});
+  transition: transform 0.15s;
+`
+
+const LeadQuickActionsSubmenu = styled.div`
+  padding: 4px 0 4px 10px;
+`
+
+const LeadQuickActionsSubmenuOption = styled.button`
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  &:hover {
+    background: var(--app-hover);
+  }
 `
 
 const LeadMoveMenuWrapper = styled.div`
@@ -7161,6 +7861,7 @@ const LeadMoveMenuWrapper = styled.div`
   justify-content: center;
 
   @media (max-width: 450px) {
+    top: 5px;
     display: inline-flex;
   }
 `
@@ -7733,12 +8434,6 @@ const VersionNotesCard = styled(InfoRow)`
   gap: 10px;
 `
 
-const VersionNotesTitle = styled.div`
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--app-text);
-`
-
 const VersionNotesList = styled.ul`
   margin: 0;
   padding-left: 18px;
@@ -7929,6 +8624,57 @@ const LeadContactKey = styled.span`
 const LeadContactValue = styled.span`
   color: var(--app-text-muted);
   font-weight: 600;
+`
+
+const LeadTemperaturePickerWrapper = styled.div`
+  position: relative;
+  display: inline-flex;
+`
+
+const LeadTemperaturePickerButton = styled.button`
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.75;
+  }
+`
+
+const LeadTemperatureMenu = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 170px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  z-index: 220;
+`
+
+const LeadTemperatureMenuButton = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-text);
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  &:hover {
+    background: var(--app-hover);
+  }
 `
 
 const LeadContactInlineInput = styled.input`
