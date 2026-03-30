@@ -31,9 +31,11 @@ import {
   CircleUser,
   Settings2,
   LogOut,
+  Archive,
   Flame,
   Sun,
-  Snowflake
+  Snowflake,
+  RotateCcw
 } from 'lucide-react'
 import { atom, useAtom, useSetAtom } from 'jotai'
 
@@ -219,6 +221,15 @@ const LEAD_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }>
 ]
 
 const APP_RELEASES: AppRelease[] = [
+  {
+    version: 'v1.3',
+    createdAtLabel: '30/03/2026',
+    functionalChanges: [
+      'Implementamos melhorias no fluxo de leads arquivados em toda a experiência do board.',
+      'Consolidamos a gestão de arquivados com ações e confirmações para dar mais segurança nas operações.',
+      'Evoluímos a visualização e o acesso aos leads arquivados para facilitar consulta e acompanhamento.'
+    ]
+  },
   {
     version: 'v1.2',
     createdAtLabel: '27/03/2026',
@@ -534,7 +545,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           source: 'facebook',
           temperature: 'hot',
           outcome: null,
-          state: 'active',
+          state: 'archived',
           fields: {
             initialMessage: 'Tem integração com ERP legado? Esse é o principal ponto para a nossa decisão.'
           },
@@ -598,7 +609,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           source: 'whatsapp',
           temperature: 'cold',
           outcome: null,
-          state: 'active',
+          state: 'archived',
           fields: {
             initialMessage: 'Quero uma proposta com relatório gerencial incluso para apresentar ao conselho.'
           },
@@ -691,7 +702,7 @@ const MOCK_BOARD_STATE: BoardFullResponse = {
           source: 'whatsapp',
           temperature: 'warm',
           outcome: 'won',
-          state: 'active',
+          state: 'archived',
           fields: {
             initialMessage: 'Precisamos garantir integração com SAP para seguir com a contratação.'
           },
@@ -916,6 +927,7 @@ const TOAST_MESSAGES = {
     editFollowup: 'Follow-up editado com sucesso',
     completeFollowup: 'Follow-up marcado como concluído',
     favoriteLead: 'Lead favoritado com sucesso',
+    archiveLead: 'Lead arquivado com sucesso',
     editLead: 'Lead editado com sucesso',
     deleteItem: 'Lead excluído com sucesso',
     saveAutomation: 'Automação salva com sucesso',
@@ -1792,6 +1804,75 @@ function LeadDeleteConfirmModal({
   )
 }
 
+function LeadArchiveConfirmModal({
+  isOpen,
+  isArchiving,
+  onClose,
+  onConfirm
+}: {
+  isOpen: boolean
+  isArchiving: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    if (!isOpen) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isArchiving) onClose()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, isArchiving, onClose])
+
+  if (!isOpen) return null
+
+  return (
+    <ModalOverlay
+      onClick={() => {
+        if (!isArchiving) onClose()
+      }}
+    >
+      <SettingsModalCard
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+      >
+        <SettingsModalHeader>
+          <SettingsModalTitle>Arquivar lead</SettingsModalTitle>
+
+          <SettingsCloseIconButton
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar confirmação de arquivamento"
+            title="Fechar"
+            disabled={isArchiving}
+          >
+            <X size={18} />
+          </SettingsCloseIconButton>
+        </SettingsModalHeader>
+
+        <DeleteConfirmText>
+          Você tem certeza que deseja arquivar este lead?
+        </DeleteConfirmText>
+
+        <ModalFooter>
+          <FooterButtons>
+            <DangerButton type="button" onClick={onConfirm} disabled={isArchiving}>
+              {isArchiving ? 'Arquivando...' : 'Sim'}
+            </DangerButton>
+
+            <NeutralButton type="button" onClick={onClose} disabled={isArchiving}>
+              Não
+            </NeutralButton>
+          </FooterButtons>
+        </ModalFooter>
+      </SettingsModalCard>
+    </ModalOverlay>
+  )
+}
+
 function FollowUpDeleteConfirmModal({
   isOpen,
   isDeleting,
@@ -1880,6 +1961,8 @@ function LeadDetailsModal({
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
   const [isColumnChanging, setIsColumnChanging] = useState(false)
   const [isMoveColumnMenuOpen, setIsMoveColumnMenuOpen] = useState(false)
@@ -1967,6 +2050,8 @@ function LeadDetailsModal({
     setIsContactEditMode(false)
     setIsDeleteConfirmOpen(false)
     setIsDeleting(false)
+    setIsArchiveConfirmOpen(false)
+    setIsArchiving(false)
     setIsMoveColumnMenuOpen(false)
     setIsTemperatureMenuOpen(false)
     setIsFollowupFiltersOpen(false)
@@ -2041,7 +2126,7 @@ function LeadDetailsModal({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      if (isSaving || isNotesSaving || isDeleting || isDeletingFollowup) return
+      if (isSaving || isNotesSaving || isDeleting || isDeletingFollowup || isArchiving) return
 
       if (followupToDeleteId) {
         setFollowupToDeleteId(null)
@@ -2050,6 +2135,11 @@ function LeadDetailsModal({
 
       if (isDeleteConfirmOpen) {
         setIsDeleteConfirmOpen(false)
+        return
+      }
+
+      if (isArchiveConfirmOpen) {
+        setIsArchiveConfirmOpen(false)
         return
       }
 
@@ -2079,7 +2169,9 @@ function LeadDetailsModal({
     isSaving,
     isNotesSaving,
     isDeleting,
+    isArchiving,
     isDeleteConfirmOpen,
+    isArchiveConfirmOpen,
     followupToDeleteId,
     isDeletingFollowup,
     isMoveColumnMenuOpen,
@@ -2458,6 +2550,31 @@ function LeadDetailsModal({
       toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleArchiveLead = async () => {
+    if (!selectedLead) return
+
+    try {
+      setIsArchiving(true)
+      setError(null)
+
+      // await api.patch(`/leads/${selectedLead.id}`, { state: 'archived' })
+      _mockPatchLead(selectedLead.id, {
+        state: 'archived',
+        updatedAt: new Date().toISOString()
+      })
+      await onRefreshBoard()
+      setIsArchiveConfirmOpen(false)
+      toastSuccess(TOAST_MESSAGES.success.archiveLead)
+      closeModal()
+    } catch (e: any) {
+      const msg = e instanceof Error ? e.message : 'Erro ao arquivar lead'
+      setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
+    } finally {
+      setIsArchiving(false)
     }
   }
 
@@ -2874,9 +2991,35 @@ function LeadDetailsModal({
                   }}
                   aria-label="Excluir lead"
                   title="Excluir lead"
-                  disabled={isSaving || isNotesSaving || isDeleting || isDeletingFollowup}
+                  disabled={
+                    isSaving ||
+                    isNotesSaving ||
+                    isDeleting ||
+                    isArchiving ||
+                    isDeletingFollowup
+                  }
                 >
                   <Trash2 size={18} />
+                </SettingsCloseIconButton>
+
+                <SettingsCloseIconButton
+                  type="button"
+                  $hideOnNarrowMobile
+                  onClick={() => {
+                    setIsArchiveConfirmOpen(true)
+                    setError(null)
+                  }}
+                  aria-label="Arquivar lead"
+                  title="Arquivar lead"
+                  disabled={
+                    isSaving ||
+                    isNotesSaving ||
+                    isDeleting ||
+                    isArchiving ||
+                    isDeletingFollowup
+                  }
+                >
+                  <Archive size={18} />
                 </SettingsCloseIconButton>
 
                 <SettingsCloseIconButton
@@ -2889,6 +3032,7 @@ function LeadDetailsModal({
                     isSaving ||
                     isNotesSaving ||
                     isDeleting ||
+                    isArchiving ||
                     isDeletingFollowup ||
                     viewMode === 'notes'
                   }
@@ -2906,6 +3050,7 @@ function LeadDetailsModal({
                     isSaving ||
                     isNotesSaving ||
                     isDeleting ||
+                    isArchiving ||
                     isDeletingFollowup ||
                     viewMode === 'followups'
                   }
@@ -2923,6 +3068,7 @@ function LeadDetailsModal({
                     isSaving ||
                     isNotesSaving ||
                     isDeleting ||
+                    isArchiving ||
                     isDeletingFollowup ||
                     isFavoriteUpdating
                   }
@@ -2944,6 +3090,7 @@ function LeadDetailsModal({
                     isSaving ||
                     isNotesSaving ||
                     isDeleting ||
+                    isArchiving ||
                     isDeletingFollowup ||
                     isFavoriteUpdating
                   }
@@ -3541,6 +3688,17 @@ function LeadDetailsModal({
         }}
         onConfirm={() => {
           void handleDeleteLead()
+        }}
+      />
+
+      <LeadArchiveConfirmModal
+        isOpen={isArchiveConfirmOpen}
+        isArchiving={isArchiving}
+        onClose={() => {
+          if (!isArchiving) setIsArchiveConfirmOpen(false)
+        }}
+        onConfirm={() => {
+          void handleArchiveLead()
         }}
       />
 
@@ -4880,48 +5038,7 @@ function SortableLeadCard({
                 <Star size={14} strokeWidth={2.2} />
               </LeadFavoriteButton>
 
-              <LeadMoveMenuWrapper
-                ref={moveMenuRef}
-                onPointerDown={(event) => {
-                  event.stopPropagation()
-                }}
-                onClick={(event) => {
-                  event.stopPropagation()
-                }}
-              >
-                <LeadMoveButton
-                  type="button"
-                  aria-label="Mover lead"
-                  title="Mover lead"
-                  onClick={() => {
-                    setIsMoveMenuOpen((prev) => !prev)
-                  }}
-                >
-                  <ArrowRight size={13} strokeWidth={2.2} />
-                </LeadMoveButton>
-
-                {isMoveMenuOpen ? (
-                  <LeadMoveDropdown>
-                    <MoveColumnLabel>Mover para</MoveColumnLabel>
-                    {(boardData?.columns ?? []).map((column) => {
-                      const isCurrent = column.id === lead.columnId
-
-                      return (
-                        <LeadMoveOptionButton
-                          key={column.id}
-                          type="button"
-                          $active={isCurrent}
-                          onClick={() => {
-                            moveLeadFromCard(column.id)
-                          }}
-                        >
-                          {column.name}
-                        </LeadMoveOptionButton>
-                      )
-                    })}
-                  </LeadMoveDropdown>
-                ) : null}
-              </LeadMoveMenuWrapper>
+              
             </LeadHeaderActions>
           </LeadHeaderRow>
 
@@ -5007,6 +5124,48 @@ function SortableLeadCard({
                 ) : null}
               </LeadTemperaturePickerWrapper>
             </LeadBadgesRow>
+            <LeadMoveMenuWrapper
+                ref={moveMenuRef}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                }}
+              >
+                <LeadMoveButton
+                  type="button"
+                  aria-label="Mover lead"
+                  title="Mover lead"
+                  onClick={() => {
+                    setIsMoveMenuOpen((prev) => !prev)
+                  }}
+                >
+                  <ArrowRight size={13} strokeWidth={2.2} />
+                </LeadMoveButton>
+
+                {isMoveMenuOpen ? (
+                  <LeadMoveDropdown>
+                    <MoveColumnLabel>Mover para</MoveColumnLabel>
+                    {(boardData?.columns ?? []).map((column) => {
+                      const isCurrent = column.id === lead.columnId
+
+                      return (
+                        <LeadMoveOptionButton
+                          key={column.id}
+                          type="button"
+                          $active={isCurrent}
+                          onClick={() => {
+                            moveLeadFromCard(column.id)
+                          }}
+                        >
+                          {column.name}
+                        </LeadMoveOptionButton>
+                      )
+                    })}
+                  </LeadMoveDropdown>
+                ) : null}
+              </LeadMoveMenuWrapper>
           </LeadMetaRow>
         </LeadTitle>
       </LeadTopRow>
@@ -5170,6 +5329,10 @@ export default function BoardPage() {
   const setSelectedColumn = useSetAtom(selectedColumnAtom)
   const setIsColumnModalOpen = useSetAtom(isColumnModalOpenAtom)
   const setColumnModalMode = useSetAtom(columnModalModeAtom)
+  const setOpenCreateFollowupOnLeadOpen = useSetAtom(openCreateFollowupOnLeadOpenAtom)
+  const setSelectedLeadId = useSetAtom(selectedLeadIdAtom)
+  const setSelectedLead = useSetAtom(selectedLeadAtom)
+  const setLeadModalError = useSetAtom(leadModalErrorAtom)
 
   const [createLeadColumnId, setCreateLeadColumnId] = useState<string>('')
 
@@ -5186,6 +5349,8 @@ export default function BoardPage() {
   const [isUserDataModalOpen, setIsUserDataModalOpen] = useState(false)
   const [isPreferencesModalOpen, setIsPreferencesModalOpen] = useState(false)
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false)
+  const [isArchivedLeadsModalOpen, setIsArchivedLeadsModalOpen] = useState(false)
+  const [openColumnPickerLeadId, setOpenColumnPickerLeadId] = useState<string | null>(null)
   const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
   const [selectedAppVersion, setSelectedAppVersion] = useState<string>(APP_RELEASES[0]?.version ?? '')
   const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
@@ -5268,6 +5433,7 @@ export default function BoardPage() {
       .map((col) => ({
         ...col,
         leads: col.leads.filter((lead) =>
+          lead.state === 'active' &&
           (!hasSearch ||
             lead.name.toLowerCase().includes(term) ||
             (lead.email && lead.email.toLowerCase().includes(term)) ||
@@ -5278,6 +5444,85 @@ export default function BoardPage() {
 
     return { ...data, columns: filteredColumns }
   }, [data, searchTerm, selectedLeadFilters])
+
+  const archivedLeads = useMemo(() => {
+    if (!data) return [] as Lead[]
+
+    return data.columns.flatMap((column) =>
+      column.leads.filter((lead) => lead.state === 'archived')
+    )
+  }, [data])
+
+  const unarchiveLeadToColumn = useCallback(
+    (leadId: string, targetColumnId: string) => {
+      setData((current) => {
+        if (!current) return current
+
+        let movedLead: Lead | null = null
+        const updatedAt = new Date().toISOString()
+
+        const withoutLead = current.columns.map((column) => {
+          const idx = column.leads.findIndex((l) => l.id === leadId)
+          if (idx === -1) return column
+
+          movedLead = {
+            ...column.leads[idx],
+            state: 'active',
+            updatedAt,
+            columnId: targetColumnId
+          }
+
+          return {
+            ...column,
+            leads: column.leads
+              .filter((l) => l.id !== leadId)
+              .map((l, i) => ({ ...l, position: i }))
+          }
+        })
+
+        if (!movedLead) return current
+
+        const movedLeadSnapshot: Lead = movedLead
+
+        const nextColumns = withoutLead.map((column) => {
+          if (column.id !== targetColumnId) return column
+
+          return {
+            ...column,
+            leads: [
+              ...column.leads,
+              { ...movedLeadSnapshot, position: column.leads.length }
+            ]
+          }
+        })
+
+        _mockPatchLead(leadId, { state: 'active', updatedAt, columnId: targetColumnId })
+        toastSuccess('Lead reativado com sucesso')
+
+        return { ...current, columns: nextColumns }
+      })
+
+      setOpenColumnPickerLeadId(null)
+    },
+    [setData]
+  )
+
+  const openLeadFromArchivedList = useCallback(
+    (leadId: string) => {
+      setOpenCreateFollowupOnLeadOpen(false)
+      setSelectedLead(null)
+      setLeadModalError(null)
+      setSelectedLeadId(leadId)
+      setOpenColumnPickerLeadId(null)
+      setIsArchivedLeadsModalOpen(false)
+    },
+    [
+      setOpenCreateFollowupOnLeadOpen,
+      setSelectedLead,
+      setLeadModalError,
+      setSelectedLeadId
+    ]
+  )
 
   const leadFilterGroups = useMemo(
     () => [
@@ -5358,13 +5603,21 @@ export default function BoardPage() {
   }, [isVersionModalOpen])
 
   useEffect(() => {
-    if (!isUserDataModalOpen && !isPreferencesModalOpen && !isNotificationsModalOpen) return
+    if (
+      !isUserDataModalOpen &&
+      !isPreferencesModalOpen &&
+      !isNotificationsModalOpen &&
+      !isArchivedLeadsModalOpen
+    ) {
+      return
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setIsUserDataModalOpen(false)
       setIsPreferencesModalOpen(false)
       setIsNotificationsModalOpen(false)
+      setIsArchivedLeadsModalOpen(false)
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -5372,7 +5625,12 @@ export default function BoardPage() {
     return () => {
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [isUserDataModalOpen, isPreferencesModalOpen, isNotificationsModalOpen])
+  }, [
+    isUserDataModalOpen,
+    isPreferencesModalOpen,
+    isNotificationsModalOpen,
+    isArchivedLeadsModalOpen
+  ])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -5408,12 +5666,12 @@ export default function BoardPage() {
 
     setOpenMobileColumnMap((prev) => {
       const next: Record<string, boolean> = {}
-      columns.forEach((column, index) => {
+      columns.forEach((column) => {
         if (typeof prev[column.id] === 'boolean') {
           next[column.id] = prev[column.id]
           return
         }
-        next[column.id] = index === 0
+        next[column.id] = false
       })
       return next
     })
@@ -5960,6 +6218,17 @@ export default function BoardPage() {
                     ) : null}
                   </SearchDropdownWrapper>
 
+                  <HeaderActionButton
+                    type="button"
+                    onClick={() => {
+                      setIsArchivedLeadsModalOpen(true)
+                    }}
+                    aria-label="Arquivados"
+                    title="Arquivados"
+                  >
+                    Arquivados{archivedLeads.length > 0 ? ` (${archivedLeads.length})` : ''}
+                  </HeaderActionButton>
+
                   <FiltersDropdownWrapper ref={filtersDropdownRef}>
                     <HeaderActionButton
                       type="button"
@@ -6141,6 +6410,22 @@ export default function BoardPage() {
                 </BoardHeaderActions>
 
                 <BoardHeaderActionsMobile ref={mobileNavMenuRef}>
+                  {isNarrowMobile ? (
+                    <SettingsButton
+                      type="button"
+                      onClick={() => {
+                        setIsMobileNavMenuOpen(false)
+                        setIsMobileCreateDropdownOpen(false)
+                        setIsMobileSettingsDropdownOpen(false)
+                        setIsArchivedLeadsModalOpen(true)
+                      }}
+                      aria-label="Abrir modal de arquivados"
+                      title={`Arquivados${archivedLeads.length > 0 ? ` (${archivedLeads.length})` : ''}`}
+                    >
+                      <Archive size={18} />
+                    </SettingsButton>
+                  ) : null}
+
                   <SettingsDropdownWrapper>
                     <SettingsButton
                       type="button"
@@ -6675,6 +6960,114 @@ export default function BoardPage() {
                 </PreferenceToggle>
               </PreferenceRow>
             </PreferencesBody>
+          </SettingsModalCard>
+        </ModalOverlay>
+      ) : null}
+
+      {isArchivedLeadsModalOpen ? (
+        <ModalOverlay
+          onClick={() => {
+            setIsArchivedLeadsModalOpen(false)
+            setOpenColumnPickerLeadId(null)
+          }}
+        >
+          <SettingsModalCard
+            onClick={(event) => {
+              event.stopPropagation()
+            }}
+          >
+            <SettingsModalHeader>
+              <SettingsModalTitle>Arquivados</SettingsModalTitle>
+
+              <SettingsCloseIconButton
+                type="button"
+                onClick={() => {
+                  setIsArchivedLeadsModalOpen(false)
+                  setOpenColumnPickerLeadId(null)
+                }}
+                aria-label="Fechar modal de arquivados"
+                title="Fechar"
+              >
+                <X size={18} />
+              </SettingsCloseIconButton>
+            </SettingsModalHeader>
+
+            {archivedLeads.length === 0 ? (
+              <AutomationsEmptyState>
+                <AutomationsEmptyTitle>Nenhum lead arquivado</AutomationsEmptyTitle>
+                <AutomationsEmptyText>
+                  Quando um lead for arquivado, ele aparecera aqui.
+                </AutomationsEmptyText>
+              </AutomationsEmptyState>
+            ) : (
+              <AutomationsEntryList>
+                {archivedLeads.map((lead) => (
+                  <AutomationsEntryListItem
+                    key={lead.id}
+                    onClick={() => {
+                      openLeadFromArchivedList(lead.id)
+                    }}
+                  >
+                    <AutomationsEntryListItemTop>
+                      <AutomationsEntryMainLine>
+                        <InfoValue>
+                          <AutomationsEntryItemCategory>LEAD</AutomationsEntryItemCategory>
+                          {lead.name}
+                        </InfoValue>
+                      </AutomationsEntryMainLine>
+
+                      <FollowUpItemActions>
+                        <ArchivedColumnPickerWrapper
+                          onClick={(event) => {
+                            event.stopPropagation()
+                          }}
+                        >
+                          {openColumnPickerLeadId === lead.id ? (
+                            <ArchivedPickerBackdrop
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setOpenColumnPickerLeadId(null)
+                              }}
+                            />
+                          ) : null}
+
+                          <FollowUpActionIconButton
+                            type="button"
+                            onClick={() => {
+                              setOpenColumnPickerLeadId((prev) =>
+                                prev === lead.id ? null : lead.id
+                              )
+                            }}
+                            aria-label="Escolher coluna para reativar lead"
+                            title="Reativar em coluna"
+                          >
+                            <RotateCcw size={16} />
+                          </FollowUpActionIconButton>
+
+                          {openColumnPickerLeadId === lead.id ? (
+                            <LeadMoveDropdown>
+                              <MoveColumnLabel>Mover para</MoveColumnLabel>
+                              {(data?.columns ?? []).map((column) => (
+                                <LeadMoveOptionButton
+                                  key={column.id}
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    unarchiveLeadToColumn(lead.id, column.id)
+                                  }}
+                                >
+                                  {column.name}
+                                </LeadMoveOptionButton>
+                              ))}
+                            </LeadMoveDropdown>
+                          ) : null}
+                        </ArchivedColumnPickerWrapper>
+                      </FollowUpItemActions>
+                    </AutomationsEntryListItemTop>
+                  </AutomationsEntryListItem>
+                ))}
+              </AutomationsEntryList>
+            )}
           </SettingsModalCard>
         </ModalOverlay>
       ) : null}
@@ -8232,7 +8625,7 @@ const SettingsModalTitle = styled.div`
 `
 
 
-const SettingsCloseIconButton = styled.button<{ $active?: boolean }>`
+const SettingsCloseIconButton = styled.button<{ $active?: boolean; $hideOnNarrowMobile?: boolean }>`
   width: 38px;
   height: 38px;
   border-radius: 10px;
@@ -8253,6 +8646,10 @@ const SettingsCloseIconButton = styled.button<{ $active?: boolean }>`
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 450px) {
+    display: ${(props) => (props.$hideOnNarrowMobile ? 'none' : 'inline-flex')};
   }
 `
 
@@ -9666,6 +10063,16 @@ const AutomationsPickerOption = styled.button`
 const AutomationsEntryList = styled.div`
   display: flex;
   flex-direction: column;
+`
+
+const ArchivedColumnPickerWrapper = styled.div`
+  position: relative;
+`
+
+const ArchivedPickerBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 170;
 `
 
 const AutomationsEntryListItem = styled.div`
