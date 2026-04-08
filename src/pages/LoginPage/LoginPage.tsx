@@ -57,6 +57,7 @@ export default function LoginPage() {
         password
       })
 
+      localStorage.setItem('accessToken', response.accessToken)
       setAccessToken(response.accessToken)
 
       navigate('/board')

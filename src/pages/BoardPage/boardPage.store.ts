@@ -78,6 +78,11 @@ export type BoardFullResponse = {
   columns: BoardColumn[]
 }
 
+export type BoardUserInfo = {
+  email: string
+  role: string
+}
+
 export type ColumnModalMode = 'edit' | 'delete'
 export type ColumnSettingsView = 'details' | 'automations'
 
@@ -85,6 +90,7 @@ export const boardIdAtom = atom<string>('')
 export const openedColumnMenuIdAtom = atom<string | null>(null)
 
 export const boardFullAtom = atom<BoardFullResponse | null>(null)
+export const userInfoAtom = atom<BoardUserInfo | null>(null)
 export const isLoadingAtom = atom<boolean>(false)
 export const errorAtom = atom<string | null>(null)
 

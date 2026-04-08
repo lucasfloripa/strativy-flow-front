@@ -59,11 +59,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 import { api } from './boardPage.api'
+import { getMeRequest, logoutRequest } from '../LoginPage/loginPage.api'
 import * as Styles from './boardPage.styles'
 import {
   boardIdAtom,
   openedColumnMenuIdAtom,
   boardFullAtom,
+  userInfoAtom,
   isLoadingAtom,
   errorAtom,
   selectedLeadIdAtom,
@@ -138,7 +140,6 @@ const {
   BottomFixedBackground,
   BottomBrandDot,
   BottomBrandText,
-  BottomVersion,
   ErrorBadge,
   ColumnsArea,
   ColumnsRow,
@@ -224,9 +225,6 @@ const {
   InfoRow,
   InfoLabel,
   InfoValue,
-  VersionNotesCard,
-  VersionNotesList,
-  VersionNotesItem,
   LeadInfoBlockLabel,
   LeadInfoRowHeader,
   LeadInfoActions,
@@ -482,11 +480,6 @@ type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'fa
 type ColumnSettingsView = 'details' | 'automations'
 type ColumnColorKey = 'blue' | 'green' | 'red' | 'yellow'
 type ThemeMode = 'light' | 'dark'
-type AppRelease = {
-  version: string
-  createdAtLabel?: string
-  functionalChanges: string[]
-}
 
 type AtomSetter<T> = React.Dispatch<React.SetStateAction<T>>
 
@@ -498,46 +491,6 @@ const LEAD_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }>
   { value: 'hot', label: 'Quente' },
   { value: 'warm', label: 'Morno' },
   { value: 'cold', label: 'Frio' }
-]
-
-const APP_RELEASES: AppRelease[] = [
-  {
-    version: 'v1.3',
-    createdAtLabel: '30/03/2026',
-    functionalChanges: [
-      'Implementamos melhorias no fluxo de leads arquivados em toda a experiência do board.',
-      'Consolidamos a gestão de arquivados com ações e confirmações para dar mais segurança nas operações.',
-      'Evoluímos a visualização e o acesso aos leads arquivados para facilitar consulta e acompanhamento.'
-    ]
-  },
-  {
-    version: 'v1.2',
-    createdAtLabel: '27/03/2026',
-    functionalChanges: [
-      'Adicionamos temperatura nos leads com os estados Quente, Morno e Frio, incluindo exibição visual em badges no card.',
-      'Permitimos editar e remover a temperatura tanto no modal do lead quanto nas ações rápidas do card.',
-      'Incluímos filtros globais por temperatura para facilitar a leitura e segmentação dos leads no board.',
-      'Adicionamos ordenação por temperatura dentro das colunas para priorizar leads mais quentes no fluxo.'
-    ]
-  },
-  {
-    version: 'v1.1',
-    functionalChanges: [
-      'Implementamos toasts em toda a aplicação para dar feedback imediato em ações de sucesso, aviso e erro.',
-      "Adicionamos o campo 'Contexto inicial' nos detalhes do lead para facilitar a leitura do histórico de entrada.",
-      'Reorganizamos o menu da engrenagem com opções mais claras de dados do usuário, preferências e notificações.'
-    ]
-  },
-  {
-    version: 'v1.0',
-    functionalChanges: [
-      'Visualização do board com colunas e leads.',
-      'Busca e filtros rápidos para localizar leads.',
-      'Criação e movimentação de leads entre colunas.',
-      'Favoritar leads e acompanhar follow-ups.',
-      'Automações e configurações básicas por coluna.'
-    ]
-  }
 ]
 
 const COLUMN_COLOR_OPTIONS: Array<{
@@ -4974,6 +4927,7 @@ export default function BoardPage() {
     BoardFullResponse | null,
     AtomSetter<BoardFullResponse | null>
   ]
+  const [userInfo, setUserInfo] = useAtom(userInfoAtom)
   const [, setLoading] = useAtom(isLoadingAtom)
   const [error, setError] = useAtom(errorAtom)
 
@@ -5010,8 +4964,6 @@ export default function BoardPage() {
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false)
   const [isArchivedLeadsModalOpen, setIsArchivedLeadsModalOpen] = useState(false)
   const [openColumnPickerLeadId, setOpenColumnPickerLeadId] = useState<string | null>(null)
-  const [isVersionModalOpen, setIsVersionModalOpen] = useState(false)
-  const [selectedAppVersion, setSelectedAppVersion] = useState<string>(APP_RELEASES[0]?.version ?? '')
   const [isNarrowMobile, setIsNarrowMobile] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia('(max-width: 450px)').matches
@@ -5037,21 +4989,25 @@ export default function BoardPage() {
 
   const [dragSnapshot, setDragSnapshot] = useState<BoardFullResponse | null>(null)
 
-  useEffect(() => {
-    if (!boardId) {
-      setBoardIdAction('60b37bbd-7d0c-4698-99e4-d9cddaccb375')
+  const handleLogout = useCallback(async () => {
+    try {
+      await logoutRequest()
+    } catch {
+      // Even if backend logout fails, clear local session and redirect.
+    } finally {
+      localStorage.removeItem('accessToken')
+      window.location.href = '/login'
     }
-  }, [boardId, setBoardIdAction])
+  }, [])
 
   const fetchBoardFull = useCallback(async () => {
-    if (!boardId) return
-
     try {
       setError(null)
       setLoading(true)
 
-      const res = await api.get<BoardFullResponse>(`/boards/${boardId}/full`)
+      const res = await api.get<BoardFullResponse>('/boards/full')
       setData(sortColumnsAndLeads(res.data))
+      setBoardIdAction(res.data.board.id)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar board'
       setError(String(msg))
@@ -5059,7 +5015,16 @@ export default function BoardPage() {
     } finally {
       setLoading(false)
     }
-  }, [boardId, setData, setError, setLoading])
+  }, [setBoardIdAction, setData, setError, setLoading])
+
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const me = await getMeRequest()
+      setUserInfo(me)
+    } catch {
+      setUserInfo(null)
+    }
+  }, [setUserInfo])
 
   const filteredData = useMemo(() => {
     if (!data) return data
@@ -5233,32 +5198,11 @@ export default function BoardPage() {
     ]
   }, [data?.board])
 
-  const selectedAppRelease = useMemo(
-    () => APP_RELEASES.find((release) => release.version === selectedAppVersion) ?? APP_RELEASES[0],
-    [selectedAppVersion]
-  )
-
   useEffect(() => {
     if (!boardOptions.length) return
 
     setSelectedBoardOptionId((prev) => (prev ? prev : boardOptions[0].id))
   }, [boardOptions])
-
-  useEffect(() => {
-    if (!isVersionModalOpen) return
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsVersionModalOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isVersionModalOpen])
 
   useEffect(() => {
     if (
@@ -5489,7 +5433,8 @@ export default function BoardPage() {
 
   useEffect(() => {
     void fetchBoardFull()
-  }, [fetchBoardFull])
+    void fetchCurrentUser()
+  }, [fetchBoardFull, fetchCurrentUser])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -5794,17 +5739,6 @@ export default function BoardPage() {
           <BottomBrandText>Strativy.co</BottomBrandText>
         </BottomBrand>
 
-        <BottomVersion
-          type="button"
-          onClick={() => {
-            setIsVersionModalOpen(true)
-          }}
-          aria-label="Abrir histórico de versões"
-          title="Histórico de versões"
-        >
-          {`${APP_RELEASES[0]?.createdAtLabel ?? ''} · ${APP_RELEASES[0]?.version ?? 'v1.2'}`}
-        </BottomVersion>
-
         <BoardOuter>
           <BoardShell>
             <BoardHeader>
@@ -6056,6 +5990,7 @@ export default function BoardPage() {
                           type="button"
                           onClick={() => {
                             setIsSettingsDropdownOpen(false)
+                            void handleLogout()
                           }}
                         >
                           <SettingsOptionWithIcon>
@@ -6238,6 +6173,7 @@ export default function BoardPage() {
                           type="button"
                           onClick={() => {
                             setIsMobileSettingsDropdownOpen(false)
+                            void handleLogout()
                           }}
                         >
                           <SettingsOptionWithIcon>
@@ -6433,62 +6369,6 @@ export default function BoardPage() {
         </BoardOuter>
       </Page>
 
-      {isVersionModalOpen ? (
-        <ModalOverlay
-          onClick={() => {
-            setIsVersionModalOpen(false)
-          }}
-        >
-          <SettingsModalCard
-            onClick={(event) => {
-              event.stopPropagation()
-            }}
-          >
-            <SettingsModalHeader>
-              <SettingsModalTitle>Versões do app</SettingsModalTitle>
-
-              <SettingsCloseIconButton
-                type="button"
-                onClick={() => {
-                  setIsVersionModalOpen(false)
-                }}
-                aria-label="Fechar histórico de versões"
-                title="Fechar"
-              >
-                <X size={18} />
-              </SettingsCloseIconButton>
-            </SettingsModalHeader>
-
-            <InfoList>
-              <InfoRow>
-                <InfoLabel>Selecionar versão</InfoLabel>
-                <InfoSelect
-                  value={selectedAppVersion}
-                  onChange={(event) => {
-                    setSelectedAppVersion(event.target.value)
-                  }}
-                >
-                  {APP_RELEASES.map((release) => (
-                    <option key={release.version} value={release.version}>
-                      {release.version}
-                    </option>
-                  ))}
-                </InfoSelect>
-              </InfoRow>
-
-              <VersionNotesCard>
-                <InfoLabel>Funcionalidades da versão</InfoLabel>
-                <VersionNotesList>
-                  {(selectedAppRelease?.functionalChanges ?? []).map((item) => (
-                    <VersionNotesItem key={item}>{item}</VersionNotesItem>
-                  ))}
-                </VersionNotesList>
-              </VersionNotesCard>
-            </InfoList>
-          </SettingsModalCard>
-        </ModalOverlay>
-      ) : null}
-
       {isUserDataModalOpen ? (
         <ModalOverlay
           onClick={() => {
@@ -6518,7 +6398,7 @@ export default function BoardPage() {
             <InfoList>
               <InfoRow>
                 <InfoLabel>Email</InfoLabel>
-                <InfoValue>lucas.floripa@strativy.co</InfoValue>
+                <InfoValue>{userInfo?.email ?? '—'}</InfoValue>
               </InfoRow>
             </InfoList>
           </SettingsModalCard>
