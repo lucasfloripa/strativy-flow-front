@@ -25,10 +25,10 @@ export type Lead = {
   email?: string
   source?: string
   notes?: string
+  initialContext?: string
   temperature: LeadTemperature | null
   outcome: LeadOutcome | null
   state: LeadState
-  fields?: Record<string, any>
   isFavorite?: boolean
   followUpSummary?: LeadFollowUpSummary
   lastInboundMessageId?: string

@@ -184,7 +184,6 @@ const {
   LeadMoveDropdown,
   LeadMoveOptionButton,
   LeadFavoriteButton,
-  LeadMessage,
   EmptyState,
   EmptyTitle,
   EmptyText,
@@ -386,10 +385,10 @@ type Lead = {
   email?: string
   source?: string
   notes?: string
+  initialContext?: string
   temperature: LeadTemperature | null
   outcome: LeadOutcome | null
   state: LeadState
-  fields?: Record<string, any>
   isFavorite?: boolean
   followUpSummary?: LeadFollowUpSummary
   lastInboundMessageId?: string
@@ -445,10 +444,10 @@ type UpdateLeadPayload = {
   email?: string
   source?: string
   notes?: string
+  initialContext?: string
   temperature?: LeadTemperature | null
   outcome?: LeadOutcome | null
   state?: LeadState
-  fields?: Record<string, any>
 }
 
 type CreateLeadPayload = {
@@ -459,10 +458,10 @@ type CreateLeadPayload = {
   email?: string
   source?: string
   notes?: string
+  initialContext?: string
   temperature?: LeadTemperature | null
   outcome?: LeadOutcome | null
   state?: LeadState
-  fields?: Record<string, any>
 }
 
 type UpdateColumnPayload = {
@@ -1251,6 +1250,7 @@ function CreateLeadModal({
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [source, setSource] = useState('')
+  const [initialContext, setInitialContext] = useState('')
   const [columnId, setColumnId] = useState('')
 
   const closeModal = useCallback(() => {
@@ -1262,6 +1262,7 @@ function CreateLeadModal({
     setPhone('')
     setEmail('')
     setSource('')
+    setInitialContext('')
     setColumnId('')
     onClose?.()
   }, [isSaving, setError, setIsOpen, setIsSaving, onClose])
@@ -1300,9 +1301,7 @@ function CreateLeadModal({
         temperature: DEFAULT_LEAD_TEMPERATURE,
         outcome: DEFAULT_LEAD_OUTCOME,
         state: DEFAULT_LEAD_STATE,
-        fields: {
-          initialMessage: ''
-        }
+        initialContext: normalizeOptionalString(initialContext)
       }
 
       await api.post('/leads', payload)
@@ -1367,6 +1366,12 @@ function CreateLeadModal({
               value={source}
               onChange={(e) => setSource(e.target.value)}
               placeholder="Origem"
+            />
+
+            <InfoInput
+              value={initialContext}
+              onChange={(e) => setInitialContext(e.target.value)}
+              placeholder="Contexto inicial"
             />
 
             <InfoSelect
@@ -1663,6 +1668,10 @@ function LeadDetailsModal({
   const [contactSource, setContactSource] = useState('')
   const [contactTemperature, setContactTemperature] = useState<LeadTemperature | null>(null)
 
+  const [isContextEditMode, setIsContextEditMode] = useState(false)
+  const [isContextSaving, setIsContextSaving] = useState(false)
+  const [editingContext, setEditingContext] = useState('')
+
   const [notes, setNotes] = useState('')
   const [isNotesDirty, setIsNotesDirty] = useState(false)
   const [isNotesSaving, setIsNotesSaving] = useState(false)
@@ -1697,6 +1706,7 @@ function LeadDetailsModal({
     setContactEmail(lead?.email ?? '')
     setContactSource(lead?.source ?? '')
     setContactTemperature(lead?.temperature ?? null)
+    setEditingContext(lead?.initialContext ?? '')
     setNotes(getLeadNotes(lead))
     setIsNotesDirty(false)
     skipNextNotesAutosaveRef.current = true
@@ -1727,6 +1737,9 @@ function LeadDetailsModal({
     setIsContactSaving(false)
     setEditingHeaderField(null)
     setIsContactEditMode(false)
+    setIsContextEditMode(false)
+    setIsContextSaving(false)
+    setEditingContext('')
     setIsDeleteConfirmOpen(false)
     setIsDeleting(false)
     setIsArchiveConfirmOpen(false)
@@ -2083,6 +2096,41 @@ function LeadDetailsModal({
       setIsContactSaving(false)
     }
   }, [selectedLead, contactPhone, contactEmail, contactSource, contactTemperature, setError, applyLeadUpdate, onRefreshBoard])
+
+  const startContextEdit = () => {
+    setEditingContext(selectedLead?.initialContext ?? '')
+    setIsContextEditMode(true)
+  }
+
+  const cancelContextEdit = () => {
+    setEditingContext(selectedLead?.initialContext ?? '')
+    setIsContextEditMode(false)
+  }
+
+  const saveContextEdit = useCallback(async () => {
+    if (!selectedLead) return
+
+    try {
+      setIsContextSaving(true)
+      setError(null)
+
+      const payload: UpdateLeadPayload = {
+        initialContext: normalizeOptionalString(editingContext)
+      }
+
+      const res = await api.patch<Lead>(`/leads/${selectedLead.id}`, payload)
+      applyLeadUpdate(res.data)
+      await onRefreshBoard()
+      setIsContextEditMode(false)
+      toastSuccess(TOAST_MESSAGES.success.editLead)
+    } catch (e: any) {
+      const msg = e instanceof Error ? e.message : 'Erro ao salvar contexto'
+      setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
+    } finally {
+      setIsContextSaving(false)
+    }
+  }, [selectedLead, editingContext, setError, applyLeadUpdate, onRefreshBoard])
 
   const updateFavoriteLocally = useCallback(
     (nextValue: boolean) => {
@@ -2548,29 +2596,35 @@ function LeadDetailsModal({
                     {selectedLead ? (
                       <>
                         <ModalTitleSeparator>|</ModalTitleSeparator>
-                        <ModalTitleColumnName>{currentColumnName ?? 'Sem coluna'}</ModalTitleColumnName>
-                        <ModalTitleColumnToggle
-                          type="button"
-                          onClick={() => {
-                            setIsMoveColumnMenuOpen((prev) => !prev)
-                          }}
-                          aria-label="Abrir opções de coluna"
-                          title="Mover de coluna"
-                          disabled={
-                            isSaving ||
-                            isNotesSaving ||
-                            isDeleting ||
-                            isDeletingFollowup ||
-                            isColumnChanging
-                          }
-                        >
-                          <ArrowRight size={14} />
-                        </ModalTitleColumnToggle>
+                        {selectedLead.state === 'archived' ? (
+                          <ModalTitleColumnName>Arquivado</ModalTitleColumnName>
+                        ) : (
+                          <>
+                            <ModalTitleColumnName>{currentColumnName ?? 'Sem coluna'}</ModalTitleColumnName>
+                            <ModalTitleColumnToggle
+                              type="button"
+                              onClick={() => {
+                                setIsMoveColumnMenuOpen((prev) => !prev)
+                              }}
+                              aria-label="Abrir opções de coluna"
+                              title="Mover de coluna"
+                              disabled={
+                                isSaving ||
+                                isNotesSaving ||
+                                isDeleting ||
+                                isDeletingFollowup ||
+                                isColumnChanging
+                              }
+                            >
+                              <ArrowRight size={14} />
+                            </ModalTitleColumnToggle>
+                          </>
+                        )}
                       </>
                     ) : null}
                   </ModalTitleInlineRow>
 
-                  {isMoveColumnMenuOpen && selectedLead ? (
+                  {isMoveColumnMenuOpen && selectedLead && selectedLead.state !== 'archived' ? (
                     <MoveColumnDropdown>
                       <MoveColumnLabel>Mover para</MoveColumnLabel>
                       <MoveColumnOptions>
@@ -3053,10 +3107,54 @@ function LeadDetailsModal({
                       </InfoRow>
 
                       <InfoRow>
-                        <LeadInfoBlockLabel>💬 Contexto inicial</LeadInfoBlockLabel>
-                        <InfoValue>
-                          {String(selectedLead.fields?.initialMessage ?? '').trim() || 'Sem contexto inicial'}
-                        </InfoValue>
+                        <LeadInfoRowHeader>
+                          <LeadInfoBlockLabel>💬 Contexto inicial</LeadInfoBlockLabel>
+                          {!isContextEditMode ? (
+                            <LeadInfoActionButton
+                              type="button"
+                              onClick={startContextEdit}
+                              aria-label="Editar contexto inicial"
+                              title="Editar contexto"
+                              disabled={isContextSaving}
+                            >
+                              <Pencil size={14} />
+                            </LeadInfoActionButton>
+                          ) : (
+                            <LeadInfoActions>
+                              <LeadInfoActionButton
+                                type="button"
+                                onClick={cancelContextEdit}
+                                aria-label="Cancelar edição de contexto"
+                                title="Cancelar"
+                                disabled={isContextSaving}
+                              >
+                                <X size={14} />
+                              </LeadInfoActionButton>
+                              <LeadInfoActionButton
+                                type="button"
+                                onClick={() => {
+                                  void saveContextEdit()
+                                }}
+                                aria-label="Salvar contexto"
+                                title="Salvar"
+                                disabled={isContextSaving}
+                              >
+                                <Check size={14} />
+                              </LeadInfoActionButton>
+                            </LeadInfoActions>
+                          )}
+                        </LeadInfoRowHeader>
+                        {isContextEditMode ? (
+                          <LeadContactInlineInput
+                            value={editingContext}
+                            onChange={(e) => setEditingContext(e.target.value)}
+                            placeholder="Contexto inicial"
+                          />
+                        ) : (
+                          <InfoValue>
+                            {String(selectedLead.initialContext ?? '').trim() || 'Sem contexto inicial'}
+                          </InfoValue>
+                        )}
                       </InfoRow>
 
                       <InfoRow>
@@ -4870,12 +4968,6 @@ function SortableLeadCard({
           ) : null}
         </LeadQuickActionsWrapper>
       </LeadFollowUpBlock>
-
-      {lead.fields?.lastMessage ? (
-        <LeadMessage title="Última mensagem">
-          {String(lead.fields.lastMessage)}
-        </LeadMessage>
-      ) : null}
     </LeadCard>
   )
 }
@@ -6004,21 +6096,19 @@ export default function BoardPage() {
                 </BoardHeaderActions>
 
                 <BoardHeaderActionsMobile ref={mobileNavMenuRef}>
-                  {isNarrowMobile ? (
-                    <SettingsButton
-                      type="button"
-                      onClick={() => {
-                        setIsMobileNavMenuOpen(false)
-                        setIsMobileCreateDropdownOpen(false)
-                        setIsMobileSettingsDropdownOpen(false)
-                        setIsArchivedLeadsModalOpen(true)
-                      }}
-                      aria-label="Abrir modal de arquivados"
-                      title={`Arquivados${archivedLeads.length > 0 ? ` (${archivedLeads.length})` : ''}`}
-                    >
-                      <Archive size={18} />
-                    </SettingsButton>
-                  ) : null}
+                  <SettingsButton
+                    type="button"
+                    onClick={() => {
+                      setIsMobileNavMenuOpen(false)
+                      setIsMobileCreateDropdownOpen(false)
+                      setIsMobileSettingsDropdownOpen(false)
+                      setIsArchivedLeadsModalOpen(true)
+                    }}
+                    aria-label="Abrir modal de arquivados"
+                    title={`Arquivados${archivedLeads.length > 0 ? ` (${archivedLeads.length})` : ''}`}
+                  >
+                    <Archive size={18} />
+                  </SettingsButton>
 
                   <SettingsDropdownWrapper>
                     <SettingsButton
