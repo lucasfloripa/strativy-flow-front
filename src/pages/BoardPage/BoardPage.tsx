@@ -68,18 +68,23 @@ import {
   boardFullAtom,
   userInfoAtom,
   isLoadingAtom,
+  errorAtom,
   selectedLeadIdAtom,
   selectedLeadAtom,
   openCreateFollowupOnLeadOpenAtom,
   isLeadModalLoadingAtom,
+  leadModalErrorAtom,
   isSettingsModalOpenAtom,
   selectedColumnAtom,
   isColumnModalOpenAtom,
   columnModalModeAtom,
+  columnModalErrorAtom,
   isColumnModalSavingAtom,
   isCreateColumnModalOpenAtom,
+  createColumnErrorAtom,
   isCreateColumnSavingAtom,
   isCreateLeadModalOpenAtom,
+  createLeadErrorAtom,
   isCreateLeadSavingAtom,
   isAutomationsModalOpenAtom,
   automationsModalColumnAtom,
@@ -127,6 +132,7 @@ const {
   BottomFixedBackground,
   BottomBrandDot,
   BottomBrandText,
+  ErrorBadge,
   ColumnsArea,
   ColumnsRow,
   Column,
@@ -195,6 +201,7 @@ const {
   SettingsModalTitle,
   SettingsCloseIconButton,
   ModalFavoriteIconButton,
+  ModalError,
   ModalLoading,
   SectionTitle,
   SectionTitleNoMargin,
@@ -936,6 +943,7 @@ function ColumnActionsModal({
     ColumnModalMode,
     AtomSetter<ColumnModalMode>
   ]
+  const [error, setError] = useAtom(columnModalErrorAtom)
   const [isSaving, setIsSaving] = useAtom(isColumnModalSavingAtom)
   const [boardId] = useAtom(boardIdAtom)
 
@@ -950,10 +958,12 @@ function ColumnActionsModal({
     setIsOpen(false)
     setSelectedColumn(null)
     setMode('edit')
+    setError(null)
     setIsSaving(false)
     syncForm(null)
   }, [
     isSaving,
+    setError,
     setIsOpen,
     setIsSaving,
     setMode,
@@ -1054,6 +1064,8 @@ function ColumnActionsModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
+
+        {error ? <ModalError>{error}</ModalError> : null}
 
         {mode === 'delete' ? (
           <SettingsModalBody>
@@ -1204,6 +1216,8 @@ function CreateColumnModal({
           </SettingsCloseIconButton>
         </SettingsModalHeader>
 
+        {error ? <ModalError>{error}</ModalError> : null}
+
         <CreateFormCard>
           <InfoInput
             value={columnName}
@@ -1346,6 +1360,8 @@ function CreateLeadModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
+
+        {error ? <ModalError>{error}</ModalError> : null}
 
         <CreateFormCard>
           <CreateFieldsStack>
