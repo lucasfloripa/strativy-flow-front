@@ -3,7 +3,7 @@ import { atom } from 'jotai'
 
 export type FollowUpBoardStatus = 'none' | 'scheduled' | 'today' | 'overdue'
 export type LeadTemperature = 'hot' | 'warm' | 'cold'
-export type LeadSourceBadgeType = 'whatsapp' | 'facebook' | 'instagram' | 'default'
+export type LeadSourceBadgeType = 'whatsapp' | 'metaads' | 'default'
 export type LeadTemperatureBadgeType = LeadTemperature
 export type LeadOutcome = 'won' | 'lost'
 export type LeadState = 'active' | 'archived'
@@ -24,6 +24,7 @@ export type Lead = {
   phone: string
   email?: string
   source?: string
+  companyName?: string
   notes?: string
   initialContext?: string
   temperature: LeadTemperature | null

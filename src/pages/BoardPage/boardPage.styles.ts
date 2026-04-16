@@ -7,6 +7,8 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
   :root {
     color-scheme: ${(props) => (props.$themeMode === 'dark' ? 'dark' : 'light')};
     --app-bg: ${(props) => (props.$themeMode === 'dark' ? '#111317' : '#f5f5f5')};
+    --app-footer-bg: ${(props) => (props.$themeMode === 'dark' ? '#1a1f29' : '#eceff3')};
+    --app-footer-border: ${(props) => (props.$themeMode === 'dark' ? '#2d3440' : '#d9dee5')};
     --app-surface: ${(props) => (props.$themeMode === 'dark' ? '#191c22' : '#ffffff')};
     --app-surface-soft: ${(props) => (props.$themeMode === 'dark' ? '#15181e' : '#fbfbfb')};
     --app-border: ${(props) => (props.$themeMode === 'dark' ? '#2a2f39' : '#dcdcdc')};
@@ -228,22 +230,10 @@ export const BoardHeaderActions = styled.div`
   align-items: center;
   gap: 8px;
   margin-left: auto;
-
-  @media (max-width: 650px) {
-    display: none;
-  }
 `
 
 export const BoardHeaderActionsMobile = styled.div`
   display: none;
-  position: relative;
-  margin-left: auto;
-
-  @media (max-width: 650px) {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
 `
 
 export const MobileNavMenuDropdown = styled.div`
@@ -562,7 +552,7 @@ export const BottomFixedBackground = styled.div`
   right: 0;
   bottom: 0;
   height: 64px;
-  background: var(--app-bg);
+  background: var(--app-footer-bg);
   z-index: 40;
   pointer-events: none;
 
@@ -970,10 +960,8 @@ export const LeadSourceBadge = styled.span<{ $type: LeadSourceBadgeType }>`
     switch (props.$type) {
       case 'whatsapp':
         return '#25d366'
-      case 'facebook':
-        return '#1877f2'
-      case 'instagram':
-        return 'linear-gradient(135deg, #f58529 0%, #dd2a7b 55%, #8134af 100%)'
+      case 'metaads':
+        return '#0ea5e9'
       default:
         return 'linear-gradient(180deg, #f1f1f1 0%, #dddddd 100%)'
     }
@@ -1074,8 +1062,8 @@ export const LeadQuickActionsButton = styled.button`
   border-radius: 999px;
   background: transparent;
   padding: 0;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1167,7 +1155,6 @@ export const LeadMoveMenuWrapper = styled.div`
   justify-content: center;
 
   @media (max-width: 450px) {
-    top: 5px;
     display: inline-flex;
   }
 `
@@ -1915,6 +1902,8 @@ export const LeadContactLine = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--app-text-muted);
@@ -1923,10 +1912,12 @@ export const LeadContactLine = styled.div`
   & + & {
     margin-top: 3px;
   }
+
 `
 
 export const LeadContactKey = styled.span`
   flex-shrink: 0;
+  white-space: nowrap;
   color: var(--app-text);
   font-weight: 900;
 `
@@ -1954,9 +1945,10 @@ export const LeadTemperaturePickerButton = styled.button`
   }
 `
 
-export const LeadTemperatureMenu = styled.div`
+export const LeadTemperatureMenu = styled.div<{ $openUp?: boolean }>`
   position: absolute;
-  top: calc(100% + 6px);
+  top: ${(props) => (props.$openUp ? 'auto' : 'calc(100% + 6px)')};
+  bottom: ${(props) => (props.$openUp ? 'calc(100% + 6px)' : 'auto')};
   left: 0;
   min-width: 170px;
   border: 1px solid var(--app-border);
@@ -1988,9 +1980,10 @@ export const LeadTemperatureMenuButton = styled.button`
 `
 
 export const LeadContactInlineInput = styled.input`
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 1 1 0;
+  width: auto;
   max-width: 100%;
+  min-width: 0;
   min-height: 30px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
@@ -2005,6 +1998,7 @@ export const LeadContactInlineInput = styled.input`
     border-color: #bdbdbd;
     box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
   }
+
 `
 
 export const InfoInput = styled.input`
@@ -2343,57 +2337,6 @@ export const FollowUpItemTitle = styled.button`
 
   @media (max-width: 450px) {
     width: 100%;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 14px;
-    bottom: calc(100% + 2px);
-    border-width: 6px 6px 0 6px;
-    border-style: solid;
-    border-color: rgba(17, 17, 17, 0.92) transparent transparent transparent;
-    opacity: 0;
-    transform: translateY(4px);
-    transition: opacity 0.14s ease, transform 0.14s ease;
-    pointer-events: none;
-    z-index: 6;
-  }
-
-  &::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    left: 0;
-    bottom: calc(100% + 8px);
-    min-width: 160px;
-    max-width: min(280px, 70vw);
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(17, 17, 17, 0.92);
-    color: #ffffff;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.35;
-    white-space: normal;
-    word-break: break-word;
-    overflow: visible;
-    text-overflow: initial;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
-    opacity: 0;
-    transform: translateY(4px);
-    transition: opacity 0.14s ease, transform 0.14s ease;
-    pointer-events: none;
-    z-index: 5;
-  }
-
-  &:hover::before,
-  &:hover::after,
-  &:focus-visible::before,
-  &:focus-visible::after,
-  &:active::before,
-  &:active::after {
-    opacity: 1;
-    transform: translateY(0);
   }
 `
 
@@ -2791,16 +2734,18 @@ export const AutomationsEntryListItemTop = styled.div`
 
 export const AutomationsEntryItemFollowUpInfo = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   width: 100%;
+  flex-wrap: wrap;
 `
 
 export const AutomationsEntryItemSubtext = styled.span`
   font-size: 13px;
-  font-weight: 500;
-  color: var(--app-text-muted);
+  font-weight: 700;
+  color: var(--app-text);
   min-width: 0;
   white-space: normal;
   overflow: visible;
@@ -2811,7 +2756,11 @@ export const AutomationsEntryItemSubtext = styled.span`
 
 export const AutomationsEntryItemDueAt = styled.span`
   font-size: 11px;
+  font-weight: 800;
   color: var(--app-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1.2;
   white-space: nowrap;
 `
 
@@ -2871,7 +2820,7 @@ export const AutomationsPickerOverlay = styled.div`
 `
 
 export const AutomationsPickerCard = styled.div`
-  width: min(380px, 100%);
+  width: min(380px, 90%);
   max-height: calc(320px - 16px);
   overflow-y: auto;
   border: 1px solid var(--app-border);

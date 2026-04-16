@@ -9,6 +9,7 @@
 // + follow-ups com criação inline + edição inline por linha + confirmação de exclusão
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'react-hot-toast'
 import {
   Settings,
@@ -67,27 +68,21 @@ import {
   boardFullAtom,
   userInfoAtom,
   isLoadingAtom,
-  errorAtom,
   selectedLeadIdAtom,
   selectedLeadAtom,
   openCreateFollowupOnLeadOpenAtom,
   isLeadModalLoadingAtom,
-  leadModalErrorAtom,
   isSettingsModalOpenAtom,
   selectedColumnAtom,
   isColumnModalOpenAtom,
   columnModalModeAtom,
-  columnModalErrorAtom,
   isColumnModalSavingAtom,
   isCreateColumnModalOpenAtom,
-  createColumnErrorAtom,
   isCreateColumnSavingAtom,
   isCreateLeadModalOpenAtom,
-  createLeadErrorAtom,
   isCreateLeadSavingAtom,
   isAutomationsModalOpenAtom,
   automationsModalColumnAtom,
-  columnSettingsInitialViewAtom,
   setBoardIdAtom
 } from './boardPage.store'
 
@@ -111,7 +106,6 @@ const {
   BoardSelectorWrapper,
   BoardTitleButton,
   BoardHeaderActions,
-  BoardHeaderActionsMobile,
   MobileNavMenuDropdown,
   MobileNavMenuSectionTitle,
   MobileNavFilterSearchInput,
@@ -129,18 +123,10 @@ const {
   FiltersCheckPlaceholder,
   FiltersGroup,
   FiltersGroupTitle,
-  FiltersSubmenuWrapper,
-  FiltersSubmenuTrigger,
-  FiltersSubmenuChevron,
-  FiltersSubmenuPanel,
-  SearchDropdownWrapper,
-  SearchDropdownMenu,
-  HeaderActionButton,
   BottomBrand,
   BottomFixedBackground,
   BottomBrandDot,
   BottomBrandText,
-  ErrorBadge,
   ColumnsArea,
   ColumnsRow,
   Column,
@@ -209,7 +195,6 @@ const {
   SettingsModalTitle,
   SettingsCloseIconButton,
   ModalFavoriteIconButton,
-  ModalError,
   ModalLoading,
   SectionTitle,
   SectionTitleNoMargin,
@@ -245,7 +230,6 @@ const {
   InfoSelect,
   CreateFormCard,
   CreateFieldsStack,
-  SearchInput,
   FollowUpList,
   FollowUpListItem,
   FollowUpCreateRow,
@@ -273,19 +257,7 @@ const {
   SettingsActionButton,
   SettingsSpacer,
   AutomationsModalCard,
-  ColumnSettingsLayout,
-  ColumnSettingsSidebar,
-  ColumnSettingsSidebarButton,
   ColumnSettingsMain,
-  ColumnDetailsNameInput,
-  ColumnDetailsLine,
-  ColumnDetailsKey,
-  DetailsValueInline,
-  ColumnColorDropdownWrapper,
-  ColumnColorTrigger,
-  ColumnColorDropdown,
-  ColumnColorOptionGrid,
-  ColumnColorOptionButton,
   AutomationsTabs,
   AutomationsTabButton,
   AutomationsTabContent,
@@ -339,7 +311,7 @@ const {
 // Types
 // ----------------------------
 type FollowUpBoardStatus = 'none' | 'scheduled' | 'today' | 'overdue'
-type LeadSourceBadgeType = 'whatsapp' | 'facebook' | 'instagram' | 'default'
+type LeadSourceBadgeType = 'whatsapp' | 'metaads' | 'default'
 type LeadTemperatureBadgeType = LeadTemperature
 type LeadFilterKey =
   | 'favorite'
@@ -384,6 +356,7 @@ type Lead = {
   phone: string
   email?: string
   source?: string
+  companyName?: string
   notes?: string
   initialContext?: string
   temperature: LeadTemperature | null
@@ -443,6 +416,7 @@ type UpdateLeadPayload = {
   phone?: string
   email?: string
   source?: string
+  companyName?: string
   notes?: string
   initialContext?: string
   temperature?: LeadTemperature | null
@@ -457,6 +431,7 @@ type CreateLeadPayload = {
   phone: string
   email?: string
   source?: string
+  companyName?: string
   notes?: string
   initialContext?: string
   temperature?: LeadTemperature | null
@@ -476,8 +451,6 @@ type CreateColumnPayload = {
 type ColumnModalMode = 'edit' | 'delete'
 type LeadModalViewMode = 'followups' | 'notes' | 'details' | 'edit'
 type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'favorites' | 'temperature'
-type ColumnSettingsView = 'details' | 'automations'
-type ColumnColorKey = 'blue' | 'green' | 'red' | 'yellow'
 type ThemeMode = 'light' | 'dark'
 
 type AtomSetter<T> = React.Dispatch<React.SetStateAction<T>>
@@ -492,16 +465,12 @@ const LEAD_TEMPERATURE_OPTIONS: Array<{ value: LeadTemperature; label: string }>
   { value: 'cold', label: 'Frio' }
 ]
 
-const COLUMN_COLOR_OPTIONS: Array<{
-  key: ColumnColorKey
+const LEAD_SOURCE_OPTIONS: Array<{
+  value: 'whatsapp' | 'metaads'
   label: string
-  background: string
-  textColor: string
 }> = [
-  { key: 'blue', label: 'Azul', background: '#dbeafe', textColor: '#1d4ed8' },
-  { key: 'green', label: 'Verde', background: '#dcfce7', textColor: '#15803d' },
-  { key: 'red', label: 'Vermelho', background: '#fee2e2', textColor: '#dc2626' },
-  { key: 'yellow', label: 'Amarelo', background: '#fef3c7', textColor: '#b45309' }
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'metaads', label: 'MetaAds' }
 ]
 
 
@@ -629,7 +598,42 @@ function getFollowUpStatusLabel(status: FollowUpBoardStatus | 'done') {
 }
 
 function formatPhone(phone?: string) {
-  return phone?.trim() || '—'
+  const raw = phone?.trim() ?? ''
+  if (!raw) return '—'
+
+  const digits = raw.replace(/\D/g, '')
+
+  if (digits.length === 12) {
+    const country = digits.slice(0, 2)
+    const ddd = digits.slice(2, 4)
+    const prefix = digits.slice(4, 8)
+    const suffix = digits.slice(8, 12)
+    return `(${country})${ddd} ${prefix}-${suffix}`
+  }
+
+  if (digits.length === 13) {
+    const country = digits.slice(0, 2)
+    const ddd = digits.slice(2, 4)
+    const prefix = digits.slice(4, 9)
+    const suffix = digits.slice(9, 13)
+    return `(${country})${ddd} ${prefix}-${suffix}`
+  }
+
+  if (digits.length === 8) {
+    const ddd = digits.slice(0, 2)
+    const prefix = digits.slice(2, 6)
+    const suffix = digits.slice(6, 10)
+    return `${ddd} ${prefix}-${suffix}`
+  }
+
+  if (digits.length === 9) {
+    const ddd = digits.slice(0, 2)
+    const prefix = digits.slice(2, 7)
+    const suffix = digits.slice(7, 11)
+    return `${ddd} ${prefix}-${suffix}`
+  }
+
+  return raw
 }
 
 const TOAST_MESSAGES = {
@@ -637,7 +641,6 @@ const TOAST_MESSAGES = {
     createLead: 'Lead criado com sucesso',
     createColumn: 'Coluna criada com sucesso',
     editColumn: 'Coluna editada com sucesso',
-    editColumnColor: 'Cor da coluna editada com sucesso',
     deleteColumn: 'Coluna excluída com sucesso',
     createFollowup: 'Follow-up criado com sucesso',
     saveNotes: 'Notas salvas com sucesso',
@@ -729,6 +732,18 @@ function normalizeOptionalString(value: string) {
   return trimmed === '' ? undefined : trimmed
 }
 
+function shouldOpenDropdownUpward(anchor: HTMLDivElement | null) {
+  if (!anchor || typeof window === 'undefined') return false
+
+  const rect = anchor.getBoundingClientRect()
+  const estimatedMenuHeight = 180
+  const viewportPadding = 12
+  const availableBelow = window.innerHeight - rect.bottom - viewportPadding
+  const availableAbove = rect.top - viewportPadding
+
+  return availableBelow < estimatedMenuHeight && availableAbove > availableBelow
+}
+
 function getLeadNotes(lead?: Lead | null) {
   const value = lead?.notes
   return typeof value === 'string' ? value : ''
@@ -760,11 +775,8 @@ function getLeadSourceBadge(source?: string | null) {
     whatsapp: 'whatsapp',
     zap: 'whatsapp',
     wa: 'whatsapp',
-    facebook: 'facebook',
-    fb: 'facebook',
-    instagram: 'instagram',
-    insta: 'instagram',
-    ig: 'instagram'
+    meta: 'metaads',
+    metaads: 'metaads'
   }
 
   const type = sourceMap[normalized]
@@ -777,8 +789,7 @@ function getLeadSourceBadge(source?: string | null) {
 
   const labelMap: Record<LeadSourceBadgeType, string> = {
     whatsapp: 'WhatsApp',
-    facebook: 'Facebook',
-    instagram: 'Instagram',
+    metaads: 'MetaAds',
     default: 'Origem'
   }
 
@@ -831,7 +842,10 @@ function getLeadActivityBadge(lead?: Lead | null) {
   const oneDayMs = 24 * 60 * 60 * 1000
 
   if (diffMs < oneDayMs) {
-    return null
+    return {
+      type: 'new' as const,
+      label: 'Novo'
+    }
   }
 
   const elapsedDays = Math.floor(diffMs / oneDayMs)
@@ -922,7 +936,6 @@ function ColumnActionsModal({
     ColumnModalMode,
     AtomSetter<ColumnModalMode>
   ]
-  const [error, setError] = useAtom(columnModalErrorAtom)
   const [isSaving, setIsSaving] = useAtom(isColumnModalSavingAtom)
   const [boardId] = useAtom(boardIdAtom)
 
@@ -937,12 +950,10 @@ function ColumnActionsModal({
     setIsOpen(false)
     setSelectedColumn(null)
     setMode('edit')
-    setError(null)
     setIsSaving(false)
     syncForm(null)
   }, [
     isSaving,
-    setError,
     setIsOpen,
     setIsSaving,
     setMode,
@@ -1043,8 +1054,6 @@ function ColumnActionsModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {error ? <ModalError>{error}</ModalError> : null}
 
         {mode === 'delete' ? (
           <SettingsModalBody>
@@ -1195,8 +1204,6 @@ function CreateColumnModal({
           </SettingsCloseIconButton>
         </SettingsModalHeader>
 
-        {error ? <ModalError>{error}</ModalError> : null}
-
         <CreateFormCard>
           <InfoInput
             value={columnName}
@@ -1339,8 +1346,6 @@ function CreateLeadModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {error ? <ModalError>{error}</ModalError> : null}
 
         <CreateFormCard>
           <CreateFieldsStack>
@@ -1651,6 +1656,9 @@ function LeadDetailsModal({
   const [isColumnChanging, setIsColumnChanging] = useState(false)
   const [isMoveColumnMenuOpen, setIsMoveColumnMenuOpen] = useState(false)
   const [isTemperatureMenuOpen, setIsTemperatureMenuOpen] = useState(false)
+  const [isTemperatureMenuOpenUpward, setIsTemperatureMenuOpenUpward] = useState(false)
+  const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false)
+  const [isSourceMenuOpenUpward, setIsSourceMenuOpenUpward] = useState(false)
   const [isFollowupFiltersOpen, setIsFollowupFiltersOpen] = useState(false)
   const [selectedFollowupFilters, setSelectedFollowupFilters] = useState<FollowupFilterKey[]>([])
   const [editingHeaderField, setEditingHeaderField] = useState<'name' | 'source' | null>(null)
@@ -1666,6 +1674,7 @@ function LeadDetailsModal({
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactSource, setContactSource] = useState('')
+  const [contactName, setContactName] = useState('')
   const [contactTemperature, setContactTemperature] = useState<LeadTemperature | null>(null)
 
   const [isContextEditMode, setIsContextEditMode] = useState(false)
@@ -1694,7 +1703,10 @@ function LeadDetailsModal({
   const createFollowupInputRef = useRef<HTMLInputElement | null>(null)
   const moveColumnMenuRef = useRef<HTMLDivElement | null>(null)
   const temperatureMenuRef = useRef<HTMLDivElement | null>(null)
+  const sourceMenuRef = useRef<HTMLDivElement | null>(null)
   const followupFiltersRef = useRef<HTMLDivElement | null>(null)
+  const followupFiltersMenuRef = useRef<HTMLDivElement | null>(null)
+  const [followupFiltersMenuPos, setFollowupFiltersMenuPos] = useState<{ top: number; right: number } | null>(null)
 
   const syncFormWithLead = useCallback((lead: Lead | null) => {
     setName(lead?.name ?? '')
@@ -1705,6 +1717,7 @@ function LeadDetailsModal({
     setContactPhone(lead?.phone ?? '')
     setContactEmail(lead?.email ?? '')
     setContactSource(lead?.source ?? '')
+    setContactName(lead?.name ?? '')
     setContactTemperature(lead?.temperature ?? null)
     setEditingContext(lead?.initialContext ?? '')
     setNotes(getLeadNotes(lead))
@@ -1746,6 +1759,9 @@ function LeadDetailsModal({
     setIsArchiving(false)
     setIsMoveColumnMenuOpen(false)
     setIsTemperatureMenuOpen(false)
+    setIsTemperatureMenuOpenUpward(false)
+    setIsSourceMenuOpen(false)
+    setIsSourceMenuOpenUpward(false)
     setIsFollowupFiltersOpen(false)
     setSelectedFollowupFilters([])
     setFollowups([])
@@ -1841,6 +1857,11 @@ function LeadDetailsModal({
         return
       }
 
+      if (isSourceMenuOpen) {
+        setIsSourceMenuOpen(false)
+        return
+      }
+
       if (isFollowupFiltersOpen) {
         setIsFollowupFiltersOpen(false)
         return
@@ -1864,6 +1885,7 @@ function LeadDetailsModal({
     isDeletingFollowup,
     isMoveColumnMenuOpen,
     isTemperatureMenuOpen,
+    isSourceMenuOpen,
     isFollowupFiltersOpen
   ])
 
@@ -1900,11 +1922,27 @@ function LeadDetailsModal({
   }, [isTemperatureMenuOpen])
 
   useEffect(() => {
+    if (!isSourceMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!sourceMenuRef.current?.contains(target)) {
+        setIsSourceMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isSourceMenuOpen])
+
+  useEffect(() => {
     if (!isFollowupFiltersOpen) return
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
-      if (!followupFiltersRef.current?.contains(target)) {
+      if (!followupFiltersRef.current?.contains(target) && !followupFiltersMenuRef.current?.contains(target)) {
         setIsFollowupFiltersOpen(false)
       }
     }
@@ -1967,6 +2005,7 @@ function LeadDetailsModal({
       setContactPhone(updated.phone ?? '')
       setContactEmail(updated.email ?? '')
       setContactSource(updated.source ?? '')
+      setContactName(updated.name ?? '')
       setContactTemperature(updated.temperature ?? null)
     },
     [setSelectedLead]
@@ -2057,7 +2096,9 @@ function LeadDetailsModal({
     setContactPhone(phone)
     setContactEmail(email)
     setContactSource(source)
+    setContactName(name)
     setContactTemperature(temperature)
+    setIsSourceMenuOpen(false)
     setIsContactEditMode(true)
   }
 
@@ -2065,7 +2106,9 @@ function LeadDetailsModal({
     setContactPhone(phone)
     setContactEmail(email)
     setContactSource(source)
+    setContactName(name)
     setContactTemperature(temperature)
+    setIsSourceMenuOpen(false)
     setIsContactEditMode(false)
   }
 
@@ -2077,6 +2120,7 @@ function LeadDetailsModal({
       setError(null)
 
       const payload: UpdateLeadPayload = {
+        name: contactName.trim() || selectedLead.name,
         phone: contactPhone.trim(),
         email: normalizeOptionalString(contactEmail),
         source: normalizeOptionalString(contactSource),
@@ -2086,6 +2130,7 @@ function LeadDetailsModal({
       const res = await api.patch<Lead>(`/leads/${selectedLead.id}`, payload)
       applyLeadUpdate(res.data)
       await onRefreshBoard()
+      setIsSourceMenuOpen(false)
       setIsContactEditMode(false)
       toastSuccess(TOAST_MESSAGES.success.editLead)
     } catch (e: any) {
@@ -2095,7 +2140,7 @@ function LeadDetailsModal({
     } finally {
       setIsContactSaving(false)
     }
-  }, [selectedLead, contactPhone, contactEmail, contactSource, contactTemperature, setError, applyLeadUpdate, onRefreshBoard])
+  }, [selectedLead, contactName, contactPhone, contactEmail, contactSource, contactTemperature, setError, applyLeadUpdate, onRefreshBoard])
 
   const startContextEdit = () => {
     setEditingContext(selectedLead?.initialContext ?? '')
@@ -2799,6 +2844,15 @@ function LeadDetailsModal({
                       <FollowupFiltersTrigger
                         type="button"
                         onClick={() => {
+                          if (!isFollowupFiltersOpen) {
+                            const rect = followupFiltersRef.current?.getBoundingClientRect()
+                            if (rect) {
+                              setFollowupFiltersMenuPos({
+                                top: rect.bottom + 8,
+                                right: window.innerWidth - rect.right
+                              })
+                            }
+                          }
                           setIsFollowupFiltersOpen((prev) => !prev)
                         }}
                         aria-label="Filtros de follow-ups"
@@ -2811,30 +2865,40 @@ function LeadDetailsModal({
                         ▾
                       </FollowupFiltersTrigger>
 
-                      {isFollowupFiltersOpen ? (
-                        <FiltersDropdownMenu>
-                          {followupFilterOptions.map((option) => {
-                            const isSelected = selectedFollowupFilters.includes(option.key)
+                      {isFollowupFiltersOpen && followupFiltersMenuPos
+                        ? createPortal(
+                            <FiltersDropdownMenu
+                              ref={followupFiltersMenuRef}
+                              style={{
+                                position: 'fixed',
+                                top: followupFiltersMenuPos.top,
+                                right: followupFiltersMenuPos.right
+                              }}
+                            >
+                              {followupFilterOptions.map((option) => {
+                                const isSelected = selectedFollowupFilters.includes(option.key)
 
-                            return (
-                              <FiltersDropdownOption
-                                key={option.key}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedFollowupFilters((prev) =>
-                                    prev.includes(option.key)
-                                      ? prev.filter((key) => key !== option.key)
-                                      : [...prev, option.key]
-                                  )
-                                }}
-                              >
-                                <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                                {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
-                              </FiltersDropdownOption>
-                            )
-                          })}
-                        </FiltersDropdownMenu>
-                      ) : null}
+                                return (
+                                  <FiltersDropdownOption
+                                    key={option.key}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedFollowupFilters((prev) =>
+                                        prev.includes(option.key)
+                                          ? prev.filter((key) => key !== option.key)
+                                          : [...prev, option.key]
+                                      )
+                                    }}
+                                  >
+                                    <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
+                                    {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
+                                  </FiltersDropdownOption>
+                                )
+                              })}
+                            </FiltersDropdownMenu>,
+                            document.body
+                          )
+                        : null}
                     </FiltersDropdownWrapper>
                   </CommentHeaderRow>
 
@@ -3198,7 +3262,15 @@ function LeadDetailsModal({
 
                         <LeadContactLine>
                           <LeadContactKey>Nome completo:</LeadContactKey>
-                          <LeadContactValue>{selectedLead.name?.trim() || '—'}</LeadContactValue>
+                          {isContactEditMode ? (
+                            <LeadContactInlineInput
+                              value={contactName}
+                              onChange={(e) => setContactName(e.target.value)}
+                              placeholder="Nome completo"
+                            />
+                          ) : (
+                            <LeadContactValue>{selectedLead.name?.trim() || '—'}</LeadContactValue>
+                          )}
                         </LeadContactLine>
 
                         <LeadContactLine>
@@ -3232,7 +3304,14 @@ function LeadDetailsModal({
                           <LeadTemperaturePickerWrapper ref={temperatureMenuRef}>
                             <LeadTemperaturePickerButton
                               type="button"
-                              onClick={() => setIsTemperatureMenuOpen((prev) => !prev)}
+                              onClick={() => {
+                                if (!isTemperatureMenuOpen) {
+                                  setIsTemperatureMenuOpenUpward(
+                                    shouldOpenDropdownUpward(temperatureMenuRef.current)
+                                  )
+                                }
+                                setIsTemperatureMenuOpen((prev) => !prev)
+                              }}
                               disabled={isContactSaving}
                             >
                               {contactTemperatureBadge ? (
@@ -3248,7 +3327,7 @@ function LeadDetailsModal({
                             </LeadTemperaturePickerButton>
 
                             {isTemperatureMenuOpen ? (
-                              <LeadTemperatureMenu>
+                              <LeadTemperatureMenu $openUp={isTemperatureMenuOpenUpward}>
                                 {LEAD_TEMPERATURE_OPTIONS.map((option) => (
                                   <LeadTemperatureMenuButton
                                     key={option.value}
@@ -3281,11 +3360,45 @@ function LeadDetailsModal({
                         <LeadContactLine>
                           <LeadContactKey>Origem:</LeadContactKey>
                           {isContactEditMode ? (
-                            <LeadContactInlineInput
-                              value={contactSource}
-                              onChange={(e) => setContactSource(e.target.value)}
-                              placeholder="Origem"
-                            />
+                            <LeadTemperaturePickerWrapper ref={sourceMenuRef}>
+                              <LeadTemperaturePickerButton
+                                type="button"
+                                onClick={() => {
+                                  if (!isSourceMenuOpen) {
+                                    setIsSourceMenuOpenUpward(
+                                      shouldOpenDropdownUpward(sourceMenuRef.current)
+                                    )
+                                  }
+                                  setIsSourceMenuOpen((prev) => !prev)
+                                }}
+                                disabled={isContactSaving}
+                              >
+                                {contactSourceBadge ? (
+                                  <LeadSourceBadge $type={contactSourceBadge.type}>
+                                    {contactSourceBadge.label}
+                                  </LeadSourceBadge>
+                                ) : (
+                                  <LeadContactValue>Sem origem</LeadContactValue>
+                                )}
+                              </LeadTemperaturePickerButton>
+
+                              {isSourceMenuOpen ? (
+                                <LeadTemperatureMenu $openUp={isSourceMenuOpenUpward}>
+                                  {LEAD_SOURCE_OPTIONS.map((option) => (
+                                    <LeadTemperatureMenuButton
+                                      key={option.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setContactSource(option.value)
+                                        setIsSourceMenuOpen(false)
+                                      }}
+                                    >
+                                      {option.label}
+                                    </LeadTemperatureMenuButton>
+                                  ))}
+                                </LeadTemperatureMenu>
+                              ) : null}
+                            </LeadTemperaturePickerWrapper>
                           ) : (
                             <LeadContactValue>
                               {contactSourceBadge ? (
@@ -3539,17 +3652,11 @@ function computeFollowUpDueAt(
 function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<void> }) {
   const [isOpen, setIsOpen] = useAtom(isAutomationsModalOpenAtom)
   const [column, setColumn] = useAtom(automationsModalColumnAtom)
-  const [initialView] = useAtom(columnSettingsInitialViewAtom)
-  const [activeSettingsView, setActiveSettingsView] = useState<ColumnSettingsView>('details')
   const [activeTab, setActiveTab] = useState<AutomationsTab>('entry')
   const [isEntryActionSelectorOpen, setIsEntryActionSelectorOpen] = useState(false)
   const [entryAutomationItems, setEntryAutomationItems] = useState<EntryAutomationListItem[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [columnName, setColumnName] = useState('')
-  const [isEditingColumnName, setIsEditingColumnName] = useState(false)
-  const [selectedColumnColor, setSelectedColumnColor] = useState<ColumnColorKey>('blue')
-  const [isColumnColorOpen, setIsColumnColorOpen] = useState(false)
   const [editingEntryAutomationId, setEditingEntryAutomationId] = useState<string | null>(null)
   const [isConfiguringFollowup, setIsConfiguringFollowup] = useState(false)
   const [followupTitle, setFollowupTitle] = useState('')
@@ -3557,7 +3664,6 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   const [followupWhenValue, setFollowupWhenValue] = useState('')
   const [followupSpecificDate, setFollowupSpecificDate] = useState('')
   const followupDateInputRef = useRef<HTMLInputElement | null>(null)
-  const columnColorDropdownRef = useRef<HTMLDivElement | null>(null)
   const [openEntrySections, setOpenEntrySections] = useState<Record<EntryActionSection, boolean>>({
     followup: true,
     lead: false,
@@ -3567,14 +3673,9 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   const closeModal = useCallback(() => {
     setIsOpen(false)
     setColumn(null)
-    setActiveSettingsView('details')
     setActiveTab('entry')
     setIsEntryActionSelectorOpen(false)
     setEntryAutomationItems([])
-    setColumnName('')
-    setIsEditingColumnName(false)
-    setSelectedColumnColor('blue')
-    setIsColumnColorOpen(false)
     setEditingEntryAutomationId(null)
     setIsConfiguringFollowup(false)
     setFollowupTitle('')
@@ -3587,66 +3688,9 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   // Inicializa a lista quando a modal abre com um column
   useEffect(() => {
     if (isOpen && column) {
-      setActiveSettingsView(initialView)
       setEntryAutomationItems(onEnterToItems(column.onEnter))
-      setColumnName(column.name)
-      setIsEditingColumnName(false)
     }
-  }, [isOpen, column, initialView])
-
-  useEffect(() => {
-    if (!isColumnColorOpen) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (!columnColorDropdownRef.current?.contains(target)) {
-        setIsColumnColorOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isColumnColorOpen])
-
-  const saveColumnName = useCallback(async () => {
-    if (!column) return
-
-    const nextName = columnName.trim()
-    if (!nextName) {
-      setColumnName(column.name)
-      setIsEditingColumnName(false)
-      return
-    }
-
-    if (nextName === column.name) {
-      setIsEditingColumnName(false)
-      return
-    }
-
-    try {
-      setIsSaving(true)
-      setSaveError(null)
-
-      await api.patch<BoardColumn>(
-        `/boards/${column.boardId}/columns/${column.id}`,
-        { name: nextName }
-      )
-
-      setColumn((prev) => (prev ? { ...prev, name: nextName, leads: prev.leads } : prev))
-      setColumnName(nextName)
-      await onRefreshBoard()
-      toastSuccess(TOAST_MESSAGES.success.editColumn)
-    } catch (e: any) {
-      const msg = e instanceof Error ? e.message : 'Erro ao atualizar nome da coluna'
-      setSaveError(String(msg))
-      setColumnName(column.name)
-    } finally {
-      setIsSaving(false)
-      setIsEditingColumnName(false)
-    }
-  }, [column, columnName, onRefreshBoard, setColumn])
+  }, [isOpen, column])
 
   const patchOnEnter = useCallback(
     async (
@@ -3839,117 +3883,8 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
 
         {saveError ? <ModalError>{saveError}</ModalError> : null}
 
-        <ColumnSettingsLayout>
-          <ColumnSettingsSidebar>
-            <ColumnSettingsSidebarButton
-              type="button"
-              $active={activeSettingsView === 'details'}
-              onClick={() => setActiveSettingsView('details')}
-            >
-              Detalhes
-            </ColumnSettingsSidebarButton>
-
-            <ColumnSettingsSidebarButton
-              type="button"
-              $active={activeSettingsView === 'automations'}
-              onClick={() => setActiveSettingsView('automations')}
-            >
-              Automatizações
-            </ColumnSettingsSidebarButton>
-          </ColumnSettingsSidebar>
-
-          <ColumnSettingsMain>
-            {activeSettingsView === 'details' ? (
-              <>
-                <ColumnDetailsLine>
-                  <ColumnDetailsKey>Nome:</ColumnDetailsKey>
-                  {isEditingColumnName ? (
-                    <ColumnDetailsNameInput
-                      value={columnName}
-                      onChange={(e) => setColumnName(e.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault()
-                          void saveColumnName()
-                        }
-
-                        if (event.key === 'Escape') {
-                          setColumnName(column.name)
-                          setIsEditingColumnName(false)
-                        }
-                      }}
-                      autoFocus
-                      disabled={isSaving}
-                      aria-label="Editar nome da coluna"
-                    />
-                  ) : (
-                    <DetailsValueInline>
-                      <LeadContactValue>{columnName || column.name}</LeadContactValue>
-                      <LeadInfoActionButton
-                        type="button"
-                        onClick={() => {
-                          setColumnName(column.name)
-                          setSaveError(null)
-                          setIsEditingColumnName(true)
-                        }}
-                        aria-label="Editar nome da coluna"
-                        title="Editar nome da coluna"
-                        disabled={isSaving}
-                      >
-                        <Pencil size={14} />
-                      </LeadInfoActionButton>
-                    </DetailsValueInline>
-                  )}
-                </ColumnDetailsLine>
-
-                <ColumnDetailsLine>
-                  <ColumnDetailsKey>Cor:</ColumnDetailsKey>
-                  <ColumnColorDropdownWrapper ref={columnColorDropdownRef}>
-                    <ColumnColorTrigger
-                      type="button"
-                      onClick={() => {
-                        setIsColumnColorOpen((prev) => !prev)
-                      }}
-                      aria-label="Escolher cor da coluna"
-                      title="Escolher cor da coluna"
-                    >
-                      {COLUMN_COLOR_OPTIONS.find((option) => option.key === selectedColumnColor)?.label ?? 'Azul'}
-                      <span>▾</span>
-                    </ColumnColorTrigger>
-
-                    {isColumnColorOpen ? (
-                      <ColumnColorDropdown>
-                        <ColumnColorOptionGrid>
-                          {COLUMN_COLOR_OPTIONS.map((option) => (
-                            <ColumnColorOptionButton
-                              key={option.key}
-                              type="button"
-                              $active={selectedColumnColor === option.key}
-                              onClick={() => {
-                                const hasChanged = selectedColumnColor !== option.key
-                                setSelectedColumnColor(option.key)
-                                setIsColumnColorOpen(false)
-                                if (hasChanged) {
-                                  toastSuccess(TOAST_MESSAGES.success.editColumnColor)
-                                }
-                              }}
-                            >
-                              <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                              {selectedColumnColor === option.key ? (
-                                <Check size={14} />
-                              ) : (
-                                <FiltersCheckPlaceholder />
-                              )}
-                            </ColumnColorOptionButton>
-                          ))}
-                        </ColumnColorOptionGrid>
-                      </ColumnColorDropdown>
-                    ) : null}
-                  </ColumnColorDropdownWrapper>
-                </ColumnDetailsLine>
-              </>
-            ) : (
-              <>
+        <ColumnSettingsMain>
+            <>
                 <AutomationsTabs>
                   <AutomationsTabButton
                     type="button"
@@ -3995,7 +3930,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                           <AutomationsEntryItemFollowUpInfo>
                             <AutomationsEntryItemSubtext>{item.followUpValue}</AutomationsEntryItemSubtext>
                             {item.followUpDueAt ? (
-                              <AutomationsEntryItemDueAt style={{ display: 'block', marginTop: 2 }}>
+                              <AutomationsEntryItemDueAt>
                                 {new Date(item.followUpDueAt).toLocaleString('pt-BR', {
                                   day: '2-digit',
                                   month: '2-digit',
@@ -4273,22 +4208,30 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                     </AutomationsEntryArea>
                   ) : activeTab === 'exit' ? (
                     <AutomationsEmptyState>
+                      <AutomationsEmptyTitle>Nenhuma automação de saída</AutomationsEmptyTitle>
                       <AutomationsEmptyText>
-                        Em breve você poderá configurar ações de saída de lead.
+                        Automatizações acionadas quando um lead sai desta coluna.
                       </AutomationsEmptyText>
+                      <AutomationsCreateButton type="button" disabled>
+                        <Plus size={14} strokeWidth={2.4} />
+                        Criar primeira ação
+                      </AutomationsCreateButton>
                     </AutomationsEmptyState>
                   ) : (
                     <AutomationsEmptyState>
+                      <AutomationsEmptyTitle>Nenhuma automação de tempo</AutomationsEmptyTitle>
                       <AutomationsEmptyText>
-                        Em breve você poderá configurar ações baseadas em tempo.
+                        Automatizações acionadas com base no tempo do lead nesta coluna.
                       </AutomationsEmptyText>
+                      <AutomationsCreateButton type="button" disabled>
+                        <Plus size={14} strokeWidth={2.4} />
+                        Criar primeira ação
+                      </AutomationsCreateButton>
                     </AutomationsEmptyState>
                   )}
                 </AutomationsTabContent>
-              </>
-            )}
-          </ColumnSettingsMain>
-        </ColumnSettingsLayout>
+            </>
+        </ColumnSettingsMain>
       </AutomationsModalCard>
     </ModalOverlay>
   )
@@ -4308,14 +4251,12 @@ const COLUMN_SORT_OPTIONS: { key: ColumnSortKey; label: string }[] = [
 // ----------------------------
 function ColumnActionsMenu({
   column,
-  onAddLead,
   onDeleteColumn,
   onOpenSettings,
   activeSort,
   onSort
 }: {
   column: BoardColumn
-  onAddLead: (column: BoardColumn) => void
   onDeleteColumn: (column: BoardColumn) => void
   onOpenSettings: (column: BoardColumn) => void
   activeSort?: ColumnSortKey
@@ -4376,16 +4317,6 @@ function ColumnActionsMenu({
 
       {isOpen ? (
         <ColumnDropdown>
-          <CreateDropdownButton
-            type="button"
-            onClick={() => {
-              setOpenedColumnMenuId(null)
-              onAddLead(column)
-            }}
-          >
-            Adicionar lead
-          </CreateDropdownButton>
-
           <ColumnSortMenuWrapper>
             <CreateDropdownButton
               type="button"
@@ -4468,6 +4399,7 @@ function SortableLeadCard({
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
   const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false)
   const [isTemperatureMenuOpen, setIsTemperatureMenuOpen] = useState(false)
+  const [isTemperatureMenuOpenUpward, setIsTemperatureMenuOpenUpward] = useState(false)
   const [isQuickActionsMenuOpen, setIsQuickActionsMenuOpen] = useState(false)
   const [isQuickActionsTemperatureMenuOpen, setIsQuickActionsTemperatureMenuOpen] = useState(false)
   const moveMenuRef = useRef<HTMLDivElement | null>(null)
@@ -4784,6 +4716,11 @@ function SortableLeadCard({
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation()
+                    if (!isTemperatureMenuOpen) {
+                      setIsTemperatureMenuOpenUpward(
+                        shouldOpenDropdownUpward(temperatureMenuRef.current)
+                      )
+                    }
                     setIsTemperatureMenuOpen((prev) => !prev)
                   }}
                   aria-label="Editar temperatura"
@@ -4800,7 +4737,7 @@ function SortableLeadCard({
                 </LeadTemperaturePickerButton>
 
                 {isTemperatureMenuOpen ? (
-                  <LeadTemperatureMenu>
+                  <LeadTemperatureMenu $openUp={isTemperatureMenuOpenUpward}>
                     {LEAD_TEMPERATURE_OPTIONS.map((option) => (
                       <LeadTemperatureMenuButton
                         key={option.value}
@@ -5030,7 +4967,6 @@ export default function BoardPage() {
   const setIsCreateLeadModalOpen = useSetAtom(isCreateLeadModalOpenAtom)
   const setIsAutomationsModalOpen = useSetAtom(isAutomationsModalOpenAtom)
   const setAutomationsModalColumn = useSetAtom(automationsModalColumnAtom)
-  const setColumnSettingsInitialView = useSetAtom(columnSettingsInitialViewAtom)
   const setSelectedColumn = useSetAtom(selectedColumnAtom)
   const setIsColumnModalOpen = useSetAtom(isColumnModalOpenAtom)
   const setColumnModalMode = useSetAtom(columnModalModeAtom)
@@ -5265,10 +5201,6 @@ export default function BoardPage() {
     ],
     []
   )
-
-  const favoriteLeadFilterOption = leadFilterGroups[0]?.options[0]
-  const followupLeadFilterOptions = leadFilterGroups.find((group) => group.title === 'Follow-up')?.options ?? []
-  const temperatureLeadFilterOptions = leadFilterGroups.find((group) => group.title === 'Temperatura')?.options ?? []
 
   const toggleLeadFilter = useCallback((key: LeadFilterKey) => {
     setSelectedLeadFilters((prev) =>
@@ -5877,225 +5809,7 @@ export default function BoardPage() {
                   ) : null}
                 </BoardSelectorWrapper>
 
-                <BoardHeaderActions>
-                  <SearchDropdownWrapper ref={searchDropdownRef}>
-                    <HeaderActionButton
-                      type="button"
-                      onClick={() => {
-                        setIsSearchOpen((prev) => !prev)
-                      }}
-                      aria-label="Buscar leads"
-                      title="Buscar leads"
-                    >
-                      Buscar leads
-                    </HeaderActionButton>
-
-                    {isSearchOpen ? (
-                      <SearchDropdownMenu>
-                        <SearchInput
-                          type="text"
-                          placeholder="Nome, telefone, email"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          autoFocus
-                        />
-                      </SearchDropdownMenu>
-                    ) : null}
-                  </SearchDropdownWrapper>
-
-                  <HeaderActionButton
-                    type="button"
-                    onClick={() => {
-                      setIsArchivedLeadsModalOpen(true)
-                    }}
-                    aria-label="Arquivados"
-                    title="Arquivados"
-                  >
-                    Arquivados{archivedLeads.length > 0 ? ` (${archivedLeads.length})` : ''}
-                  </HeaderActionButton>
-
-                  <FiltersDropdownWrapper ref={filtersDropdownRef}>
-                    <HeaderActionButton
-                      type="button"
-                      onClick={() => {
-                        setIsFiltersDropdownOpen((prev) => !prev)
-                      }}
-                      aria-label="Filtros"
-                      title="Filtros"
-                    >
-                      Filtros
-                      {selectedLeadFilters.length > 0
-                        ? ` (${selectedLeadFilters.length})`
-                        : ''}{' '}
-                      ▾
-                    </HeaderActionButton>
-
-                    {isFiltersDropdownOpen ? (
-                      <FiltersDropdownMenu>
-                        {favoriteLeadFilterOption ? (
-                          <FiltersDropdownOption
-                            type="button"
-                            onClick={() => {
-                              toggleLeadFilter(favoriteLeadFilterOption.key)
-                            }}
-                          >
-                            <FiltersOptionLabel>{favoriteLeadFilterOption.label}</FiltersOptionLabel>
-                            {selectedLeadFilters.includes(favoriteLeadFilterOption.key)
-                              ? <Check size={14} />
-                              : <FiltersCheckPlaceholder />}
-                          </FiltersDropdownOption>
-                        ) : null}
-
-                        <FiltersSubmenuWrapper>
-                          <FiltersSubmenuTrigger type="button">
-                            <span>Follow-up</span>
-                            <FiltersSubmenuChevron>›</FiltersSubmenuChevron>
-                          </FiltersSubmenuTrigger>
-
-                          <FiltersSubmenuPanel data-filters-submenu="panel">
-                            {followupLeadFilterOptions.map((option) => {
-                              const isSelected = selectedLeadFilters.includes(option.key)
-
-                              return (
-                                <FiltersDropdownOption
-                                  key={option.key}
-                                  type="button"
-                                  onClick={() => {
-                                    toggleLeadFilter(option.key)
-                                  }}
-                                >
-                                  <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                                  {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
-                                </FiltersDropdownOption>
-                              )
-                            })}
-                          </FiltersSubmenuPanel>
-                        </FiltersSubmenuWrapper>
-
-                        <FiltersSubmenuWrapper>
-                          <FiltersSubmenuTrigger type="button">
-                            <span>Temperatura</span>
-                            <FiltersSubmenuChevron>›</FiltersSubmenuChevron>
-                          </FiltersSubmenuTrigger>
-
-                          <FiltersSubmenuPanel data-filters-submenu="panel">
-                            {temperatureLeadFilterOptions.map((option) => {
-                              const isSelected = selectedLeadFilters.includes(option.key)
-
-                              return (
-                                <FiltersDropdownOption
-                                  key={option.key}
-                                  type="button"
-                                  onClick={() => {
-                                    toggleLeadFilter(option.key)
-                                  }}
-                                >
-                                  <FiltersOptionLabel>{option.label}</FiltersOptionLabel>
-                                  {isSelected ? <Check size={14} /> : <FiltersCheckPlaceholder />}
-                                </FiltersDropdownOption>
-                              )
-                            })}
-                          </FiltersSubmenuPanel>
-                        </FiltersSubmenuWrapper>
-                      </FiltersDropdownMenu>
-                    ) : null}
-                  </FiltersDropdownWrapper>
-
-                  <HeaderActionButton
-                    type="button"
-                    onClick={() => {
-                      setCreateColumnError(null)
-                      setIsCreateColumnModalOpen(true)
-                    }}
-                    aria-label="Nova coluna"
-                    title="Nova coluna"
-                  >
-                    + Nova coluna
-                  </HeaderActionButton>
-
-                  <HeaderActionButton
-                    type="button"
-                    onClick={() => {
-                      setCreateLeadColumnId('')
-                      setIsCreateLeadModalOpen(true)
-                    }}
-                    aria-label="Novo lead"
-                    title="Novo lead"
-                  >
-                    + Novo lead
-                  </HeaderActionButton>
-
-                  <SettingsDropdownWrapper ref={settingsDropdownRef}>
-                    <SettingsButton
-                      type="button"
-                      onClick={() => {
-                        setIsSettingsDropdownOpen((prev) => !prev)
-                      }}
-                      aria-label="Abrir menu de configurações"
-                      title="Configurações"
-                    >
-                      <Settings size={18} />
-                    </SettingsButton>
-
-                    {isSettingsDropdownOpen ? (
-                      <SettingsDropdownMenu>
-                        <SettingsDropdownOption
-                          type="button"
-                          onClick={() => {
-                            setIsUserDataModalOpen(true)
-                            setIsSettingsDropdownOpen(false)
-                          }}
-                        >
-                          <SettingsOptionWithIcon>
-                          <CircleUser size={14} />
-                          Dados do usuário
-                          </SettingsOptionWithIcon>
-                        </SettingsDropdownOption>
-
-                        <SettingsDropdownOption
-                          type="button"
-                          onClick={() => {
-                            setIsPreferencesModalOpen(true)
-                            setIsSettingsDropdownOpen(false)
-                          }}
-                        >
-                          <SettingsOptionWithIcon>
-                          <Settings2 size={14} />
-                          Preferências
-                          </SettingsOptionWithIcon>
-                        </SettingsDropdownOption>
-
-                        <SettingsDropdownOption
-                          type="button"
-                          onClick={() => {
-                            setIsNotificationsModalOpen(true)
-                            setIsSettingsDropdownOpen(false)
-                          }}
-                        >
-                          <SettingsOptionWithIcon>
-                            <Bell size={14} />
-                            Notificações
-                          </SettingsOptionWithIcon>
-                        </SettingsDropdownOption>
-
-                        <SettingsDropdownOption
-                          type="button"
-                          onClick={() => {
-                            setIsSettingsDropdownOpen(false)
-                            void handleLogout()
-                          }}
-                        >
-                          <SettingsOptionWithIcon>
-                            <LogOut size={14} />
-                            Logout
-                          </SettingsOptionWithIcon>
-                        </SettingsDropdownOption>
-                      </SettingsDropdownMenu>
-                    ) : null}
-                  </SettingsDropdownWrapper>
-                </BoardHeaderActions>
-
-                <BoardHeaderActionsMobile ref={mobileNavMenuRef}>
+                <BoardHeaderActions ref={mobileNavMenuRef}>
                   <SettingsButton
                     type="button"
                     onClick={() => {
@@ -6274,7 +5988,7 @@ export default function BoardPage() {
                       </SettingsDropdownMenu>
                     ) : null}
                   </SettingsDropdownWrapper>
-                </BoardHeaderActionsMobile>
+                </BoardHeaderActions>
               </BoardHeaderTopRow>
 
               {error ? <ErrorBadge>{error}</ErrorBadge> : null}
@@ -6349,12 +6063,7 @@ export default function BoardPage() {
                                 return { ...prev, [columnId]: sort }
                               })
                             }
-                            onAddLead={(column) => {
-                              setCreateLeadColumnId(column.id)
-                              setIsCreateLeadModalOpen(true)
-                            }}
                             onOpenSettings={(column) => {
-                              setColumnSettingsInitialView('details')
                               setAutomationsModalColumn(column)
                               setIsAutomationsModalOpen(true)
                             }}
