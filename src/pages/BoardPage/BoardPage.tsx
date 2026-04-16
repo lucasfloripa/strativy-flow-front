@@ -26,7 +26,6 @@ import {
   Clock3,
   ArrowLeft,
   Filter,
-  Bell,
   CircleUser,
   Settings2,
   LogOut,
@@ -132,7 +131,6 @@ const {
   BottomFixedBackground,
   BottomBrandDot,
   BottomBrandText,
-  ErrorBadge,
   ColumnsArea,
   ColumnsRow,
   Column,
@@ -201,7 +199,6 @@ const {
   SettingsModalTitle,
   SettingsCloseIconButton,
   ModalFavoriteIconButton,
-  ModalError,
   ModalLoading,
   SectionTitle,
   SectionTitleNoMargin,
@@ -695,13 +692,76 @@ const toastError = (message: string) => {
   toast.error(message)
 }
 
+const API_ERROR_TRANSLATIONS: Record<string, string> = {
+  'cannot delete column with leads': 'Não é possível excluir coluna com leads',
+  'default columns cannot be deleted': 'Colunas padrão não podem ser excluídas',
+  'column not found': 'Coluna não encontrada',
+  'column not found in this board': 'Coluna não encontrada neste board',
+  'board not found': 'Board não encontrado',
+  'board not found for user': 'Board não encontrado para o usuário',
+  'board does not belong to user': 'Board não pertence ao usuário',
+  'board is archived': 'Este board está arquivado',
+  'board has no columns': 'Este board não possui colunas',
+  'lead not found': 'Lead não encontrado',
+  'lead not found in this board': 'Lead não encontrado neste board',
+  'follow-up not found': 'Follow-up não encontrado',
+  'phone is required': 'Telefone é obrigatório',
+  'missing bearer token': 'Token de autenticação não informado',
+  'jwt secret is not configured': 'Configuração de autenticação inválida no servidor',
+  'invalid token payload': 'Payload do token inválido',
+  'invalid or expired token': 'Token inválido ou expirado'
+}
+
+function extractApiErrorMessage(error: unknown): string {
+  const messageFromResponse = (error as { response?: { data?: { message?: unknown } } })
+    ?.response?.data?.message
+
+  if (typeof messageFromResponse === 'string') {
+    return messageFromResponse.trim()
+  }
+
+  if (Array.isArray(messageFromResponse)) {
+    const firstMessage = messageFromResponse.find((item) => typeof item === 'string')
+    if (typeof firstMessage === 'string') {
+      return firstMessage.trim()
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message.trim()
+  }
+
+  if (typeof (error as { message?: unknown })?.message === 'string') {
+    return String((error as { message?: unknown }).message).trim()
+  }
+
+  return ''
+}
+
+function translateApiErrorMessage(message: string): string {
+  if (!message) return ''
+
+  const normalized = message.trim().toLowerCase()
+  const translated = API_ERROR_TRANSLATIONS[normalized]
+
+  if (translated) return translated
+
+  return message
+}
+
 function toastErrorFromException(error: unknown, defaultMessage: string) {
-  const rawMessage =
-    error instanceof Error
-      ? error.message
-      : typeof (error as { message?: unknown })?.message === 'string'
-        ? String((error as { message?: unknown }).message)
-        : ''
+  const rawMessage = extractApiErrorMessage(error)
+  const translatedMessage = translateApiErrorMessage(rawMessage)
+
+  if (translatedMessage) {
+    if (/integra[cç][aã]o/i.test(translatedMessage)) {
+      toastError(TOAST_MESSAGES.error.integration)
+      return
+    }
+
+    toastError(translatedMessage)
+    return
+  }
 
   if (/integra[cç][aã]o/i.test(rawMessage)) {
     toastError(TOAST_MESSAGES.error.integration)
@@ -943,7 +1003,7 @@ function ColumnActionsModal({
     ColumnModalMode,
     AtomSetter<ColumnModalMode>
   ]
-  const [error, setError] = useAtom(columnModalErrorAtom)
+  const [, setError] = useAtom(columnModalErrorAtom)
   const [isSaving, setIsSaving] = useAtom(isColumnModalSavingAtom)
   const [boardId] = useAtom(boardIdAtom)
 
@@ -1018,6 +1078,7 @@ function ColumnActionsModal({
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao atualizar coluna'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsSaving(false)
     }
@@ -1037,6 +1098,8 @@ function ColumnActionsModal({
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao apagar coluna'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
+      setMode('edit')
     } finally {
       setIsSaving(false)
     }
@@ -1064,8 +1127,6 @@ function ColumnActionsModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {error ? <ModalError>{error}</ModalError> : null}
 
         {mode === 'delete' ? (
           <SettingsModalBody>
@@ -1145,7 +1206,7 @@ function CreateColumnModal({
   onRefreshBoard: () => Promise<void>
 }) {
   const [isOpen, setIsOpen] = useAtom(isCreateColumnModalOpenAtom)
-  const [error, setError] = useAtom(createColumnErrorAtom)
+  const [, setError] = useAtom(createColumnErrorAtom)
   const [isSaving, setIsSaving] = useAtom(isCreateColumnSavingAtom)
   const [boardId] = useAtom(boardIdAtom)
 
@@ -1188,6 +1249,7 @@ function CreateColumnModal({
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao criar coluna'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsSaving(false)
     }
@@ -1215,8 +1277,6 @@ function CreateColumnModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {error ? <ModalError>{error}</ModalError> : null}
 
         <CreateFormCard>
           <InfoInput
@@ -1263,7 +1323,7 @@ function CreateLeadModal({
   onClose?: () => void
 }) {
   const [isOpen, setIsOpen] = useAtom(isCreateLeadModalOpenAtom)
-  const [error, setError] = useAtom(createLeadErrorAtom)
+  const [, setError] = useAtom(createLeadErrorAtom)
   const [isSaving, setIsSaving] = useAtom(isCreateLeadSavingAtom)
   const [boardId] = useAtom(boardIdAtom)
 
@@ -1360,8 +1420,6 @@ function CreateLeadModal({
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {error ? <ModalError>{error}</ModalError> : null}
 
         <CreateFormCard>
           <CreateFieldsStack>
@@ -1659,7 +1717,7 @@ function LeadDetailsModal({
     openCreateFollowupOnLeadOpenAtom
   )
   const [isLoading, setLoading] = useAtom(isLeadModalLoadingAtom)
-  const [error, setError] = useAtom(leadModalErrorAtom)
+  const [, setError] = useAtom(leadModalErrorAtom)
 
   const [viewMode, setViewMode] = useState<LeadModalViewMode>('details')
   const [isEditModeActive, setIsEditModeActive] = useState(false)
@@ -1821,6 +1879,7 @@ function LeadDetailsModal({
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? e?.message ?? 'Erro ao carregar lead'
       setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setLoading(false)
       setIsFollowupsLoading(false)
@@ -2228,8 +2287,9 @@ function LeadDetailsModal({
       if (nextValue) {
         toastSuccess(TOAST_MESSAGES.success.favoriteLead)
       }
-    } catch {
+    } catch (e: any) {
       updateFavoriteLocally(previousValue)
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsFavoriteUpdating(false)
     }
@@ -2551,6 +2611,7 @@ function LeadDetailsModal({
         } catch (e: any) {
           const msg = e instanceof Error ? e.message : 'Erro ao salvar notas'
           setError(String(msg))
+          toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
         } finally {
           setIsNotesSaving(false)
         }
@@ -2844,8 +2905,6 @@ function LeadDetailsModal({
               </HeaderIconButtons>
             </ModalHeaderRightArea>
           </ModalHeader>
-
-          {error ? <ModalError>{error}</ModalError> : null}
 
           {isLoading ? (
             <ModalLoading>Carregando lead...</ModalLoading>
@@ -3672,7 +3731,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   const [isEntryActionSelectorOpen, setIsEntryActionSelectorOpen] = useState(false)
   const [entryAutomationItems, setEntryAutomationItems] = useState<EntryAutomationListItem[]>([])
   const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [, setSaveError] = useState<string | null>(null)
   const [editingEntryAutomationId, setEditingEntryAutomationId] = useState<string | null>(null)
   const [isConfiguringFollowup, setIsConfiguringFollowup] = useState(false)
   const [followupTitle, setFollowupTitle] = useState('')
@@ -3896,8 +3955,6 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
             <X size={18} />
           </SettingsCloseIconButton>
         </SettingsModalHeader>
-
-        {saveError ? <ModalError>{saveError}</ModalError> : null}
 
         <ColumnSettingsMain>
             <>
@@ -4475,8 +4532,9 @@ function SortableLeadCard({
       if (nextValue) {
         toastSuccess(TOAST_MESSAGES.success.favoriteLead)
       }
-    } catch {
+    } catch (e: any) {
       updateLeadLocally({ isFavorite: previousValue })
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       setIsFavoriteUpdating(false)
     }
@@ -4974,7 +5032,7 @@ export default function BoardPage() {
   ]
   const [userInfo, setUserInfo] = useAtom(userInfoAtom)
   const [, setLoading] = useAtom(isLoadingAtom)
-  const [error, setError] = useAtom(errorAtom)
+  const [, setError] = useAtom(errorAtom)
 
   const setBoardIdAction = useSetAtom(setBoardIdAtom)
 
@@ -5036,8 +5094,9 @@ export default function BoardPage() {
   const handleLogout = useCallback(async () => {
     try {
       await logoutRequest()
-    } catch {
+    } catch (e: any) {
       // Even if backend logout fails, clear local session and redirect.
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     } finally {
       localStorage.removeItem('accessToken')
       window.location.href = '/login'
@@ -5065,8 +5124,9 @@ export default function BoardPage() {
     try {
       const me = await getMeRequest()
       setUserInfo(me)
-    } catch {
+    } catch (e: any) {
       setUserInfo(null)
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
     }
   }, [setUserInfo])
 
@@ -5750,6 +5810,7 @@ export default function BoardPage() {
         }
       } catch (e) {
         console.error('Erro ao mover lead:', e)
+        toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
         if (dragSnapshot) setData(dragSnapshot)
         await fetchBoardFull()
       } finally {
@@ -5979,19 +6040,6 @@ export default function BoardPage() {
                         <SettingsDropdownOption
                           type="button"
                           onClick={() => {
-                            setIsNotificationsModalOpen(true)
-                            setIsMobileSettingsDropdownOpen(false)
-                          }}
-                        >
-                          <SettingsOptionWithIcon>
-                            <Bell size={14} />
-                            Notificações
-                          </SettingsOptionWithIcon>
-                        </SettingsDropdownOption>
-
-                        <SettingsDropdownOption
-                          type="button"
-                          onClick={() => {
                             setIsMobileSettingsDropdownOpen(false)
                             void handleLogout()
                           }}
@@ -6007,7 +6055,6 @@ export default function BoardPage() {
                 </BoardHeaderActions>
               </BoardHeaderTopRow>
 
-              {error ? <ErrorBadge>{error}</ErrorBadge> : null}
             </BoardHeader>
 
             <ColumnsArea>
