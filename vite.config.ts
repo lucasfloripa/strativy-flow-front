@@ -2,17 +2,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react({
-      babel: {
-        plugins: [['babel-plugin-react-compiler']],
-      },
-    }),
+      // React Compiler can break some styled-components layouts on optimized bundles.
+      // Keep it off in production for stable CSS behavior.
+      babel:
+        mode === 'production'
+          ? undefined
+          : {
+              plugins: [['babel-plugin-react-compiler']]
+            }
+    })
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
-  },
-})
+      '@': path.resolve(__dirname, 'src')
+    }
+  }
+}))
