@@ -45,6 +45,7 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 
   html, body, #root {
     height: 100%;
+    min-height: 100%;
     overflow: hidden;
   }
 
@@ -57,11 +58,16 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 `
 
 export const Page = styled.div`
-  height: 100dvh;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `
 
 export const SettingsButton = styled.button`
@@ -162,14 +168,15 @@ export const PreferenceToggleDot = styled.span<{ $active: boolean }>`
 `
 
 export const BoardOuter = styled.div`
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   width: 100%;
   margin: 0 auto;
-  padding: 4px 10px 52px;
+  padding: 4px 10px calc(52px + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 
   @media (max-width: 450px) {
-    padding: 2px 6px 44px;
+    padding: 2px 6px calc(44px + env(safe-area-inset-bottom, 0px));
   }
 `
 
@@ -531,7 +538,7 @@ export const HeaderActionButton = styled.button`
 
 export const BottomBrand = styled.div`
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   left: 24px;
   display: inline-flex;
   align-items: center;
@@ -541,7 +548,7 @@ export const BottomBrand = styled.div`
 
   @media (max-width: 450px) {
     left: 10px;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     gap: 8px;
   }
 `
@@ -551,13 +558,13 @@ export const BottomFixedBackground = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  height: 64px;
+  height: calc(64px + env(safe-area-inset-bottom, 0px));
   background: var(--app-footer-bg);
   z-index: 40;
   pointer-events: none;
 
   @media (max-width: 450px) {
-    height: 40px;
+    height: calc(40px + env(safe-area-inset-bottom, 0px));
   }
 `
 
@@ -582,7 +589,7 @@ export const BottomBrandText = styled.span`
 export const BottomVersion = styled.button`
   position: fixed;
   right: 24px;
-  bottom: 22px;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   border: 0;
   background: transparent;
   padding: 0;
@@ -607,7 +614,7 @@ export const BottomVersion = styled.button`
 
   @media (max-width: 450px) {
     right: 10px;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
     font-size: 11px;
   }
 `
