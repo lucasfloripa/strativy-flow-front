@@ -58,7 +58,9 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 `
 
 export const Page = styled.div`
-  height: 100%;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100svh;
   min-height: 100dvh;
