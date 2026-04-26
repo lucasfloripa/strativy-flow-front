@@ -32,6 +32,8 @@ function getLoginErrorMessage(error: unknown): string {
 }
 
 export default function LoginPage() {
+  // App.tsx ou main.ts
+console.log('API URL:', import.meta.env.VITE_API_URL)
   const navigate = useNavigate()
   const setAccessToken = useSetAtom(accessTokenAtom)
 
