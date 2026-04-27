@@ -58,6 +58,7 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 `
 
 export const Page = styled.div`
+  height: calc(var(--board-app-height, 1vh) * 100);
   height: 100vh;
   height: 100svh;
   height: 100dvh;
