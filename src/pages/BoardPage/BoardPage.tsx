@@ -8,7 +8,7 @@
 // + modal do lead com tabs de notas e follow-ups
 // + follow-ups com criação inline + edição inline por linha + confirmação de exclusão
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'react-hot-toast'
 import {
@@ -5091,13 +5091,6 @@ export default function BoardPage() {
 
   const [dragSnapshot, setDragSnapshot] = useState<BoardFullResponse | null>(null)
 
-  const syncViewportHeight = useCallback(() => {
-    if (typeof window === 'undefined') return
-
-    const vh = window.innerHeight * 0.01
-    document.documentElement.style.setProperty('--board-app-height', `${vh}px`)
-  }, [])
-
   const handleLogout = useCallback(async () => {
     try {
       await logoutRequest()
@@ -5109,24 +5102,6 @@ export default function BoardPage() {
       window.location.href = '/login'
     }
   }, [])
-
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined') return
-
-    syncViewportHeight()
-    const frame = window.requestAnimationFrame(syncViewportHeight)
-
-    window.addEventListener('resize', syncViewportHeight)
-    window.addEventListener('orientationchange', syncViewportHeight)
-    window.addEventListener('pageshow', syncViewportHeight)
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.removeEventListener('resize', syncViewportHeight)
-      window.removeEventListener('orientationchange', syncViewportHeight)
-      window.removeEventListener('pageshow', syncViewportHeight)
-    }
-  }, [syncViewportHeight])
 
   const fetchBoardFull = useCallback(async () => {
     try {

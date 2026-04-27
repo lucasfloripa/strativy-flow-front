@@ -46,7 +46,6 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
   html, body, #root {
     height: 100%;
     min-height: 100%;
-    overflow: hidden;
   }
 
   body {
@@ -68,7 +67,6 @@ export const Page = styled.div`
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 `
