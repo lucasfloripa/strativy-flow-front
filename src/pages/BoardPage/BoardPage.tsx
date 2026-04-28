@@ -5028,7 +5028,7 @@ export default function BoardPage() {
   useEffect(() => {
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'))
-    }, 50)
+    }, 500)
   }, [])
 
   const [boardId] = useAtom(boardIdAtom)
