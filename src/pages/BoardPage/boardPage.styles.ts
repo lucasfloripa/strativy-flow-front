@@ -57,12 +57,13 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 `
 
 export const Page = styled.div`
+  min-height: 100vh;
   min-height: 100dvh;
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
   display: flex;
-  overflow: visible;
+  overflow: hidden;
   flex-direction: column;
 `
 
