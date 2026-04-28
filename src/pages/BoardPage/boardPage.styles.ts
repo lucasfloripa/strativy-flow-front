@@ -642,7 +642,7 @@ export const ColumnsArea = styled.div`
 
 export const ColumnsRow = styled.div`
   display: flex;
-  width: max-content;
+  width: 100%;        ✅
   min-width: 100%;
   gap: 12px;
   align-items: flex-start;
