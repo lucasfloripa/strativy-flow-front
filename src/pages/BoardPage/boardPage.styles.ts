@@ -63,7 +63,6 @@ export const Page = styled.div`
   color: var(--app-text);
   padding: 0;
   display: flex;
-  overflow: hidden;
   flex-direction: column;
 `
 
