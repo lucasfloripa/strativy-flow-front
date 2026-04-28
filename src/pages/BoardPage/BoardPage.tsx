@@ -5026,8 +5026,10 @@ function DroppableColumnHeader({
 // ----------------------------
 export default function BoardPage() {
   useEffect(() => {
-  window.dispatchEvent(new Event('resize'))
-}, [])
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 50)
+  }, [])
 
   const [boardId] = useAtom(boardIdAtom)
   const [data, setData] = useAtom(boardFullAtom) as [
