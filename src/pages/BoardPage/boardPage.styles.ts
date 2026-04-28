@@ -57,17 +57,12 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
 `
 
 export const Page = styled.div`
-  height: calc(var(--board-app-height, 1vh) * 100);
-  height: 100vh;
-  height: 100svh;
-  height: 100dvh;
-  min-height: 100vh;
-  min-height: 100svh;
   min-height: 100dvh;
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
   display: flex;
+  overflow: visible;
   flex-direction: column;
 `
 
@@ -174,7 +169,7 @@ export const BoardOuter = styled.div`
   width: 100%;
   margin: 0 auto;
   padding: 4px 10px calc(52px + env(safe-area-inset-bottom, 0px));
-  overflow: hidden;
+  overflow: auto;
 
   @media (max-width: 450px) {
     padding: 2px 6px calc(44px + env(safe-area-inset-bottom, 0px));
@@ -182,7 +177,7 @@ export const BoardOuter = styled.div`
 `
 
 export const BoardShell = styled.div`
-  height: 100%;
+  flex: 1;
   background: var(--app-bg);
   padding: 8px 16px 16px;
   display: flex;
@@ -632,7 +627,6 @@ export const ErrorBadge = styled.div`
 
 export const ColumnsArea = styled.div`
   flex: 1;
-  height: 0;
   min-height: 0;
   margin-top: 12px;
   overflow: auto;
