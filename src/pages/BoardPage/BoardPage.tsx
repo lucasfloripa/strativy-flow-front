@@ -5025,11 +5025,25 @@ function DroppableColumnHeader({
 // Page
 // ----------------------------
 export default function BoardPage() {
+  const [isMounted, setIsMounted] = useState(false)
+  const [isDndReady, setIsDndReady] = useState(false)
+
   useEffect(() => {
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'))
-    }, 500)
+    setIsMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!isMounted) return
+
+    const id = window.requestAnimationFrame(() => {
+      setIsDndReady(true)
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    return () => {
+      window.cancelAnimationFrame(id)
+    }
+  }, [isMounted])
 
   const [boardId] = useAtom(boardIdAtom)
   const [data, setData] = useAtom(boardFullAtom) as [
@@ -5834,6 +5848,8 @@ export default function BoardPage() {
     ]
   )
 
+  if (!isMounted) return null
+
   return (
     <>
       <GlobalStyle $themeMode={themeMode} />
@@ -6072,16 +6088,17 @@ export default function BoardPage() {
                   </EmptyText>
                 </EmptyState>
               ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={collisionDetectionStrategy}
-                  onDragStart={onDragStart}
-                  onDragOver={onDragOver}
-                  onDragEnd={onDragEnd}
-                  onDragCancel={onDragCancel}
-                >
-                  <ColumnsRow>
-                    {filteredData.columns.map((col) => {
+                isDndReady ? (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={collisionDetectionStrategy}
+                    onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDragEnd={onDragEnd}
+                    onDragCancel={onDragCancel}
+                  >
+                    <ColumnsRow>
+                      {filteredData.columns.map((col) => {
                       const isColumnOpen = !isNarrowMobile || Boolean(openMobileColumnMap[col.id])
 
                       return (
@@ -6229,8 +6246,9 @@ export default function BoardPage() {
                       <Plus size={20} />
                       Adicionar coluna
                     </AddColumnButton>
-                  </ColumnsRow>
-                </DndContext>
+                    </ColumnsRow>
+                  </DndContext>
+                ) : null
               )}
             </ColumnsArea>
           </BoardShell>

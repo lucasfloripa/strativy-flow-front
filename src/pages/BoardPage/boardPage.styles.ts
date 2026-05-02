@@ -629,7 +629,6 @@ export const ColumnsArea = styled.div`
   flex: 1;
   min-height: 0;
   margin-top: 12px;
-  overflow: auto;
   scrollbar-gutter: stable;
 
   @media (max-width: 450px) {
@@ -641,7 +640,7 @@ export const ColumnsArea = styled.div`
 
 export const ColumnsRow = styled.div`
   display: flex;
-  width: 100%;        ✅
+  width: max-content;
   min-width: 100%;
   gap: 12px;
   align-items: flex-start;
