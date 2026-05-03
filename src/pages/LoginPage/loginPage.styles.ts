@@ -27,9 +27,12 @@ export const GlobalStyle = createGlobalStyle`
 export const Container = styled.div`
   position: relative;
   width: 100%;
-  height: 100vh;
   min-height: 100dvh;
-  overflow: hidden;
+  width: 100%;
+  position: relative;
+
+  overflow-y: auto;
+  overflow-x: hidden;
 `
 
 export const BackgroundImage = styled.img`
@@ -71,6 +74,8 @@ export const Content = styled.div`
   @media (max-width: 900px) {
     justify-content: center;
     padding: 24px;
+    align-items: flex-start;
+    padding-top: 60px;
   }
 `
 
@@ -78,6 +83,7 @@ export const FormCard = styled.div`
   width: 100%;
   max-width: 380px;
   padding: 48px 40px;
+  max-height: 100%;
 
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
