@@ -65,17 +65,17 @@ export const Content = styled.div`
   position: relative;
   z-index: 2;
 
-  height: 100%;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding-right: 100px;
 
   @media (max-width: 900px) {
-    justify-content: center;
+    flex-direction: column;
     padding: 24px;
     align-items: center;
-    min-height: 100%;
+    min-height: 100dvh;
   }
 `
 
@@ -83,7 +83,6 @@ export const FormCard = styled.div`
   width: 100%;
   max-width: 380px;
   padding: 48px 40px;
-  max-height: 100%;
 
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
@@ -101,6 +100,7 @@ export const FormCard = styled.div`
   @media (max-width: 900px) {
     max-width: 420px;
     padding: 30px 24px;
+    margin-block: auto;
   }
 `
 
