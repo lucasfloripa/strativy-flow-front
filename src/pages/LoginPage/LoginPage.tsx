@@ -74,15 +74,13 @@ export default function LoginPage() {
     <>
       <Styles.GlobalStyle />
 
-      <Styles.Page>
-        <Styles.LeftPanel>
-          <Styles.LeftTopBrand>
-            <Styles.LeftTopBrandDot />
-            <Styles.LeftTopBrandText>Strativy.co</Styles.LeftTopBrandText>
-          </Styles.LeftTopBrand>
+      <Styles.Container>
+        <Styles.BackgroundImage src="/fundo01.png" alt="" />
+        <Styles.Overlay />
 
-          <Styles.LoginContent>
-            <Styles.Title>Login</Styles.Title>
+        <Styles.Content>
+          <Styles.FormCard>
+            <Styles.Title>Bem-vindo ao Flow</Styles.Title>
 
             <Styles.Form onSubmit={handleSubmit}>
               <Styles.Field>
@@ -121,20 +119,9 @@ export default function LoginPage() {
                 Ao continuar, voce concorda com a nossa <Styles.FooterLink to="/privacy-policy">Politica de Privacidade</Styles.FooterLink>.
               </Styles.FooterText>
             </Styles.FooterRow>
-          </Styles.LoginContent>
-        </Styles.LeftPanel>
-
-        <Styles.RightPanel>
-          <Styles.BackgroundGlowTop />
-          <Styles.BackgroundGlowBottom />
-          <Styles.RightBrandBlock>
-            <Styles.RightBrand>Strativy Flow</Styles.RightBrand>
-            <Styles.RightSubtitle>
-              Seus leads em um único fluxo.
-            </Styles.RightSubtitle>
-          </Styles.RightBrandBlock>
-        </Styles.RightPanel>
-      </Styles.Page>
+          </Styles.FormCard>
+        </Styles.Content>
+      </Styles.Container>
     </>
   )
 }

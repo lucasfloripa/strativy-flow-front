@@ -18,156 +18,107 @@ export const GlobalStyle = createGlobalStyle`
 
   body {
     margin: 0;
-    background: #f4f5f7;
-    color: #111111;
+    background: #163d2e;
+    color: #e6d5b8;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
   }
 `
 
-export const Page = styled.div`
-  min-height: 100vh;
-  display: flex;
+export const Container = styled.div`
+  position: relative;
   width: 100%;
-  position: relative;
+  height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
-
-  @media (max-width: 900px) {
-    flex-direction: column;
-  }
 `
 
-export const LeftPanel = styled.section`
-  width: 40%;
-  min-height: 100vh;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  position: relative;
-  z-index: 1;
-
-  @media (max-width: 900px) {
-    width: 100%;
-    min-height: 100vh;
-    padding: 28px;
-  }
-`
-
-export const LeftTopBrand = styled.div`
+export const BackgroundImage = styled.img`
   position: absolute;
-  top: 24px;
-  left: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-`
+  inset: 0;
 
-export const LeftTopBrandDot = styled.span`
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: #000000;
-`
-
-export const LeftTopBrandText = styled.span`
-  color: #111111;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1;
-`
-
-export const RightPanel = styled.section`
-  width: 60%;
-  min-height: 100vh;
-  background: #f4f5f7;
-  position: relative;
-  overflow: hidden;
-
-  @media (max-width: 900px) {
-    display: none;
-  }
-`
-
-export const RightBrandBlock = styled.div`
-  position: absolute;
-  top: 44%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  z-index: 1;
-  width: min(84%, 680px);
-`
-
-export const RightBrand = styled.h2`
-  margin: 0;
-  color: #000000;
-  font-family: 'Cormorant Garamond', Garamond, 'Times New Roman', serif;
-  font-size: clamp(44px, 6.2vw, 86px);
-  font-style: italic;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  line-height: 1;
-`
-
-export const RightSubtitle = styled.p`
-  margin: 14px 0 0;
-  color: #1f2937;
-  font-size: clamp(13px, 1.25vw, 17px);
-  line-height: 1.5;
-`
-
-export const BackgroundGlowTop = styled.div`
-  position: absolute;
-  top: -240px;
-  right: -120px;
-  width: 520px;
-  height: 520px;
-  border-radius: 999px;
-  background: radial-gradient(circle at center, rgba(217, 205, 176, 0.48) 0%, rgba(217, 205, 176, 0) 70%);
-  pointer-events: none;
-`
-
-export const BackgroundGlowBottom = styled.div`
-  position: absolute;
-  bottom: -240px;
-  left: -120px;
-  width: 520px;
-  height: 520px;
-  border-radius: 999px;
-  background: radial-gradient(circle at center, rgba(47, 94, 62, 0.38) 0%, rgba(47, 94, 62, 0) 70%);
-  pointer-events: none;
-`
-
-export const LoginContent = styled.div`
   width: 100%;
-  max-width: 460px;
-  background: #ffffff;
-  padding: 0;
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  height: 100%;
+  object-fit: cover;
+  object-position: 75% center;
+`
 
-  @media (max-width: 640px) {
-    max-width: 100%;
+export const Overlay = styled.div`
+  position: absolute;
+  inset: 0;
+
+  background: linear-gradient(
+    to left,
+    rgba(22, 61, 46, 0.85) 0%,
+    rgba(22, 61, 46, 0.75) 25%,
+    rgba(22, 61, 46, 0.55) 45%,
+    rgba(22, 61, 46, 0.35) 65%,
+    rgba(22, 61, 46, 0.2) 80%,
+    rgba(22, 61, 46, 0.1) 90%,
+    rgba(22, 61, 46, 0.0) 100%
+  );
+`
+
+export const Content = styled.div`
+  position: relative;
+  z-index: 2;
+
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 100px;
+
+  @media (max-width: 900px) {
+    justify-content: center;
+    padding: 24px;
+  }
+`
+
+export const FormCard = styled.div`
+  width: 100%;
+  max-width: 380px;
+  padding: 48px 40px;
+
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  color: #e6d5b8;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.45);
+  }
+
+  @media (max-width: 900px) {
+    max-width: 420px;
+    padding: 30px 24px;
   }
 `
 
 export const Title = styled.h1`
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.18;
-  letter-spacing: -0.4px;
+  margin: 0 0 28px;
+  color: #e6d5b8;
+  font-family: 'Cormorant Garamond', Garamond, 'Times New Roman', serif;
+  font-size: 40px;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-align: center;
+  display: none;
+
+  @media (max-width: 900px) {
+    display: block;
+  }
 `
 
 export const Form = styled.form`
-  margin-top: 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
   width: 100%;
 `
 
@@ -180,31 +131,41 @@ export const Field = styled.div`
 export const Label = styled.label`
   font-size: 13px;
   font-weight: 700;
-  color: #1f2937;
+  color: rgba(230, 213, 184, 0.85);
+  margin-bottom: 2px;
 `
 
 export const Input = styled.input`
   width: 100%;
-  min-height: 44px;
-  border: 1px solid #d6d6d6;
-  border-radius: 11px;
-  background: #ffffff;
-  color: #111111;
-  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6d5b8;
+  padding: 14px 16px;
   outline: none;
   font-size: 14px;
   font-weight: 500;
+  cursor: text;
+  transition: all 0.2s ease;
+
+  &::placeholder {
+    color: rgba(230, 213, 184, 0.5);
+  }
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+  }
 
   &:focus {
-    border-color: #b7b7b7;
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+    border-color: rgba(230, 213, 184, 0.7);
+    box-shadow: 0 0 0 2px rgba(230, 213, 184, 0.15);
   }
 `
 
 export const ErrorMessage = styled.div`
-  border: 1px solid #ffcfcf;
-  background: #fff5f5;
-  color: #8b1a1a;
+  border: 1px solid rgba(255, 153, 153, 0.35);
+  background: rgba(124, 37, 37, 0.22);
+  color: #ffd9d9;
   border-radius: 10px;
   padding: 10px 11px;
   font-size: 12px;
@@ -213,40 +174,48 @@ export const ErrorMessage = styled.div`
 
 export const SubmitButton = styled.button`
   width: 100%;
-  min-height: 44px;
-  border: 1px solid #111111;
-  border-radius: 11px;
-  background: #111111;
-  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  background: #e6d5b8;
+  color: #163d2e;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  padding: 14px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 
   &:hover {
-    opacity: 0.88;
+    transform: translateY(-1px);
+    filter: brightness(0.95);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25), 0 0 18px rgba(230, 213, 184, 0.22);
+  }
+
+  &:active {
+    transform: translateY(0px) scale(0.98);
   }
 
   &:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+    transform: none;
   }
 `
 
 export const FooterRow = styled.div`
-  margin-top: 16px;
+  margin-top: 20px;
 `
 
 export const FooterText = styled.p`
   margin: 0;
-  color: #6b7280;
+  color: rgba(248, 242, 232, 0.82);
   font-size: 12px;
   line-height: 1.5;
-  text-align: center;
+  text-align: left;
 `
 
 export const FooterLink = styled(Link)`
-  color: #111111;
+  color: #f4e6cb;
   font-weight: 700;
   text-decoration: none;
 
