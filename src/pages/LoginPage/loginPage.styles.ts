@@ -74,8 +74,8 @@ export const Content = styled.div`
   @media (max-width: 900px) {
     justify-content: center;
     padding: 24px;
-    align-items: flex-start;
-    padding-top: 60px;
+    align-items: center;
+    min-height: 100%;
   }
 `
 
