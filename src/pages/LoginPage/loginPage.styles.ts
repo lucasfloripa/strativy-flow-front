@@ -28,8 +28,7 @@ export const Container = styled.div`
   position: relative;
   width: 100%;
   min-height: 100dvh;
-  width: 100%;
-  position: relative;
+  display: flex;
 
   overflow-y: auto;
   overflow-x: hidden;
@@ -65,17 +64,18 @@ export const Content = styled.div`
   position: relative;
   z-index: 2;
 
-  min-height: 100dvh;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding-right: 100px;
 
   @media (max-width: 900px) {
-    flex-direction: column;
+    justify-content: center;
     padding: 24px;
     align-items: center;
-    min-height: 100dvh;
   }
 `
 
@@ -100,7 +100,6 @@ export const FormCard = styled.div`
   @media (max-width: 900px) {
     max-width: 420px;
     padding: 30px 24px;
-    margin-block: auto;
   }
 `
 
