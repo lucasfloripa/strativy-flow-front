@@ -174,6 +174,10 @@ export const Input = styled.input`
     border-color: rgba(230, 213, 184, 0.7);
     box-shadow: 0 0 0 2px rgba(230, 213, 184, 0.15);
   }
+
+  @media (max-width: 900px) {
+    font-size: 16px;
+  }
 `
 
 export const ErrorMessage = styled.div`
