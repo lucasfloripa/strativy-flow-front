@@ -14,6 +14,8 @@ export const GlobalStyle = createGlobalStyle`
 
   html, body, #root {
     height: 100%;
+    width: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -21,17 +23,22 @@ export const GlobalStyle = createGlobalStyle`
     background: #163d2e;
     color: #e6d5b8;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+    overscroll-behavior: none;
   }
 `
 
 export const Container = styled.div`
   position: relative;
   width: 100%;
+  max-width: 100%;
+  height: 100dvh;
   min-height: 100dvh;
   display: flex;
 
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 `
 
 export const BackgroundImage = styled.img`
@@ -66,6 +73,7 @@ export const Content = styled.div`
 
   flex: 1;
   width: 100%;
+  min-height: 100%;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -83,6 +91,7 @@ export const FormCard = styled.div`
   width: 100%;
   max-width: 380px;
   padding: 48px 40px;
+  flex-shrink: 0;
 
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
