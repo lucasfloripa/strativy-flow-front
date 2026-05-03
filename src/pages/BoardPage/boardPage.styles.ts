@@ -46,6 +46,8 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
   html, body, #root {
     height: 100%;
     min-height: 100%;
+    width: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -53,17 +55,21 @@ export const GlobalStyle = createGlobalStyle<{ $themeMode: ThemeMode }>`
     background: var(--app-bg);
     color: var(--app-text);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    overscroll-behavior: none;
   }
 `
 
 export const Page = styled.div`
-  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
   min-height: 100dvh;
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 `
 
 export const SettingsButton = styled.button`
@@ -166,10 +172,14 @@ export const PreferenceToggleDot = styled.span<{ $active: boolean }>`
 export const BoardOuter = styled.div`
   flex: 1;
   min-height: 0;
+  min-width: 0;
   width: 100%;
   margin: 0 auto;
   padding: 4px 10px calc(52px + env(safe-area-inset-bottom, 0px));
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 
   @media (max-width: 450px) {
     padding: 2px 6px calc(44px + env(safe-area-inset-bottom, 0px));
@@ -178,6 +188,7 @@ export const BoardOuter = styled.div`
 
 export const BoardShell = styled.div`
   flex: 1;
+  min-width: 0;
   background: var(--app-bg);
   padding: 8px 16px 16px;
   display: flex;
@@ -628,13 +639,16 @@ export const ErrorBadge = styled.div`
 export const ColumnsArea = styled.div`
   flex: 1;
   min-height: 0;
+  min-width: 0;
   margin-top: 12px;
+  overflow-x: auto;
+  overflow-y: visible;
   scrollbar-gutter: stable;
 
   @media (max-width: 450px) {
     margin-top: 8px;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: visible;
   }
 `
 
