@@ -85,6 +85,9 @@ import {
   isCreateLeadModalOpenAtom,
   createLeadErrorAtom,
   isCreateLeadSavingAtom,
+  isCreateBoardModalOpenAtom,
+  createBoardErrorAtom,
+  isCreateBoardSavingAtom,
   isAutomationsModalOpenAtom,
   automationsModalColumnAtom,
   setBoardIdAtom
@@ -118,6 +121,7 @@ const {
   BoardTitleCaret,
   BoardSelectorDropdown,
   BoardSelectorOption,
+  BoardSelectorDivider,
   BoardOptionCircle,
   BoardOptionName,
   FiltersDropdownWrapper,
@@ -452,6 +456,19 @@ type CreateColumnPayload = {
   name: string
 }
 
+type CreateBoardPayload = {
+  name: string
+  boardPhone: string
+  createDefaultColumns: boolean
+  userId: string
+}
+
+type BoardOptionItem = {
+  id: string
+  name: string
+  createdAt?: string | Date
+}
+
 type ColumnModalMode = 'edit' | 'delete'
 type LeadModalViewMode = 'followups' | 'notes' | 'details' | 'edit'
 type ColumnSortKey = 'newest' | 'oldest' | 'next-followup' | 'no-followup' | 'favorites' | 'temperature'
@@ -642,6 +659,7 @@ function formatPhone(phone?: string) {
 
 const TOAST_MESSAGES = {
   success: {
+    createBoard: 'Board criado com sucesso',
     createLead: 'Lead criado com sucesso',
     createColumn: 'Coluna criada com sucesso',
     editColumn: 'Coluna editada com sucesso',
@@ -1192,6 +1210,166 @@ function ColumnActionsModal({
             </ModalFooter>
           </>
         ) : null}
+      </SettingsModalCard>
+    </ModalOverlay>
+  )
+}
+
+// ----------------------------
+// Modal criar board
+// ----------------------------
+function CreateBoardModal({
+  onBoardCreated
+}: {
+  onBoardCreated: (board: Board) => Promise<void>
+}) {
+  const [isOpen, setIsOpen] = useAtom(isCreateBoardModalOpenAtom)
+  const [, setError] = useAtom(createBoardErrorAtom)
+  const [isSaving, setIsSaving] = useAtom(isCreateBoardSavingAtom)
+  const [userInfo] = useAtom(userInfoAtom)
+
+  const [boardName, setBoardName] = useState('')
+  const [boardPhone, setBoardPhone] = useState('')
+  const [createDefaultColumns, setCreateDefaultColumns] = useState(true)
+
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
+
+  const closeModal = useCallback(() => {
+    if (isSaving) return
+    setIsOpen(false)
+    setError(null)
+    setIsSaving(false)
+    setBoardName('')
+    setBoardPhone('')
+    setCreateDefaultColumns(true)
+  }, [isSaving, setError, setIsOpen, setIsSaving])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const id = window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus()
+    })
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeModal()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.cancelAnimationFrame(id)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isOpen, closeModal])
+
+  const isSubmitDisabled =
+    isSaving || !boardName.trim() || !boardPhone.trim()
+
+  const handleSave = async () => {
+    if (isSubmitDisabled) return
+
+    try {
+      setIsSaving(true)
+      setError(null)
+
+      const payload: CreateBoardPayload = {
+        name: boardName.trim(),
+        boardPhone: boardPhone.trim(),
+        createDefaultColumns,
+        userId:
+          (userInfo as { userId?: string; id?: string } | null)?.userId ??
+          (userInfo as { userId?: string; id?: string } | null)?.id ??
+          ''
+      }
+
+      const res = await api.post<Board>('/boards', payload)
+      await onBoardCreated(res.data)
+      toastSuccess(TOAST_MESSAGES.success.createBoard)
+      closeModal()
+    } catch (e: any) {
+      const msg = e instanceof Error ? e.message : 'Erro ao criar board'
+      setError(String(msg))
+      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <ModalOverlay onClick={closeModal}>
+      <SettingsModalCard
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+      >
+        <SettingsModalHeader>
+          <SettingsModalTitle>Criar board</SettingsModalTitle>
+
+          <SettingsCloseIconButton
+            type="button"
+            onClick={closeModal}
+            aria-label="Fechar criação de board"
+            title="Fechar"
+            disabled={isSaving}
+          >
+            <X size={18} />
+          </SettingsCloseIconButton>
+        </SettingsModalHeader>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleSave()
+          }}
+        >
+          <CreateFormCard>
+            <CreateFieldsStack>
+              <InfoInput
+                ref={nameInputRef}
+                value={boardName}
+                onChange={(e) => setBoardName(e.target.value)}
+                placeholder="Nome do board"
+              />
+
+              <InfoInput
+                value={boardPhone}
+                onChange={(e) => setBoardPhone(e.target.value)}
+                placeholder="Telefone do board"
+              />
+
+              <PreferenceRow>
+                <PreferenceLabel>Criar com colunas padrão</PreferenceLabel>
+                <PreferenceToggle
+                  type="button"
+                  $active={createDefaultColumns}
+                  onClick={() => {
+                    setCreateDefaultColumns((prev) => !prev)
+                  }}
+                  aria-label="Alternar criação com colunas padrão"
+                  title="Criar com colunas padrão"
+                  disabled={isSaving}
+                >
+                  <PreferenceToggleDot $active={createDefaultColumns} />
+                </PreferenceToggle>
+              </PreferenceRow>
+            </CreateFieldsStack>
+          </CreateFormCard>
+
+          <ModalFooter>
+            <FooterButtons>
+              <NeutralButton type="button" onClick={closeModal} disabled={isSaving}>
+                Fechar
+              </NeutralButton>
+
+              <SuccessButton type="submit" disabled={isSubmitDisabled}>
+                {isSaving ? 'Salvando...' : 'Criar'}
+              </SuccessButton>
+            </FooterButtons>
+          </ModalFooter>
+        </form>
       </SettingsModalCard>
     </ModalOverlay>
   )
@@ -5068,6 +5246,8 @@ export default function BoardPage() {
   const setSelectedLeadId = useSetAtom(selectedLeadIdAtom)
   const setSelectedLead = useSetAtom(selectedLeadAtom)
   const setLeadModalError = useSetAtom(leadModalErrorAtom)
+  const setIsCreateBoardModalOpen = useSetAtom(isCreateBoardModalOpenAtom)
+  const setCreateBoardError = useSetAtom(createBoardErrorAtom)
 
   const [createLeadColumnId, setCreateLeadColumnId] = useState<string>('')
 
@@ -5091,6 +5271,7 @@ export default function BoardPage() {
     return window.matchMedia('(max-width: 450px)').matches
   })
   const [openMobileColumnMap, setOpenMobileColumnMap] = useState<Record<string, boolean>>({})
+  const [boardOptions, setBoardOptions] = useState<BoardOptionItem[]>([])
   const [selectedBoardOptionId, setSelectedBoardOptionId] = useState<string>('')
   const [isLeadEntryNotificationEnabled, setIsLeadEntryNotificationEnabled] = useState(true)
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
@@ -5123,13 +5304,81 @@ export default function BoardPage() {
     }
   }, [])
 
-  const fetchBoardFull = useCallback(async () => {
+  const fetchBoardOptions = useCallback(async () => {
+    const res = await api.get<BoardOptionItem[]>('/boards')
+
+    const options = [...res.data].sort((a, b) => {
+      const aTime = new Date(a.createdAt ?? 0).getTime()
+      const bTime = new Date(b.createdAt ?? 0).getTime()
+      return aTime - bTime
+    })
+
+    setBoardOptions(
+      options.map((item) => ({
+        id: item.id,
+        name: item.name,
+        createdAt: item.createdAt
+      }))
+    )
+
+    return options
+  }, [])
+
+  const fetchBoardFullById = useCallback(
+    async (targetBoardId: string) => {
+      if (!targetBoardId) return
+
+      try {
+        setError(null)
+        setLoading(true)
+
+        const res = await api.get<BoardFullResponse>(`/boards/${targetBoardId}/full`)
+        setData(sortColumnsAndLeads(res.data))
+        setBoardOptions((prev) => {
+          const found = prev.find((item) => item.id === res.data.board.id)
+          if (found) {
+            return prev.map((item) =>
+              item.id === res.data.board.id
+                ? { ...item, name: res.data.board.name }
+                : item
+            )
+          }
+
+          return [...prev, { id: res.data.board.id, name: res.data.board.name }]
+        })
+        setSelectedBoardOptionId(res.data.board.id)
+        setBoardIdAction(res.data.board.id)
+      } catch (e: any) {
+        const msg = e instanceof Error ? e.message : 'Erro ao carregar board'
+        setError(String(msg))
+        toastErrorFromException(e, TOAST_MESSAGES.error.loadBoard)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [setBoardIdAction, setData, setError, setLoading]
+  )
+
+  const initializeBoard = useCallback(async () => {
     try {
       setError(null)
       setLoading(true)
 
-      const res = await api.get<BoardFullResponse>('/boards/full')
+      // 1. Get list of all boards
+      const options = await fetchBoardOptions()
+      const firstBoardId = options[0]?.id
+
+      if (!firstBoardId) {
+        setData(null)
+        setSelectedBoardOptionId('')
+        setBoardIdAction('')
+        return
+      }
+
+      // 2. Load full data for first board
+      const res = await api.get<BoardFullResponse>(`/boards/${firstBoardId}/full`)
       setData(sortColumnsAndLeads(res.data))
+      setSelectedBoardOptionId(res.data.board.id)
       setBoardIdAction(res.data.board.id)
     } catch (e: any) {
       const msg = e instanceof Error ? e.message : 'Erro ao carregar board'
@@ -5138,7 +5387,12 @@ export default function BoardPage() {
     } finally {
       setLoading(false)
     }
-  }, [setBoardIdAction, setData, setError, setLoading])
+  }, [fetchBoardOptions, setBoardIdAction, setData, setError, setLoading])
+
+  const fetchBoardFull = useCallback(async () => {
+    if (!boardId) return
+    await fetchBoardFullById(boardId)
+  }, [boardId, fetchBoardFullById])
 
   const fetchCurrentUser = useCallback(async () => {
     try {
@@ -5306,23 +5560,47 @@ export default function BoardPage() {
     )
   }, [])
 
-  const boardOptions = useMemo(() => {
-    if (!data?.board) return []
+  const handleBoardCreated = useCallback(
+    async (createdBoard: Board) => {
+      setBoardOptions((prev) => {
+        const found = prev.find((option) => option.id === createdBoard.id)
 
-    // Keeping this as an array so it is ready for multiple boards when available.
-    return [
-      {
-        id: data.board.id,
-        name: data.board.name
-      }
-    ]
-  }, [data?.board])
+        if (found) {
+          return prev.map((option) =>
+            option.id === createdBoard.id
+              ? { ...option, name: createdBoard.name }
+              : option
+          )
+        }
+
+        return [...prev, { id: createdBoard.id, name: createdBoard.name }]
+      })
+
+      await fetchBoardFullById(createdBoard.id)
+      setIsBoardSelectorOpen(false)
+    },
+    [fetchBoardFullById]
+  )
 
   useEffect(() => {
-    if (!boardOptions.length) return
+    if (!data?.board) return
 
-    setSelectedBoardOptionId((prev) => (prev ? prev : boardOptions[0].id))
-  }, [boardOptions])
+    setBoardOptions((prev) => {
+      const found = prev.find((option) => option.id === data.board.id)
+
+      if (found) {
+        return prev.map((option) =>
+          option.id === data.board.id
+            ? { ...option, name: data.board.name }
+            : option
+        )
+      }
+
+      return [...prev, { id: data.board.id, name: data.board.name }]
+    })
+
+    setSelectedBoardOptionId(data.board.id)
+  }, [data?.board])
 
   useEffect(() => {
     if (
@@ -5552,9 +5830,9 @@ export default function BoardPage() {
   }, [isMobileSettingsDropdownOpen])
 
   useEffect(() => {
-    void fetchBoardFull()
+    void initializeBoard()
     void fetchCurrentUser()
-  }, [fetchBoardFull, fetchCurrentUser])
+  }, [initializeBoard, fetchCurrentUser])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -5889,12 +6167,13 @@ export default function BoardPage() {
                             key={option.id}
                             type="button"
                             onClick={() => {
-                              setSelectedBoardOptionId(option.id)
                               setIsBoardSelectorOpen(false)
 
-                              if (option.id !== boardId) {
-                                setBoardIdAction(option.id)
+                              if (option.id === selectedBoardOptionId) {
+                                return
                               }
+
+                              void fetchBoardFullById(option.id)
                             }}
                             aria-label={`Selecionar board ${option.name}`}
                             title={option.name}
@@ -5904,6 +6183,22 @@ export default function BoardPage() {
                           </BoardSelectorOption>
                         )
                       })}
+
+                      <BoardSelectorDivider />
+
+                      <BoardSelectorOption
+                        type="button"
+                        $highlighted
+                        onClick={() => {
+                          setCreateBoardError(null)
+                          setIsCreateBoardModalOpen(true)
+                          setIsBoardSelectorOpen(false)
+                        }}
+                        aria-label="Criar novo board"
+                        title="Criar novo board"
+                      >
+                        <BoardOptionName>+ Criar novo board</BoardOptionName>
+                      </BoardSelectorOption>
                     </BoardSelectorDropdown>
                   ) : null}
                 </BoardSelectorWrapper>
@@ -6508,6 +6803,7 @@ export default function BoardPage() {
         initialColumnId={createLeadColumnId}
         onClose={() => setCreateLeadColumnId('')}
       />
+      <CreateBoardModal onBoardCreated={handleBoardCreated} />
     </>
   )
 }

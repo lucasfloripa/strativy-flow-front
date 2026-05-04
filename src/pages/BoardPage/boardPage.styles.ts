@@ -63,12 +63,12 @@ export const Page = styled.div`
   width: 100%;
   max-width: 100%;
   height: 100dvh;
-  min-height: 100dvh;
   background: var(--app-bg);
   color: var(--app-text);
   padding: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 `
 
@@ -170,19 +170,21 @@ export const PreferenceToggleDot = styled.span<{ $active: boolean }>`
 `
 
 export const BoardOuter = styled.div`
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
   margin: 0 auto;
-  padding: 4px 10px calc(52px + env(safe-area-inset-bottom, 0px));
+  padding: 4px 10px 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 
   @media (max-width: 450px) {
-    padding: 2px 6px calc(44px + env(safe-area-inset-bottom, 0px));
+    padding: 2px 6px 0;
   }
 `
 
@@ -346,10 +348,10 @@ export const BoardSelectorDropdown = styled.div`
   }
 `
 
-export const BoardSelectorOption = styled.button`
+export const BoardSelectorOption = styled.button<{ $highlighted?: boolean }>`
   width: 100%;
   border: none;
-  background: transparent;
+  background: ${(props) => (props.$highlighted ? 'var(--app-hover)' : 'transparent')};
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
@@ -357,10 +359,18 @@ export const BoardSelectorOption = styled.button`
   gap: 10px;
   cursor: pointer;
   text-align: left;
+  color: var(--app-text);
+  font-weight: ${(props) => (props.$highlighted ? 800 : 700)};
 
   &:hover {
     background: var(--app-hover);
   }
+`
+
+export const BoardSelectorDivider = styled.div`
+  height: 1px;
+  background: var(--app-divider);
+  margin: 6px 2px;
 `
 
 export const BoardOptionCircle = styled.span<{ $selected: boolean }>`

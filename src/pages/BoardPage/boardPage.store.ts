@@ -82,6 +82,8 @@ export type BoardFullResponse = {
 export type BoardUserInfo = {
   email: string
   role: string
+  id?: string
+  userId?: string
 }
 
 export type ColumnModalMode = 'edit' | 'delete'
@@ -116,6 +118,10 @@ export const isCreateColumnSavingAtom = atom<boolean>(false)
 export const isCreateLeadModalOpenAtom = atom<boolean>(false)
 export const createLeadErrorAtom = atom<string | null>(null)
 export const isCreateLeadSavingAtom = atom<boolean>(false)
+
+export const isCreateBoardModalOpenAtom = atom<boolean>(false)
+export const createBoardErrorAtom = atom<string | null>(null)
+export const isCreateBoardSavingAtom = atom<boolean>(false)
 
 export const isAutomationsModalOpenAtom = atom<boolean>(false)
 export const automationsModalColumnAtom = atom<BoardColumn | null>(null)
