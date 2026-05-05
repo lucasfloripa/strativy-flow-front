@@ -60,6 +60,7 @@ export type BoardColumnOnEnterAutomation = {
   favoriteLead?: boolean
   markAllFollowUpsAsDone?: boolean
   resetLastActivityAt?: boolean
+  setTemperature?: LeadTemperature
 }
 
 export type BoardColumn = {

@@ -85,9 +85,6 @@ import {
   isCreateLeadModalOpenAtom,
   createLeadErrorAtom,
   isCreateLeadSavingAtom,
-  isCreateBoardModalOpenAtom,
-  createBoardErrorAtom,
-  isCreateBoardSavingAtom,
   isAutomationsModalOpenAtom,
   automationsModalColumnAtom,
   setBoardIdAtom
@@ -121,7 +118,6 @@ const {
   BoardTitleCaret,
   BoardSelectorDropdown,
   BoardSelectorOption,
-  BoardSelectorDivider,
   BoardOptionCircle,
   BoardOptionName,
   FiltersDropdownWrapper,
@@ -400,6 +396,7 @@ type BoardColumnOnEnterAutomation = {
   favoriteLead?: boolean
   markAllFollowUpsAsDone?: boolean
   resetLastActivityAt?: boolean
+  setTemperature?: LeadTemperature
 }
 
 type BoardColumn = {
@@ -454,13 +451,6 @@ type UpdateColumnPayload = {
 
 type CreateColumnPayload = {
   name: string
-}
-
-type CreateBoardPayload = {
-  name: string
-  boardPhone: string
-  createDefaultColumns: boolean
-  userId: string
 }
 
 type BoardOptionItem = {
@@ -1216,166 +1206,6 @@ function ColumnActionsModal({
 }
 
 // ----------------------------
-// Modal criar board
-// ----------------------------
-function CreateBoardModal({
-  onBoardCreated
-}: {
-  onBoardCreated: (board: Board) => Promise<void>
-}) {
-  const [isOpen, setIsOpen] = useAtom(isCreateBoardModalOpenAtom)
-  const [, setError] = useAtom(createBoardErrorAtom)
-  const [isSaving, setIsSaving] = useAtom(isCreateBoardSavingAtom)
-  const [userInfo] = useAtom(userInfoAtom)
-
-  const [boardName, setBoardName] = useState('')
-  const [boardPhone, setBoardPhone] = useState('')
-  const [createDefaultColumns, setCreateDefaultColumns] = useState(true)
-
-  const nameInputRef = useRef<HTMLInputElement | null>(null)
-
-  const closeModal = useCallback(() => {
-    if (isSaving) return
-    setIsOpen(false)
-    setError(null)
-    setIsSaving(false)
-    setBoardName('')
-    setBoardPhone('')
-    setCreateDefaultColumns(true)
-  }, [isSaving, setError, setIsOpen, setIsSaving])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const id = window.requestAnimationFrame(() => {
-      nameInputRef.current?.focus()
-    })
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeModal()
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.cancelAnimationFrame(id)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isOpen, closeModal])
-
-  const isSubmitDisabled =
-    isSaving || !boardName.trim() || !boardPhone.trim()
-
-  const handleSave = async () => {
-    if (isSubmitDisabled) return
-
-    try {
-      setIsSaving(true)
-      setError(null)
-
-      const payload: CreateBoardPayload = {
-        name: boardName.trim(),
-        boardPhone: boardPhone.trim(),
-        createDefaultColumns,
-        userId:
-          (userInfo as { userId?: string; id?: string } | null)?.userId ??
-          (userInfo as { userId?: string; id?: string } | null)?.id ??
-          ''
-      }
-
-      const res = await api.post<Board>('/boards', payload)
-      await onBoardCreated(res.data)
-      toastSuccess(TOAST_MESSAGES.success.createBoard)
-      closeModal()
-    } catch (e: any) {
-      const msg = e instanceof Error ? e.message : 'Erro ao criar board'
-      setError(String(msg))
-      toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  if (!isOpen) return null
-
-  return (
-    <ModalOverlay onClick={closeModal}>
-      <SettingsModalCard
-        onClick={(e) => {
-          e.stopPropagation()
-        }}
-      >
-        <SettingsModalHeader>
-          <SettingsModalTitle>Criar board</SettingsModalTitle>
-
-          <SettingsCloseIconButton
-            type="button"
-            onClick={closeModal}
-            aria-label="Fechar criação de board"
-            title="Fechar"
-            disabled={isSaving}
-          >
-            <X size={18} />
-          </SettingsCloseIconButton>
-        </SettingsModalHeader>
-
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void handleSave()
-          }}
-        >
-          <CreateFormCard>
-            <CreateFieldsStack>
-              <InfoInput
-                ref={nameInputRef}
-                value={boardName}
-                onChange={(e) => setBoardName(e.target.value)}
-                placeholder="Nome do board"
-              />
-
-              <InfoInput
-                value={boardPhone}
-                onChange={(e) => setBoardPhone(e.target.value)}
-                placeholder="Telefone do board"
-              />
-
-              <PreferenceRow>
-                <PreferenceLabel>Criar com colunas padrão</PreferenceLabel>
-                <PreferenceToggle
-                  type="button"
-                  $active={createDefaultColumns}
-                  onClick={() => {
-                    setCreateDefaultColumns((prev) => !prev)
-                  }}
-                  aria-label="Alternar criação com colunas padrão"
-                  title="Criar com colunas padrão"
-                  disabled={isSaving}
-                >
-                  <PreferenceToggleDot $active={createDefaultColumns} />
-                </PreferenceToggle>
-              </PreferenceRow>
-            </CreateFieldsStack>
-          </CreateFormCard>
-
-          <ModalFooter>
-            <FooterButtons>
-              <NeutralButton type="button" onClick={closeModal} disabled={isSaving}>
-                Fechar
-              </NeutralButton>
-
-              <SuccessButton type="submit" disabled={isSubmitDisabled}>
-                {isSaving ? 'Salvando...' : 'Criar'}
-              </SuccessButton>
-            </FooterButtons>
-          </ModalFooter>
-        </form>
-      </SettingsModalCard>
-    </ModalOverlay>
-  )
-}
-
-// ----------------------------
 // Modal criar coluna
 // ----------------------------
 function CreateColumnModal({
@@ -1907,8 +1737,6 @@ function LeadDetailsModal({
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false)
   const [isColumnChanging, setIsColumnChanging] = useState(false)
   const [isMoveColumnMenuOpen, setIsMoveColumnMenuOpen] = useState(false)
-  const [isTemperatureMenuOpen, setIsTemperatureMenuOpen] = useState(false)
-  const [isTemperatureMenuOpenUpward, setIsTemperatureMenuOpenUpward] = useState(false)
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false)
   const [isSourceMenuOpenUpward, setIsSourceMenuOpenUpward] = useState(false)
   const [isFollowupFiltersOpen, setIsFollowupFiltersOpen] = useState(false)
@@ -1954,7 +1782,6 @@ function LeadDetailsModal({
   const skipNextNotesAutosaveRef = useRef(true)
   const createFollowupInputRef = useRef<HTMLInputElement | null>(null)
   const moveColumnMenuRef = useRef<HTMLDivElement | null>(null)
-  const temperatureMenuRef = useRef<HTMLDivElement | null>(null)
   const sourceMenuRef = useRef<HTMLDivElement | null>(null)
   const followupFiltersRef = useRef<HTMLDivElement | null>(null)
   const followupFiltersMenuRef = useRef<HTMLDivElement | null>(null)
@@ -2010,8 +1837,6 @@ function LeadDetailsModal({
     setIsArchiveConfirmOpen(false)
     setIsArchiving(false)
     setIsMoveColumnMenuOpen(false)
-    setIsTemperatureMenuOpen(false)
-    setIsTemperatureMenuOpenUpward(false)
     setIsSourceMenuOpen(false)
     setIsSourceMenuOpenUpward(false)
     setIsFollowupFiltersOpen(false)
@@ -2105,11 +1930,6 @@ function LeadDetailsModal({
         return
       }
 
-      if (isTemperatureMenuOpen) {
-        setIsTemperatureMenuOpen(false)
-        return
-      }
-
       if (isSourceMenuOpen) {
         setIsSourceMenuOpen(false)
         return
@@ -2137,7 +1957,6 @@ function LeadDetailsModal({
     followupToDeleteId,
     isDeletingFollowup,
     isMoveColumnMenuOpen,
-    isTemperatureMenuOpen,
     isSourceMenuOpen,
     isFollowupFiltersOpen
   ])
@@ -2157,22 +1976,6 @@ function LeadDetailsModal({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isMoveColumnMenuOpen])
-
-  useEffect(() => {
-    if (!isTemperatureMenuOpen) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (!temperatureMenuRef.current?.contains(target)) {
-        setIsTemperatureMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isTemperatureMenuOpen])
 
   useEffect(() => {
     if (!isSourceMenuOpen) return
@@ -2262,39 +2065,6 @@ function LeadDetailsModal({
       setContactTemperature(updated.temperature ?? null)
     },
     [setSelectedLead]
-  )
-
-  const updateLeadTemperature = useCallback(
-    async (nextTemperature: LeadTemperature | null) => {
-      if (!selectedLead) return
-
-      if (selectedLead.temperature === nextTemperature) {
-        setIsTemperatureMenuOpen(false)
-        return
-      }
-
-      try {
-        setIsContactSaving(true)
-        setError(null)
-
-        const payload: UpdateLeadPayload = {
-          temperature: nextTemperature
-        }
-
-        const res = await api.patch<Lead>(`/leads/${selectedLead.id}`, payload)
-        applyLeadUpdate(res.data)
-        await onRefreshBoard()
-        toastSuccess(TOAST_MESSAGES.success.editLead)
-      } catch (e: any) {
-        const msg = e instanceof Error ? e.message : 'Erro ao atualizar temperatura'
-        setError(String(msg))
-        toastErrorFromException(e, TOAST_MESSAGES.error.saveLead)
-      } finally {
-        setIsContactSaving(false)
-        setIsTemperatureMenuOpen(false)
-      }
-    },
-    [selectedLead, setError, applyLeadUpdate, onRefreshBoard]
   )
 
   const saveHeaderField = useCallback(
@@ -3554,60 +3324,16 @@ function LeadDetailsModal({
 
                         <LeadContactLine>
                           <LeadContactKey>Temperatura:</LeadContactKey>
-                          <LeadTemperaturePickerWrapper ref={temperatureMenuRef}>
-                            <LeadTemperaturePickerButton
-                              type="button"
-                              onClick={() => {
-                                if (!isTemperatureMenuOpen) {
-                                  setIsTemperatureMenuOpenUpward(
-                                    shouldOpenDropdownUpward(temperatureMenuRef.current)
-                                  )
-                                }
-                                setIsTemperatureMenuOpen((prev) => !prev)
-                              }}
-                              disabled={isContactSaving}
-                            >
-                              {contactTemperatureBadge ? (
-                                <LeadTemperatureBadge $type={contactTemperatureBadge.type}>
-                                  {contactTemperatureBadge.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
-                                  {contactTemperatureBadge.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
-                                  {contactTemperatureBadge.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
-                                  {contactTemperatureBadge.label}
-                                </LeadTemperatureBadge>
-                              ) : (
-                                <LeadContactValue>—</LeadContactValue>
-                              )}
-                            </LeadTemperaturePickerButton>
-
-                            {isTemperatureMenuOpen ? (
-                              <LeadTemperatureMenu $openUp={isTemperatureMenuOpenUpward}>
-                                {LEAD_TEMPERATURE_OPTIONS.map((option) => (
-                                  <LeadTemperatureMenuButton
-                                    key={option.value}
-                                    type="button"
-                                    onClick={() => {
-                                      void updateLeadTemperature(option.value)
-                                    }}
-                                  >
-                                    {option.value === 'hot' ? <Flame size={13} strokeWidth={2.4} /> : null}
-                                    {option.value === 'warm' ? <Sun size={13} strokeWidth={2.4} /> : null}
-                                    {option.value === 'cold' ? <Snowflake size={13} strokeWidth={2.4} /> : null}
-                                    <span>{option.label}</span>
-                                  </LeadTemperatureMenuButton>
-                                ))}
-
-                                <LeadTemperatureMenuButton
-                                  type="button"
-                                  onClick={() => {
-                                    void updateLeadTemperature(null)
-                                  }}
-                                >
-                                  <X size={13} strokeWidth={2.4} />
-                                  <span>Remover temperatura</span>
-                                </LeadTemperatureMenuButton>
-                              </LeadTemperatureMenu>
-                            ) : null}
-                          </LeadTemperaturePickerWrapper>
+                          {contactTemperatureBadge ? (
+                            <LeadTemperatureBadge $type={contactTemperatureBadge.type}>
+                              {contactTemperatureBadge.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
+                              {contactTemperatureBadge.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
+                              {contactTemperatureBadge.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
+                              {contactTemperatureBadge.label}
+                            </LeadTemperatureBadge>
+                          ) : (
+                            <LeadContactValue>—</LeadContactValue>
+                          )}
                         </LeadContactLine>
 
                         <LeadContactLine>
@@ -3796,11 +3522,12 @@ function LeadDetailsModal({
 // ----------------------------
 type AutomationsTab = 'entry' | 'exit' | 'time'
 type FollowupWhenType = 'hours' | 'days' | 'specific-date'
-type EntryActionSection = 'followup' | 'lead' | 'time'
+type EntryActionSection = 'followup' | 'lead' | 'time' | 'temperature'
 type EntryAutomationAction =
   | 'create-followup'
   | 'complete-followups'
   | 'favorite-lead'
+  | 'set-temperature'
   | 'reset-idle-time'
 
 type EntryAutomationListItem = {
@@ -3808,12 +3535,14 @@ type EntryAutomationListItem = {
   action: EntryAutomationAction
   followUpValue?: string
   followUpDueAt?: string
+  temperature?: LeadTemperature
 }
 
 const ENTRY_ACTION_LABELS: Record<EntryAutomationAction, string> = {
   'create-followup': 'Criar follow-up',
   'complete-followups': 'Concluir follow-ups',
-  'favorite-lead': 'Lead prioritário',
+  'favorite-lead': 'Favoritar lead',
+  'set-temperature': 'Alterar temperatura',
   'reset-idle-time': 'Reativar lead'
 }
 
@@ -3821,7 +3550,14 @@ const ENTRY_ACTION_CATEGORY_LABELS: Record<EntryAutomationAction, string> = {
   'create-followup': 'FOLLOW_UP',
   'complete-followups': 'FOLLOW_UP',
   'favorite-lead': 'LEAD',
+  'set-temperature': 'TEMPERATURA',
   'reset-idle-time': 'TEMPO'
+}
+
+const LEAD_TEMPERATURE_LABELS: Record<LeadTemperature, string> = {
+  hot: 'Quente',
+  warm: 'Morno',
+  cold: 'Frio'
 }
 
 function onEnterToItems(
@@ -3842,6 +3578,13 @@ function onEnterToItems(
   }
   if (onEnter.favoriteLead) {
     items.push({ id: 'entry-automation-favorite-lead', action: 'favorite-lead' })
+  }
+  if (onEnter.setTemperature) {
+    items.push({
+      id: 'entry-automation-set-temperature',
+      action: 'set-temperature',
+      temperature: onEnter.setTemperature
+    })
   }
   if (onEnter.resetLastActivityAt) {
     items.push({ id: 'entry-automation-reset-idle-time', action: 'reset-idle-time' })
@@ -3867,6 +3610,11 @@ function itemsToOnEnter(
         break
       case 'favorite-lead':
         result.favoriteLead = true
+        break
+      case 'set-temperature':
+        if (item.temperature) {
+          result.setTemperature = item.temperature
+        }
         break
       case 'reset-idle-time':
         result.resetLastActivityAt = true
@@ -3912,15 +3660,18 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   const [, setSaveError] = useState<string | null>(null)
   const [editingEntryAutomationId, setEditingEntryAutomationId] = useState<string | null>(null)
   const [isConfiguringFollowup, setIsConfiguringFollowup] = useState(false)
+  const [isConfiguringTemperature, setIsConfiguringTemperature] = useState(false)
   const [followupTitle, setFollowupTitle] = useState('')
   const [followupWhenType, setFollowupWhenType] = useState<FollowupWhenType>('hours')
   const [followupWhenValue, setFollowupWhenValue] = useState('')
   const [followupSpecificDate, setFollowupSpecificDate] = useState('')
+  const [selectedAutomationTemperature, setSelectedAutomationTemperature] = useState<LeadTemperature>('warm')
   const followupDateInputRef = useRef<HTMLInputElement | null>(null)
   const [openEntrySections, setOpenEntrySections] = useState<Record<EntryActionSection, boolean>>({
     followup: true,
     lead: false,
-    time: false
+    time: false,
+    temperature: false
   })
 
   const closeModal = useCallback(() => {
@@ -3931,10 +3682,12 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     setEntryAutomationItems([])
     setEditingEntryAutomationId(null)
     setIsConfiguringFollowup(false)
+    setIsConfiguringTemperature(false)
     setFollowupTitle('')
     setFollowupWhenType('hours')
     setFollowupWhenValue('')
     setFollowupSpecificDate('')
+    setSelectedAutomationTemperature('warm')
     setSaveError(null)
   }, [setIsOpen, setColumn])
 
@@ -3983,6 +3736,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
   const startConfiguringFollowup = useCallback(
     (automationId?: string | null) => {
       setEditingEntryAutomationId(automationId ?? null)
+      setIsConfiguringTemperature(false)
       // Se editando um existing, preenche o form com os dados salvos
       if (automationId) {
         const existing = entryAutomationItems.find((i) => i.id === automationId)
@@ -4001,13 +3755,32 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     [entryAutomationItems]
   )
 
+  const startConfiguringTemperature = useCallback(
+    (automationId?: string | null) => {
+      setEditingEntryAutomationId(automationId ?? null)
+      setIsConfiguringFollowup(false)
+
+      if (automationId) {
+        const existing = entryAutomationItems.find((i) => i.id === automationId)
+        setSelectedAutomationTemperature(existing?.temperature ?? 'warm')
+      } else {
+        setSelectedAutomationTemperature('warm')
+      }
+
+      setIsConfiguringTemperature(true)
+    },
+    [entryAutomationItems]
+  )
+
   const backToActionChoice = useCallback(() => {
     setIsConfiguringFollowup(false)
+    setIsConfiguringTemperature(false)
     setEditingEntryAutomationId(null)
     setFollowupTitle('')
     setFollowupWhenType('hours')
     setFollowupWhenValue('')
     setFollowupSpecificDate('')
+    setSelectedAutomationTemperature('warm')
   }, [])
 
   const saveFollowupAction = useCallback(async () => {
@@ -4051,6 +3824,43 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     patchOnEnter
   ])
 
+  const saveSetTemperatureAction = useCallback(async () => {
+    let nextItems: EntryAutomationListItem[]
+
+    if (editingEntryAutomationId) {
+      nextItems = entryAutomationItems.map((item) =>
+        item.id === editingEntryAutomationId
+          ? {
+              ...item,
+              action: 'set-temperature',
+              temperature: selectedAutomationTemperature
+            }
+          : item
+      )
+    } else {
+      nextItems = [
+        ...entryAutomationItems,
+        {
+          id: `entry-automation-${Date.now()}`,
+          action: 'set-temperature',
+          temperature: selectedAutomationTemperature
+        }
+      ]
+    }
+
+    setEntryAutomationItems(nextItems)
+    setIsEntryActionSelectorOpen(false)
+    setEditingEntryAutomationId(null)
+    setIsConfiguringTemperature(false)
+    setSelectedAutomationTemperature('warm')
+    await patchOnEnter(nextItems, TOAST_MESSAGES.success.saveAutomation)
+  }, [
+    editingEntryAutomationId,
+    entryAutomationItems,
+    selectedAutomationTemperature,
+    patchOnEnter
+  ])
+
   const removeEntryAutomation = useCallback(
     async (automationId: string) => {
       const nextItems = entryAutomationItems.filter((item) => item.id !== automationId)
@@ -4064,7 +3874,8 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     setOpenEntrySections({
       followup: section === 'followup',
       lead: section === 'lead',
-      time: section === 'time'
+      time: section === 'time',
+      temperature: section === 'temperature'
     })
   }, [])
 
@@ -4072,6 +3883,11 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
     async (action: EntryAutomationAction) => {
       if (action === 'create-followup') {
         startConfiguringFollowup()
+      } else if (action === 'set-temperature') {
+        const existingTemperatureAutomation = entryAutomationItems.find(
+          (item) => item.action === 'set-temperature'
+        )
+        startConfiguringTemperature(existingTemperatureAutomation?.id)
       } else {
         if (entryAutomationItems.some((item) => item.action === action)) {
           toastWarning('Essa automação já foi adicionada para esta coluna')
@@ -4087,7 +3903,12 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
         await patchOnEnter(nextItems, TOAST_MESSAGES.success.saveAutomation)
       }
     },
-    [startConfiguringFollowup, entryAutomationItems, patchOnEnter]
+    [
+      startConfiguringFollowup,
+      startConfiguringTemperature,
+      entryAutomationItems,
+      patchOnEnter
+    ]
   )
 
   useEffect(() => {
@@ -4193,6 +4014,13 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                             ) : null}
                           </AutomationsEntryItemFollowUpInfo>
                         ) : null}
+                        {item.action === 'set-temperature' && item.temperature ? (
+                          <AutomationsEntryItemFollowUpInfo>
+                            <AutomationsEntryItemSubtext>
+                              Temperatura: {LEAD_TEMPERATURE_LABELS[item.temperature]}
+                            </AutomationsEntryItemSubtext>
+                          </AutomationsEntryItemFollowUpInfo>
+                        ) : null}
                       </AutomationsEntryMainLine>
 
                       <FollowUpItemActions>
@@ -4204,6 +4032,21 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                               startConfiguringFollowup(item.id)
                             }}
                             aria-label="Editar ação de criar follow-up"
+                            title="Editar"
+                            disabled={isSaving}
+                          >
+                            <Pencil size={16} />
+                          </FollowUpActionIconButton>
+                        ) : null}
+
+                        {item.action === 'set-temperature' ? (
+                          <FollowUpActionIconButton
+                            type="button"
+                            onClick={() => {
+                              setIsEntryActionSelectorOpen(true)
+                              startConfiguringTemperature(item.id)
+                            }}
+                            aria-label="Editar ação de alterar temperatura"
                             title="Editar"
                             disabled={isSaving}
                           >
@@ -4363,6 +4206,57 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                           </AutomationsFormButton>
                         </AutomationsFormFooter>
                       </>
+                    ) : isConfiguringTemperature ? (
+                      <>
+                        <AutomationsPickerHeader>
+                          <AutomationsPickerTitle>Alterar temperatura</AutomationsPickerTitle>
+                          <AutomationsPickerCloseButton
+                            type="button"
+                            onClick={backToActionChoice}
+                            aria-label="Voltar para escolha de ações"
+                            title="Voltar"
+                          >
+                            <ArrowLeft size={18} />
+                          </AutomationsPickerCloseButton>
+                        </AutomationsPickerHeader>
+
+                        <AutomationsFormSection>
+                          <InfoSelect
+                            value={selectedAutomationTemperature}
+                            onChange={(e) =>
+                              setSelectedAutomationTemperature(
+                                e.target.value as LeadTemperature
+                              )
+                            }
+                          >
+                            {LEAD_TEMPERATURE_OPTIONS.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </InfoSelect>
+                        </AutomationsFormSection>
+
+                        <AutomationsFormFooter>
+                          <AutomationsFormButton
+                            type="button"
+                            onClick={backToActionChoice}
+                            disabled={isSaving}
+                          >
+                            Cancelar
+                          </AutomationsFormButton>
+                          <AutomationsFormButton
+                            type="button"
+                            $primary
+                            disabled={isSaving}
+                            onClick={() => {
+                              void saveSetTemperatureAction()
+                            }}
+                          >
+                            {isSaving ? 'Salvando...' : 'Salvar ação'}
+                          </AutomationsFormButton>
+                        </AutomationsFormFooter>
+                      </>
                     ) : (
                       <>
                         <AutomationsPickerHeader>
@@ -4423,7 +4317,7 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                                 type="button"
                                 onClick={() => { void chooseEntryAction('favorite-lead') }}
                               >
-                                Lead prioritário
+                                Favoritar lead
                               </AutomationsPickerOption>
                             </AutomationsPickerSectionContentInner>
                           </AutomationsPickerSectionContent>
@@ -4447,6 +4341,31 @@ function AutomationsModal({ onRefreshBoard }: { onRefreshBoard: () => Promise<vo
                                 onClick={() => { void chooseEntryAction('reset-idle-time') }}
                               >
                                 Reativar lead
+                              </AutomationsPickerOption>
+                            </AutomationsPickerSectionContentInner>
+                          </AutomationsPickerSectionContent>
+                        </AutomationsPickerSection>
+
+                        <AutomationsPickerSection>
+                          <AutomationsPickerSectionTrigger
+                            type="button"
+                            onClick={() => toggleEntrySection('temperature')}
+                            aria-expanded={openEntrySections.temperature}
+                          >
+                            <AutomationsPickerSectionTitle>
+                              <Flame size={14} strokeWidth={2.4} />
+                              Temperatura
+                            </AutomationsPickerSectionTitle>
+                          </AutomationsPickerSectionTrigger>
+                          <AutomationsPickerSectionContent $open={openEntrySections.temperature}>
+                            <AutomationsPickerSectionContentInner>
+                              <AutomationsPickerOption
+                                type="button"
+                                onClick={() => {
+                                  void chooseEntryAction('set-temperature')
+                                }}
+                              >
+                                Alterar temperatura
                               </AutomationsPickerOption>
                             </AutomationsPickerSectionContentInner>
                           </AutomationsPickerSectionContent>
@@ -4606,7 +4525,7 @@ function ColumnActionsMenu({
             Configurações{(() => {
               const onEnter = column.onEnter
               if (!onEnter) return null
-              const count = [onEnter.createFollowUp, onEnter.markAllFollowUpsAsDone, onEnter.favoriteLead, onEnter.resetLastActivityAt].filter(Boolean).length
+              const count = [onEnter.createFollowUp, onEnter.markAllFollowUpsAsDone, onEnter.favoriteLead, onEnter.resetLastActivityAt, onEnter.setTemperature].filter(Boolean).length
               return count > 0 ? <AutomationsCountBadge>{count}</AutomationsCountBadge> : null
             })()}
           </CreateDropdownButton>
@@ -4656,6 +4575,7 @@ function SortableLeadCard({
   const moveMenuRef = useRef<HTMLDivElement | null>(null)
   const temperatureMenuRef = useRef<HTMLDivElement | null>(null)
   const quickActionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const suppressOpenLeadModalRef = useRef(false)
 
   const isFavorite = Boolean(lead.isFavorite)
   const sourceBadge = getLeadSourceBadge(lead.source)
@@ -4719,7 +4639,7 @@ function SortableLeadCard({
   }, [isFavorite, isFavoriteUpdating, lead.id, updateLeadLocally])
 
   const moveLeadFromCard = useCallback(
-    (nextColumnId: string) => {
+    async (nextColumnId: string) => {
       if (!nextColumnId || nextColumnId === lead.columnId) {
         setIsMoveMenuOpen(false)
         return
@@ -4771,11 +4691,25 @@ function SortableLeadCard({
       })
 
       const toPosition = boardData?.columns.find((c) => c.id === nextColumnId)?.leads.length ?? 0
-      void api.patch(`/leads/${lead.id}/move`, {
-        boardId: lead.boardId,
-        toColumnId: nextColumnId,
-        toPosition
-      })
+
+      try {
+        const res = await api.patch<Lead>(`/leads/${lead.id}/move`, {
+          boardId: lead.boardId,
+          toColumnId: nextColumnId,
+          toPosition
+        })
+
+        updateLeadLocally({
+          columnId: res.data.columnId,
+          movedAt: res.data.movedAt,
+          lastActivityAt: res.data.lastActivityAt,
+          updatedAt: res.data.updatedAt,
+          temperature: res.data.temperature,
+          isFavorite: res.data.isFavorite
+        })
+      } catch (e: any) {
+        toastErrorFromException(e, TOAST_MESSAGES.error.unexpected)
+      }
 
       if (selectedLead?.id === lead.id) {
         setSelectedLead((prev) =>
@@ -4793,7 +4727,16 @@ function SortableLeadCard({
 
       setIsMoveMenuOpen(false)
     },
-    [boardData, lead.boardId, lead.columnId, lead.id, selectedLead?.id, setBoardData, setSelectedLead]
+    [
+      boardData,
+      lead.boardId,
+      lead.columnId,
+      lead.id,
+      selectedLead?.id,
+      setBoardData,
+      setSelectedLead,
+      updateLeadLocally
+    ]
   )
 
   const updateTemperatureFromCard = useCallback(
@@ -4897,9 +4840,11 @@ function SortableLeadCard({
       $menuOpen={isMoveMenuOpen}
       ref={setNodeRef}
       style={style}
-      {...(isDragDisabled ? {} : attributes)}
-      {...(isDragDisabled ? {} : listeners)}
       onClick={() => {
+        if (suppressOpenLeadModalRef.current) {
+          suppressOpenLeadModalRef.current = false
+          return
+        }
         setOpenCreateFollowupOnLeadOpen(false)
         setSelectedLead(null)
         setLeadModalError(null)
@@ -4908,7 +4853,10 @@ function SortableLeadCard({
     >
       <LeadTopRow>
         <LeadTitle>
-          <LeadHeaderRow>
+          <LeadHeaderRow
+            {...(isDragDisabled ? {} : attributes)}
+            {...(isDragDisabled ? {} : listeners)}
+          >
             <LeadName>{lead.name}</LeadName>
 
             <LeadHeaderActions>
@@ -4958,15 +4906,19 @@ function SortableLeadCard({
               <LeadTemperaturePickerWrapper
                 ref={temperatureMenuRef}
                 onPointerDown={(event) => {
+                  suppressOpenLeadModalRef.current = true
                   event.stopPropagation()
                 }}
                 onClick={(event) => {
+                  suppressOpenLeadModalRef.current = true
                   event.stopPropagation()
                 }}
               >
                 <LeadTemperaturePickerButton
                   type="button"
-                  onClick={(event) => {
+                  onPointerDown={(event) => {
+                    suppressOpenLeadModalRef.current = true
+                    event.preventDefault()
                     event.stopPropagation()
                     if (!isTemperatureMenuOpen) {
                       setIsTemperatureMenuOpenUpward(
@@ -4975,17 +4927,23 @@ function SortableLeadCard({
                     }
                     setIsTemperatureMenuOpen((prev) => !prev)
                   }}
+                  onMouseDown={(event) => {
+                    suppressOpenLeadModalRef.current = true
+                    event.stopPropagation()
+                  }}
+                  onClick={(event) => {
+                    suppressOpenLeadModalRef.current = true
+                    event.stopPropagation()
+                  }}
                   aria-label="Editar temperatura"
                   title="Editar temperatura"
                 >
-                  {temperatureBadge ? (
-                    <LeadTemperatureBadge $type={temperatureBadge.type}>
-                      {temperatureBadge.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
-                      {temperatureBadge.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
-                      {temperatureBadge.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
-                      {temperatureBadge.label}
-                    </LeadTemperatureBadge>
-                  ) : null}
+                  <LeadTemperatureBadge $type={temperatureBadge?.type ?? 'warm'}>
+                    {temperatureBadge?.type === 'hot' ? <Flame size={10} strokeWidth={2.4} /> : null}
+                    {temperatureBadge?.type === 'warm' ? <Sun size={10} strokeWidth={2.4} /> : null}
+                    {temperatureBadge?.type === 'cold' ? <Snowflake size={10} strokeWidth={2.4} /> : null}
+                    {temperatureBadge?.label ?? 'Temperatura'}
+                  </LeadTemperatureBadge>
                 </LeadTemperaturePickerButton>
 
                 {isTemperatureMenuOpen ? (
@@ -4994,7 +4952,13 @@ function SortableLeadCard({
                       <LeadTemperatureMenuButton
                         key={option.value}
                         type="button"
+                        onPointerDown={(event) => {
+                          suppressOpenLeadModalRef.current = true
+                          event.preventDefault()
+                          event.stopPropagation()
+                        }}
                         onClick={(event) => {
+                          suppressOpenLeadModalRef.current = true
                           event.stopPropagation()
                           updateTemperatureFromCard(option.value)
                         }}
@@ -5005,17 +4969,6 @@ function SortableLeadCard({
                         <span>{option.label}</span>
                       </LeadTemperatureMenuButton>
                     ))}
-
-                    <LeadTemperatureMenuButton
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        updateTemperatureFromCard(null)
-                      }}
-                    >
-                      <X size={13} strokeWidth={2.4} />
-                      <span>Remover temperatura</span>
-                    </LeadTemperatureMenuButton>
                   </LeadTemperatureMenu>
                 ) : null}
               </LeadTemperaturePickerWrapper>
@@ -5246,9 +5199,6 @@ export default function BoardPage() {
   const setSelectedLeadId = useSetAtom(selectedLeadIdAtom)
   const setSelectedLead = useSetAtom(selectedLeadAtom)
   const setLeadModalError = useSetAtom(leadModalErrorAtom)
-  const setIsCreateBoardModalOpen = useSetAtom(isCreateBoardModalOpenAtom)
-  const setCreateBoardError = useSetAtom(createBoardErrorAtom)
-
   const [createLeadColumnId, setCreateLeadColumnId] = useState<string>('')
 
   const [searchTerm, setSearchTerm] = useState<string>('')
@@ -5559,28 +5509,6 @@ export default function BoardPage() {
         : [...prev, key]
     )
   }, [])
-
-  const handleBoardCreated = useCallback(
-    async (createdBoard: Board) => {
-      setBoardOptions((prev) => {
-        const found = prev.find((option) => option.id === createdBoard.id)
-
-        if (found) {
-          return prev.map((option) =>
-            option.id === createdBoard.id
-              ? { ...option, name: createdBoard.name }
-              : option
-          )
-        }
-
-        return [...prev, { id: createdBoard.id, name: createdBoard.name }]
-      })
-
-      await fetchBoardFullById(createdBoard.id)
-      setIsBoardSelectorOpen(false)
-    },
-    [fetchBoardFullById]
-  )
 
   useEffect(() => {
     if (!data?.board) return
@@ -6096,7 +6024,8 @@ export default function BoardPage() {
           targetColumnOnEnter.createFollowUp ||
           targetColumnOnEnter.favoriteLead ||
           targetColumnOnEnter.markAllFollowUpsAsDone ||
-          targetColumnOnEnter.resetLastActivityAt
+          targetColumnOnEnter.resetLastActivityAt ||
+          targetColumnOnEnter.setTemperature
         )
 
         if (columnHasAutomations) {
@@ -6184,21 +6113,6 @@ export default function BoardPage() {
                         )
                       })}
 
-                      <BoardSelectorDivider />
-
-                      <BoardSelectorOption
-                        type="button"
-                        $highlighted
-                        onClick={() => {
-                          setCreateBoardError(null)
-                          setIsCreateBoardModalOpen(true)
-                          setIsBoardSelectorOpen(false)
-                        }}
-                        aria-label="Criar novo board"
-                        title="Criar novo board"
-                      >
-                        <BoardOptionName>+ Criar novo board</BoardOptionName>
-                      </BoardSelectorOption>
                     </BoardSelectorDropdown>
                   ) : null}
                 </BoardSelectorWrapper>
@@ -6803,7 +6717,6 @@ export default function BoardPage() {
         initialColumnId={createLeadColumnId}
         onClose={() => setCreateLeadColumnId('')}
       />
-      <CreateBoardModal onBoardCreated={handleBoardCreated} />
     </>
   )
 }
