@@ -309,6 +309,9 @@ const {
   ColumnSortActiveDot,
   ColumnSortSubmenu,
   ColumnSortOption,
+  RuntimeModeLabel,
+  RuntimeModeActions,
+  RuntimeModeButton,
 } = Styles
 
 // ----------------------------
@@ -442,6 +445,7 @@ type CreateLeadPayload = {
   temperature?: LeadTemperature | null
   outcome?: LeadOutcome | null
   state?: LeadState
+  runtimeMode?: 'HUMAN' | 'AUTOMATION'
 }
 
 type UpdateColumnPayload = {
@@ -1341,6 +1345,7 @@ function CreateLeadModal({
   const [source, setSource] = useState('')
   const [initialContext, setInitialContext] = useState('')
   const [columnId, setColumnId] = useState('')
+  const [runtimeMode, setRuntimeMode] = useState<'HUMAN' | 'AUTOMATION'>('AUTOMATION')
 
   const closeModal = useCallback(() => {
     if (isSaving) return
@@ -1353,6 +1358,7 @@ function CreateLeadModal({
     setSource('')
     setInitialContext('')
     setColumnId('')
+    setRuntimeMode('AUTOMATION')
     onClose?.()
   }, [isSaving, setError, setIsOpen, setIsSaving, onClose])
 
@@ -1390,7 +1396,8 @@ function CreateLeadModal({
         temperature: DEFAULT_LEAD_TEMPERATURE,
         outcome: DEFAULT_LEAD_OUTCOME,
         state: DEFAULT_LEAD_STATE,
-        initialContext: normalizeOptionalString(initialContext)
+        initialContext: normalizeOptionalString(initialContext),
+        runtimeMode
       }
 
       await api.post('/leads', payload)
@@ -1473,6 +1480,28 @@ function CreateLeadModal({
               ))}
             </InfoSelect>
           </CreateFieldsStack>
+        </CreateFormCard>
+
+        <CreateFormCard>
+          <RuntimeModeLabel>Modo de operação:</RuntimeModeLabel>
+          <RuntimeModeActions>
+            <RuntimeModeButton
+              type="button"
+              $active={runtimeMode === 'AUTOMATION'}
+              onClick={() => setRuntimeMode('AUTOMATION')}
+              disabled={isSaving}
+            >
+              Automático
+            </RuntimeModeButton>
+            <RuntimeModeButton
+              type="button"
+              $active={runtimeMode === 'HUMAN'}
+              onClick={() => setRuntimeMode('HUMAN')}
+              disabled={isSaving}
+            >
+              Manual
+            </RuntimeModeButton>
+          </RuntimeModeActions>
         </CreateFormCard>
 
         <ModalFooter>

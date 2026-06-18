@@ -3231,3 +3231,39 @@ export const ColumnSortOption = styled.button<{ $active: boolean }>`
     background: var(--app-hover);
   }
 `
+
+export const RuntimeModeLabel = styled.label`
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-text);
+  margin-bottom: 8px;
+`
+
+export const RuntimeModeActions = styled.div`
+  display: flex;
+  gap: 10px;
+`
+
+export const RuntimeModeButton = styled.button<{ $active: boolean }>`
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid ${({ $active }) => ($active ? '#1d4ed8' : 'var(--app-border)')};
+  background: ${({ $active }) => ($active ? '#2563eb' : 'transparent')};
+  color: ${({ $active }) => ($active ? '#ffffff' : 'var(--app-text)')};
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: #1d4ed8;
+    background: ${({ $active }) => ($active ? '#2563eb' : 'var(--app-hover)')};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`

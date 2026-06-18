@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import BoardPage from './pages/BoardPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
+import WebhookPage from './pages/WebhookPage'
 
 export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   if (localStorage.getItem('accessToken')) {
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Routes>
       <Route path="/" element={<Navigate to="/board" replace />} />
       <Route path="/board" element={<BoardPage />} />
+      <Route path="/chat" element={<WebhookPage />} />
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
     </Routes>
