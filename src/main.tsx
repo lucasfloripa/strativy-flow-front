@@ -3,14 +3,19 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 
-import BoardPage from './pages/BoardPage'
+import './app/global.css'
+import { AuthenticatedLayout } from './app/layouts/AuthenticatedLayout'
+import HomePage from './pages/HomePage'
+import LeadsPage from './pages/LeadsPage'
+import LeadsArquivadosPage from './pages/LeadsArquivadosPage'
+import NegociosPage from './pages/NegociosPage'
+import AgendaPage from './pages/AgendaPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
-import WebhookPage from './pages/WebhookPage'
 
 export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   if (localStorage.getItem('accessToken')) {
-    return <Navigate to="/board" replace />
+    return <Navigate to="/inicio" replace />
   }
   return <>{children}</>
 }
@@ -36,11 +41,22 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       }}
     />
     <Routes>
-      <Route path="/" element={<Navigate to="/board" replace />} />
-      <Route path="/board" element={<BoardPage />} />
-      <Route path="/chat" element={<WebhookPage />} />
+      <Route path="/" element={<Navigate to="/inicio" replace />} />
+      <Route path="/home" element={<Navigate to="/inicio" replace />} />
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route element={<AuthenticatedLayout />}>
+        <Route path="/inicio" element={<HomePage />} />
+        <Route path="/leads" element={<LeadsPage />} />
+        <Route path="/leads/:leadId" element={<LeadsPage />} />
+        <Route path="/negocios" element={<NegociosPage />} />
+        <Route path="/negocios/new" element={<NegociosPage />} />
+        <Route path="/negocios/:leadId" element={<NegociosPage />} />
+        <Route path="/agenda" element={<AgendaPage />} />
+        <Route path="/agenda/:leadId" element={<AgendaPage />} />
+        <Route path="/arquivados" element={<LeadsArquivadosPage />} />
+        <Route path="/arquivados/:leadId" element={<LeadsArquivadosPage />} />
+      </Route>
     </Routes>
   </BrowserRouter>,
 )

@@ -1,127 +1,137 @@
+import { type FormEvent, useState } from 'react'
 
-import { useState } from 'react'
-import type { FormEvent } from 'react'
-import axios from 'axios'
-import { useAtom, useSetAtom } from 'jotai'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
-import { loginRequest } from './loginPage.api'
-import { accessTokenAtom, isLoginSubmittingAtom, loginErrorAtom } from './loginPage.store'
-import * as Styles from './loginPage.styles'
-
-function getLoginErrorMessage(error: unknown): string {
-  if (!axios.isAxiosError(error)) {
-    return error instanceof Error ? error.message : 'Nao foi possivel entrar.'
-  }
-
-  const responseMessage = error.response?.data?.message
-
-  if (Array.isArray(responseMessage) && responseMessage.length > 0) {
-    return String(responseMessage[0])
-  }
-
-  if (typeof responseMessage === 'string' && responseMessage.trim()) {
-    return responseMessage
-  }
-
-  if (typeof error.message === 'string' && error.message.trim()) {
-    return error.message
-  }
-
-  return 'Nao foi possivel entrar.'
-}
+import { interactionTheme } from '../../app/theme/brandTheme'
+import { useLoginForm } from '../../features/auth/hooks/useLoginForm'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const setAccessToken = useSetAtom(accessTokenAtom)
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isSubmitting, setIsSubmitting] = useAtom(isLoginSubmittingAtom)
-  const [error, setError] = useAtom(loginErrorAtom)
+  const [isEmailFocused, setIsEmailFocused] = useState<boolean>(false)
+  const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false)
+  const [isSubmitHovered, setIsSubmitHovered] = useState<boolean>(false)
+  const { email, password, error, isSubmitting, setEmail, setPassword, submit } =
+    useLoginForm()
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const success = await submit()
 
-    if (!email.trim() || !password.trim()) {
-      setError('Preencha email e senha para continuar.')
-      return
-    }
-
-    try {
-      setIsSubmitting(true)
-      setError(null)
-
-      const response = await loginRequest({
-        email: email.trim(),
-        password
-      })
-
-      localStorage.setItem('accessToken', response.accessToken)
-      setAccessToken(response.accessToken)
-
-      navigate('/board')
-    } catch (e: unknown) {
-      const message = getLoginErrorMessage(e)
-      setAccessToken(null)
-      setError(message)
-    } finally {
-      setIsSubmitting(false)
+    if (success) {
+      navigate('/inicio')
     }
   }
 
   return (
-    <>
-      <Styles.GlobalStyle />
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+        background: '#163d2e'
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: '100%',
+          maxWidth: 360,
+          display: 'grid',
+          gap: 12,
+          padding: 24,
+          borderRadius: 12,
+          background: '#ffffff'
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 24 }}>Entrar</h1>
 
-      <Styles.Container>
-        <Styles.BackgroundImage src="/fundo01.png" alt="" />
-        <Styles.Overlay />
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          onFocus={() => setIsEmailFocused(true)}
+          onBlur={() => setIsEmailFocused(false)}
+          placeholder="seuemail@empresa.com"
+          autoComplete="email"
+          style={{
+            height: 40,
+            borderRadius: 8,
+            border: `1px solid ${
+              isEmailFocused
+                ? interactionTheme.inputFocusBorderColor
+                : '#d1d5db'
+            }`,
+            padding: '0 12px',
+            outline: 'none',
+            boxShadow: isEmailFocused
+              ? interactionTheme.inputFocusBoxShadow
+              : 'none'
+          }}
+        />
 
-        <Styles.Content>
-          <Styles.FormCard>
-            <Styles.Title>Bem-vindo ao Flow</Styles.Title>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          onFocus={() => setIsPasswordFocused(true)}
+          onBlur={() => setIsPasswordFocused(false)}
+          placeholder="********"
+          autoComplete="current-password"
+          style={{
+            height: 40,
+            borderRadius: 8,
+            border: `1px solid ${
+              isPasswordFocused
+                ? interactionTheme.inputFocusBorderColor
+                : '#d1d5db'
+            }`,
+            padding: '0 12px',
+            outline: 'none',
+            boxShadow: isPasswordFocused
+              ? interactionTheme.inputFocusBoxShadow
+              : 'none'
+          }}
+        />
 
-            <Styles.Form onSubmit={handleSubmit}>
-              <Styles.Field>
-                <Styles.Label htmlFor="email">Email</Styles.Label>
-                <Styles.Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="seuemail@empresa.com"
-                  autoComplete="email"
-                />
-              </Styles.Field>
+        {error ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: '#b91c1c'
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
-              <Styles.Field>
-                <Styles.Label htmlFor="password">Senha</Styles.Label>
-                <Styles.Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="********"
-                  autoComplete="current-password"
-                />
-              </Styles.Field>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          onMouseEnter={() => setIsSubmitHovered(true)}
+          onMouseLeave={() => setIsSubmitHovered(false)}
+          style={{
+            height: 40,
+            border: 'none',
+            borderRadius: 8,
+            background: isSubmitHovered
+              ? interactionTheme.primaryButtonHoverBackground
+              : interactionTheme.primaryButtonBackground,
+            color: '#ffffff',
+            fontWeight: 600,
+            cursor: isSubmitting ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {isSubmitting ? 'Entrando...' : 'Entrar'}
+        </button>
 
-              {error ? <Styles.ErrorMessage>{error}</Styles.ErrorMessage> : null}
-
-              <Styles.SubmitButton type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Entrando...' : 'Entrar'}
-              </Styles.SubmitButton>
-            </Styles.Form>
-
-            <Styles.FooterRow>
-              <Styles.FooterText>
-                Ao continuar, voce concorda com a nossa <Styles.FooterLink to="/privacy-policy">Politica de Privacidade</Styles.FooterLink>.
-              </Styles.FooterText>
-            </Styles.FooterRow>
-          </Styles.FormCard>
-        </Styles.Content>
-      </Styles.Container>
-    </>
+        <p style={{ margin: 0, fontSize: 12 }}>
+          Ao continuar, voce concorda com a nossa{' '}
+          <Link to="/privacy-policy">Politica de Privacidade</Link>.
+        </p>
+      </form>
+    </main>
   )
 }
