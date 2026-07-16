@@ -6,7 +6,8 @@ import {
   Clock4,
   CircleDollarSign,
   MessageCircle,
-  UserPlus
+  UserPlus,
+  X
 } from 'lucide-react'
 import {
   type CSSProperties,
@@ -19,8 +20,9 @@ import { useNavigate } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import {
-  parseApiDateToBrowserDate,
-  parsePersistedUtcClockToBrowserDate
+  formatDateTime,
+  formatElapsedHoursAndMinutes,
+  parseApiDateToBrowserDate
 } from '../../core/utils/dateTime'
 import { HomeService } from '../../features/home/services/HomeService'
 import type {
@@ -29,7 +31,7 @@ import type {
   UserNotification
 } from '../../features/home/types/home.types'
 
-type NotificationIcon = 'message' | 'lead'
+type NotificationIcon = 'message' | 'lead' | 'followup'
 
 type Notification = {
   id: string
@@ -38,9 +40,11 @@ type Notification = {
   referenceId: string
   title: string
   description: string
+  createdAt: string | Date
   time: string
   color: string
   icon: NotificationIcon
+  messageCount?: number
 }
 
 type NotificationNavigation = {
@@ -205,29 +209,7 @@ const getStatusLabel = (value?: string): 'Ativo' | 'Arquivado' => {
 }
 
 const formatRelativeTime = (value?: string | Date | null): string => {
-  if (!value) {
-    return '-'
-  }
-
-  const date = parseApiDateToBrowserDate(value)
-  if (!date) {
-    return '-'
-  }
-
-  const diffMs = Date.now() - date.getTime()
-  const diffMinutes = Math.max(1, Math.floor(diffMs / 60000))
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes} min atras`
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) {
-    return `${diffHours}h atras`
-  }
-
-  const diffDays = Math.floor(diffHours / 24)
-  return `${diffDays} dia${diffDays > 1 ? 's' : ''} atras`
+  return formatElapsedHoursAndMinutes(value)
 }
 
 const isNewLead = (createdAt: string | Date | null): boolean => {
@@ -265,45 +247,10 @@ const getInteractionTagPresentation = (
   lastMessageAt: string | Date | null,
   createdAt: string | Date | null
 ) => {
-  const interactionReferenceDate = lastMessageAt
-    ? parsePersistedUtcClockToBrowserDate(lastMessageAt)
-    : createdAt
-      ? parseApiDateToBrowserDate(createdAt)
-      : null
-
-  if (!interactionReferenceDate || Number.isNaN(interactionReferenceDate.getTime())) {
-    return {
-      label: '1 dia',
-      textColor: '#6b7280',
-      icon: <Clock3 size={12} />
-    }
-  }
-
-  const diffMs = Date.now() - interactionReferenceDate.getTime()
-  const safeDiffMs = diffMs > 0 ? diffMs : 0
-  const diffMinutes = Math.floor(safeDiffMs / (1000 * 60))
-
-  if (diffMinutes < 24 * 60) {
-    if (diffMinutes < 60) {
-      return {
-        label: '<1h',
-        textColor: '#6b7280',
-        icon: <Clock3 size={12} />
-      }
-    }
-
-    const diffHours = Math.floor(diffMinutes / 60)
-    const remainingMinutes = diffMinutes % 60
-
-    return {
-      label: `${diffHours}h ${remainingMinutes}m`,
-      textColor: '#6b7280',
-      icon: <Clock3 size={12} />
-    }
-  }
+  const referenceValue = lastMessageAt ?? createdAt
 
   return {
-    label: '1 dia',
+    label: referenceValue ? formatDateTime(referenceValue) : '-',
     textColor: '#6b7280',
     icon: <Clock3 size={12} />
   }
@@ -314,20 +261,7 @@ const formatAgendaDateTime = (value?: string | Date | null): string => {
     return '-'
   }
 
-  const date = parseApiDateToBrowserDate(value)
-
-  if (!date) {
-    return '-'
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(date)
+  return formatDateTime(value)
 }
 
 const resolveNextAgendaStatus = (
@@ -421,6 +355,19 @@ const mapApiLeadToHighlightedLead = (lead: HomeHighlightedLead): HighlightedLead
 
 const mapApiNotification = (notification: UserNotification): Notification => {
   const isNewMessage = notification.type === 'MESSAGE_RECEIVED'
+  const isFollowUpReminder = notification.type === 'FOLLOW_UP_REMINDER_1H'
+
+  const icon: NotificationIcon = isNewMessage
+    ? 'message'
+    : isFollowUpReminder
+      ? 'followup'
+      : 'lead'
+
+  const color = isNewMessage
+    ? '#22c55e'
+    : isFollowUpReminder
+      ? '#f59e0b'
+      : '#3b82f6'
 
   return {
     id: notification.id,
@@ -429,10 +376,71 @@ const mapApiNotification = (notification: UserNotification): Notification => {
     referenceId: notification.referenceId,
     title: notification.title,
     description: notification.description,
+    createdAt: notification.createdAt,
     time: formatRelativeTime(notification.createdAt),
-    color: isNewMessage ? '#22c55e' : '#3b82f6',
-    icon: isNewMessage ? 'message' : 'lead'
+    color,
+    icon
   }
+}
+
+const groupUnreadNotifications = (
+  notifications: UserNotification[]
+): Notification[] => {
+  const unreadNotifications = notifications.filter((item) => !item.isRead)
+  const groupedMessageNotifications = new Map<string, UserNotification[]>()
+  const nonMessageNotifications: UserNotification[] = []
+
+  for (const notification of unreadNotifications) {
+    if (notification.type !== 'MESSAGE_RECEIVED') {
+      nonMessageNotifications.push(notification)
+      continue
+    }
+
+    const existingGroup = groupedMessageNotifications.get(notification.referenceId)
+
+    if (existingGroup) {
+      existingGroup.push(notification)
+      continue
+    }
+
+    groupedMessageNotifications.set(notification.referenceId, [notification])
+  }
+
+  const groupedMessages = Array.from(groupedMessageNotifications.values()).map(
+    (group) => {
+      const sortedGroup = [...group].sort((first, second) => {
+        const firstTimestamp = new Date(first.createdAt).getTime()
+        const secondTimestamp = new Date(second.createdAt).getTime()
+
+        return secondTimestamp - firstTimestamp
+      })
+
+      const latestNotification = sortedGroup[0]
+      const mapped = mapApiNotification(latestNotification)
+      const messageCount = sortedGroup.length
+
+      return {
+        ...mapped,
+        title:
+          messageCount > 1
+            ? `${mapped.title} (${messageCount})`
+            : mapped.title,
+        messageCount
+      }
+    }
+  )
+
+  const mergedNotifications = [
+    ...nonMessageNotifications.map(mapApiNotification),
+    ...groupedMessages
+  ]
+
+  return mergedNotifications.sort((first, second) => {
+    const firstTime = new Date(first.createdAt).getTime()
+    const secondTime = new Date(second.createdAt).getTime()
+
+    return secondTime - firstTime
+  })
 }
 
 const getNotificationNavigation = (
@@ -513,7 +521,7 @@ export default function HomePage() {
       }
 
       if (notificationsResult.status === 'fulfilled') {
-        setNotifications(notificationsResult.value.filter((item) => !item.isRead).map(mapApiNotification))
+        setNotifications(groupUnreadNotifications(notificationsResult.value))
       }
     }
 
@@ -590,6 +598,36 @@ export default function HomePage() {
 
     setNotifications([])
     setSelectedNotificationId(null)
+  }
+
+  const handleDeleteNotification = async (notification: Notification) => {
+    try {
+      if (notification.type === 'MESSAGE_RECEIVED') {
+        await HomeService.deleteAllMessageNotifications(notification.referenceId)
+      } else {
+        await HomeService.deleteNotification(notification.id)
+      }
+    } catch {
+      return
+    }
+
+    setNotifications((currentNotifications) => {
+      if (notification.type === 'MESSAGE_RECEIVED') {
+        return currentNotifications.filter(
+          (item) =>
+            !(
+              item.type === 'MESSAGE_RECEIVED' &&
+              item.referenceId === notification.referenceId
+            )
+        )
+      }
+
+      return currentNotifications.filter((item) => item.id !== notification.id)
+    })
+
+    if (selectedNotificationId === notification.id) {
+      setSelectedNotificationId(null)
+    }
   }
 
   const revenueDateButtonStyle: CSSProperties = {
@@ -1013,6 +1051,8 @@ export default function HomePage() {
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                       {activity.icon === 'message' ? (
                         <MessageCircle size={19} color={activity.color} />
+                      ) : activity.icon === 'followup' ? (
+                        <CalendarClock size={19} color={activity.color} />
                       ) : (
                         <UserPlus size={19} color={activity.color} />
                       )}
@@ -1023,7 +1063,31 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    <span style={{ color: '#64748b', fontSize: 14 }}>{activity.time}</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: '#64748b', fontSize: 14 }}>{activity.time}</span>
+                      {hoveredNotificationId === activity.id ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handleDeleteNotification(activity)
+                          }}
+                          aria-label="Excluir notificação"
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#64748b',
+                            cursor: 'pointer',
+                            padding: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <X size={14} />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 )
               })}

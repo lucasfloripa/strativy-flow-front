@@ -15,13 +15,15 @@ import {
   Clock4,
   Facebook,
   Flame,
+  Handshake,
   Headset,
   Mail,
   MessageCircle,
   MoreVertical,
   Package,
   Phone,
-  Smartphone,
+  Link2,
+  Instagram,
   Star,
   Snowflake,
   Sun,
@@ -37,6 +39,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import {
+  formatDate,
+  formatDateTime,
   getApiDateTimestamp,
   parsePersistedUtcClockToBrowserDate
 } from '../../core/utils/dateTime'
@@ -49,6 +53,7 @@ import type {
   FollowUpSortFocus,
   LeadFollowUpResponse,
   LeadResponse,
+  LeadSocialLinkKey,
   LeadStage,
   LeadRuntimeMode,
   NegotiationFollowUpResponse,
@@ -83,7 +88,12 @@ const initialLeadInfoDraft = {
   email: '',
   source: '',
   leadQualification: '' as '' | 'qualify' | 'not qualify',
-  qualification: ''
+  qualification: '',
+  socialLinks: {
+    instagram: '',
+    url: ''
+  },
+  selectedSocialLinks: [] as LeadSocialLinkKey[]
 }
 
 const leadTabs: Array<{ key: LeadTabKey; label: string }> = [
@@ -150,26 +160,75 @@ const tagContentStyle = {
   verticalAlign: 'middle' as const
 }
 
-const formatPhoneNumber = (value: string): string => {
+const getLeadPhoneLocalDigits = (value: string): string => {
   const digits = value.replace(/\D/g, '')
 
   if (!digits) {
+    return ''
+  }
+
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits.slice(2)
+  }
+
+  return digits.slice(0, 11)
+}
+
+const formatLeadPhoneInput = (value: string): string => {
+  const localDigits = getLeadPhoneLocalDigits(value)
+
+  if (!localDigits) {
+    return ''
+  }
+
+  const ddd = localDigits.slice(0, 2)
+  const numberPart = localDigits.slice(2)
+
+  if (localDigits.length <= 2) {
+    return `(${ddd}`
+  }
+
+  if (numberPart.length <= 4) {
+    return `(${ddd})${numberPart}`
+  }
+
+  if (numberPart.length <= 8) {
+    return `(${ddd})${numberPart.slice(0, 4)}-${numberPart.slice(4)}`
+  }
+
+  return `(${ddd})${numberPart.slice(0, 5)}-${numberPart.slice(5, 9)}`
+}
+
+const isLeadPhoneComplete = (value: string): boolean => {
+  const localDigits = getLeadPhoneLocalDigits(value)
+  return localDigits.length === 10 || localDigits.length === 11
+}
+
+const toPersistedLeadPhone = (value: string): string => {
+  const localDigits = getLeadPhoneLocalDigits(value)
+  return `55${localDigits}`
+}
+
+const formatPhoneNumber = (value: string): string => {
+  const localDigits = getLeadPhoneLocalDigits(value)
+
+  if (!localDigits) {
     return '-'
   }
 
-  const normalizedDigits = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits
-  const phoneMatch = normalizedDigits.match(/^(\d{2})(\d{4,5})(\d{4})$/)
-
-  if (!phoneMatch) {
-    return value.trim() || '-'
+  if (localDigits.length !== 10 && localDigits.length !== 11) {
+    return '-'
   }
 
-  const [, ddd, firstPart, secondPart] = phoneMatch
-  return `(${ddd}) ${firstPart}-${secondPart}`
+  return formatLeadPhoneInput(localDigits)
 }
 
 const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source.trim().toLowerCase()
+  const normalizedSource = source
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 
   if (normalizedSource === 'metaads') {
     return { label: 'Meta Ads', textColor: '#1877f2', icon: <Facebook size={12} /> }
@@ -179,8 +238,8 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
     return { label: 'WhatsApp', textColor: '#15803d', icon: <MessageCircle size={12} /> }
   }
 
-  if (normalizedSource === 'flow') {
-    return { label: 'Flow', textColor: '#1f7a4d', icon: <Smartphone size={12} /> }
+  if (normalizedSource === 'indicacao') {
+    return { label: 'Indicação', textColor: '#0f766e', icon: <Handshake size={12} /> }
   }
 
   return { label: source || '-', textColor: '#6b7280' }
@@ -340,16 +399,7 @@ const formatDateOnly = (value?: string | null): string => {
     return '-'
   }
 
-  const parsedDate = new Date(value)
-  if (Number.isNaN(parsedDate.getTime())) {
-    return '-'
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).format(parsedDate)
+  return formatDate(value)
 }
 
 const formatLastMessageSummary = (value?: string | null): string => {
@@ -357,96 +407,131 @@ const formatLastMessageSummary = (value?: string | null): string => {
     return '-'
   }
 
-  const fixedOffsetMs = 6 * 60 * 60 * 1000
-  const rawDateMatch = value.trim().match(
-    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/
-  )
+  return formatDateTime(value)
+}
 
-  let baseMessageDate: Date | null = null
+const sanitizeLeadValueInput = (value: string): string => {
+  const compact = value.replace(/\s+/g, '')
+  let hasComma = false
+  let sanitized = ''
 
-  if (rawDateMatch) {
-    const year = Number(rawDateMatch[1])
-    const month = Number(rawDateMatch[2])
-    const day = Number(rawDateMatch[3])
-    const hour = Number(rawDateMatch[4])
-    const minute = Number(rawDateMatch[5])
-    const second = Number(rawDateMatch[6] ?? '0')
-    const millisecond = Number((rawDateMatch[7] ?? '0').padEnd(3, '0'))
-
-    // Treat persisted clock value as UTC and then apply the fixed -3h display rule.
-    baseMessageDate = new Date(
-      Date.UTC(year, month - 1, day, hour, minute, second, millisecond)
-    )
-  } else {
-    const parsedDate = parsePersistedUtcClockToBrowserDate(value)
-    if (!parsedDate) {
-      return '-'
+  for (const character of compact) {
+    if (/\d/.test(character)) {
+      sanitized += character
+      continue
     }
 
-    baseMessageDate = parsedDate
+    if (character === ',' && !hasComma) {
+      sanitized += character
+      hasComma = true
+    }
   }
 
-  const shiftedMessageDate = new Date(baseMessageDate.getTime() - fixedOffsetMs)
-  const shiftedNow = new Date(Date.now() - fixedOffsetMs)
+  return sanitized
+}
 
-  const isToday =
-    shiftedMessageDate.getUTCFullYear() === shiftedNow.getUTCFullYear() &&
-    shiftedMessageDate.getUTCMonth() === shiftedNow.getUTCMonth() &&
-    shiftedMessageDate.getUTCDate() === shiftedNow.getUTCDate()
-
-  const timeLabel = new Intl.DateTimeFormat('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC'
-  }).format(shiftedMessageDate)
-
-  if (isToday) {
-    return `Hoje ${timeLabel}`
+const parseLeadValueToNumber = (value?: string | null): number | null => {
+  if (typeof value === 'undefined' || value === null) {
+    return null
   }
 
-  const dayMonthLabel = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'UTC'
-  }).format(shiftedMessageDate)
+  const compact = value.replace(/\s+/g, '').trim()
+  if (!compact) {
+    return null
+  }
 
-  return `${dayMonthLabel} ${timeLabel}`
+  let normalized = ''
+
+  if (compact.includes(',')) {
+    const [rawIntegerPart, ...rawFractionParts] = compact.split(',')
+    const integerDigits = rawIntegerPart.replace(/\D/g, '')
+    const fractionDigits = rawFractionParts.join('').replace(/\D/g, '').slice(0, 2)
+
+    if (!integerDigits && !fractionDigits) {
+      return null
+    }
+
+    if (!fractionDigits) {
+      normalized = integerDigits || '0'
+    } else {
+      normalized = `${integerDigits || '0'}.${fractionDigits}`
+    }
+  } else if (compact.includes('.')) {
+    const dotCount = (compact.match(/\./g) ?? []).length
+
+    if (dotCount === 1) {
+      const [rawIntegerPart, rawFractionPart = ''] = compact.split('.')
+      const integerDigits = rawIntegerPart.replace(/\D/g, '')
+      const fractionDigits = rawFractionPart.replace(/\D/g, '')
+
+      if (!integerDigits && !fractionDigits) {
+        return null
+      }
+
+      if (fractionDigits.length > 0 && fractionDigits.length <= 2) {
+        normalized = `${integerDigits || '0'}.${fractionDigits}`
+      } else {
+        normalized = `${integerDigits}${fractionDigits}`
+      }
+    } else {
+      normalized = compact.replace(/\D/g, '')
+    }
+  } else {
+    normalized = compact.replace(/\D/g, '')
+  }
+
+  if (!normalized) {
+    return null
+  }
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 const formatLeadValue = (value?: string | null): string => {
-  if (typeof value === 'undefined' || value === null) {
+  const parsed = parseLeadValueToNumber(value)
+
+  if (parsed === null) {
     return '-'
   }
 
-  const normalizedValue = value.replace(',', '.').trim()
-  if (!normalizedValue) {
-    return '-'
-  }
-
-  const parsed = Number(normalizedValue)
-  if (!Number.isFinite(parsed)) {
-    return '-'
-  }
+  const hasCents = Math.round(parsed * 100) % 100 !== 0
 
   return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2
   }).format(parsed)
 }
 
+const formatLeadValueInputField = (value?: string | null): string => {
+  const formatted = formatLeadValue(value)
+  return formatted === '-' ? '' : sanitizeLeadValueInput(formatted)
+}
+
 const parseLeadValueInput = (value: string): string | null => {
-  const normalizedValue = value.replace(',', '.').trim()
-  if (!normalizedValue) {
+  const normalizedInput = sanitizeLeadValueInput(value)
+  if (!normalizedInput) {
     return null
   }
 
-  const parsed = Number(normalizedValue)
-  if (!Number.isFinite(parsed)) {
+  const [rawIntegerPart, rawFractionPart = ''] = normalizedInput.split(',')
+  const integerDigits = rawIntegerPart.replace(/\D/g, '')
+
+  if (!integerDigits && !rawFractionPart) {
     return null
   }
 
-  return parsed.toFixed(2)
+  if (!rawFractionPart) {
+    return String(Number(integerDigits || '0'))
+  }
+
+  const centsDigits = rawFractionPart.replace(/\D/g, '').slice(0, 2).padEnd(2, '0')
+
+  if (centsDigits === '00') {
+    return String(Number(integerDigits || '0'))
+  }
+
+  return `${Number(integerDigits || '0')}.${centsDigits}`
 }
 
 const formatNegotiationNotes = (notes?: NegotiationNote[] | null): string => {
@@ -472,6 +557,7 @@ const formatNegotiationNotes = (notes?: NegotiationNote[] | null): string => {
     .filter(Boolean)
     .join('\n')
 }
+
 const formatBusinessNotePreview = (value?: string | null): string => {
   if (!value) {
     return '-'
@@ -527,6 +613,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     source: string
     leadQualification: '' | 'qualify' | 'not qualify'
     qualification: string
+    socialLinks: {
+      instagram: string
+      url: string
+    }
+    selectedSocialLinks: LeadSocialLinkKey[]
   }>(initialLeadInfoDraft)
   const [isGeneralActionsOpen, setIsGeneralActionsOpen] = useState<boolean>(false)
   const [isEditingLeadInfo, setIsEditingLeadInfo] = useState<boolean>(false)
@@ -590,20 +681,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   const [agendaCalendarMonth, setAgendaCalendarMonth] = useState<Date>(() => getCurrentMonthStart())
 
   const formatFollowUpDate = (dateValue: string): string => {
-    const parsedDate = parsePersistedUtcClockToBrowserDate(dateValue)
-
-    if (!parsedDate) {
-      return '-'
-    }
-
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(parsedDate)
+    return dateValue ? formatDateTime(dateValue) : '-'
   }
 
   const getFollowUpVisualStatus = (followUp: LeadFollowUpResponse): FollowUpVisualStatus => {
@@ -725,7 +803,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         value: agendaFollowUpDraft.value.trim(),
-        dueAt: new Date(agendaFollowUpDraft.dueAt).toISOString()
+        dueAt: agendaFollowUpDraft.dueAt
       })
 
       await refreshLeadNegotiations(leadId)
@@ -826,13 +904,30 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   }
 
   const syncInfoDraftFromLead = () => {
+    const instagramValue = leadData?.socialLinks?.instagram?.trim() ?? ''
+    const urlValue = leadData?.socialLinks?.url?.trim() ?? ''
+    const selectedSocialLinks: LeadSocialLinkKey[] = []
+
+    if (instagramValue) {
+      selectedSocialLinks.push('instagram')
+    }
+
+    if (urlValue) {
+      selectedSocialLinks.push('url')
+    }
+
     setInfoDraft({
       name: leadData?.name?.trim() ?? '',
-      phone: leadData?.phone?.trim() ?? '',
+      phone: formatLeadPhoneInput(leadData?.phone?.trim() ?? ''),
       email: leadData?.email?.trim() ?? '',
       source: leadData?.source?.trim() ?? '',
       leadQualification: leadData?.leadQualification ?? '',
-      qualification: leadData?.initialContext?.trim() ?? ''
+      qualification: leadData?.initialContext?.trim() ?? '',
+      socialLinks: {
+        instagram: instagramValue,
+        url: urlValue
+      },
+      selectedSocialLinks
     })
   }
 
@@ -873,13 +968,33 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     if (!leadId || !leadData) return
 
     try {
+      if (!isLeadPhoneComplete(infoDraft.phone)) {
+        setError('Telefone inválido. Informe DDD + número com 8 ou 9 dígitos.')
+        return
+      }
+
       const trimmedEmail = infoDraft.email.trim()
+      const persistedPhone = toPersistedLeadPhone(infoDraft.phone)
+      const trimmedInstagram = infoDraft.socialLinks.instagram.trim()
+      const trimmedUrl = infoDraft.socialLinks.url.trim()
+      const socialLinksPayload: Partial<Record<LeadSocialLinkKey, string>> = {}
+
+      if (infoDraft.selectedSocialLinks.includes('instagram') && trimmedInstagram) {
+        socialLinksPayload.instagram = trimmedInstagram
+      }
+
+      if (infoDraft.selectedSocialLinks.includes('url') && trimmedUrl) {
+        socialLinksPayload.url = trimmedUrl
+      }
+
+      const hasSocialLinks = Object.keys(socialLinksPayload).length > 0
 
       const payload = {
         name: infoDraft.name.trim(),
-        phone: infoDraft.phone.trim(),
+        phone: persistedPhone,
         email: trimmedEmail || undefined,
         source: infoDraft.source.trim(),
+        socialLinks: hasSocialLinks ? socialLinksPayload : null,
         leadQualification: infoDraft.leadQualification || null,
         initialContext: infoDraft.qualification.trim() || undefined
       }
@@ -900,21 +1015,35 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
   const handleCreateLead = async () => {
     const trimmedName = infoDraft.name.trim()
-    const trimmedPhone = infoDraft.phone.trim()
+    const persistedPhone = toPersistedLeadPhone(infoDraft.phone)
     const trimmedEmail = infoDraft.email.trim()
     const trimmedSource = infoDraft.source.trim()
+    const trimmedInstagram = infoDraft.socialLinks.instagram.trim()
+    const trimmedUrl = infoDraft.socialLinks.url.trim()
+    const socialLinksPayload: Partial<Record<LeadSocialLinkKey, string>> = {}
 
-    if (!trimmedName || !trimmedPhone) {
-      setError('Preencha nome e telefone.')
+    if (infoDraft.selectedSocialLinks.includes('instagram') && trimmedInstagram) {
+      socialLinksPayload.instagram = trimmedInstagram
+    }
+
+    if (infoDraft.selectedSocialLinks.includes('url') && trimmedUrl) {
+      socialLinksPayload.url = trimmedUrl
+    }
+
+    const hasSocialLinks = Object.keys(socialLinksPayload).length > 0
+
+    if (!trimmedName || !isLeadPhoneComplete(infoDraft.phone)) {
+      setError('Preencha nome e telefone válido (DDD + 8 ou 9 dígitos).')
       return
     }
 
     try {
       await WebhookService.createLead({
         name: trimmedName,
-        phone: trimmedPhone,
+        phone: persistedPhone,
         ...(trimmedEmail ? { email: trimmedEmail } : {}),
         ...(trimmedSource ? { source: trimmedSource } : {}),
+        ...(hasSocialLinks ? { socialLinks: socialLinksPayload } : {}),
         leadQualification: infoDraft.leadQualification || null
       })
 
@@ -1196,7 +1325,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       negotiationType: selectedBusiness.negotiationType ?? '',
       stage: selectedBusiness.stage,
       temperature: selectedBusiness.temperature ?? '',
-      value: selectedBusiness.value ?? '',
+      value: formatLeadValueInputField(selectedBusiness.value),
       notes: formatNegotiationNotes(selectedBusiness.notes)
     })
 
@@ -1296,13 +1425,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     const totalBusinessesLabel = leadNegotiations.length
 
     const parseNegotiationValue = (value?: string | null): number => {
-      if (!value) return 0
-
-      const normalizedValue = value.replace(',', '.').trim()
-      if (!normalizedValue) return 0
-
-      const parsed = Number(normalizedValue)
-      return Number.isFinite(parsed) ? parsed : 0
+      const parsed = parseLeadValueToNumber(value)
+      return parsed ?? 0
     }
 
     const totalBusinessValue = leadNegotiations.reduce(
@@ -1330,6 +1454,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     const totalWonValueLabel = formatLeadValue(totalWonValue.toFixed(2))
     const totalLostValueLabel = formatLeadValue(totalLostValue.toFixed(2))
     const emailLabel = leadData?.email?.trim() || '-'
+    const instagramLabel = leadData?.socialLinks?.instagram?.trim() || '-'
+    const urlLabel = leadData?.socialLinks?.url?.trim() || '-'
     const leadQualificationTagPresentation = getLeadQualificationTagPresentation(
       leadData?.leadQualification ?? null
     )
@@ -1341,7 +1467,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         style={{
           display: 'grid',
           alignContent: 'start',
-          gap: 18,
+          gap: 10,
           height: '100%',
           minHeight: 0,
           overflowY: 'auto',
@@ -1792,6 +1918,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                   onChange={(event) =>
                     setInfoDraft((current) => ({ ...current, name: event.target.value }))
                   }
+                  autoComplete="new-password"
                   style={{
                     height: 36,
                     maxWidth: 360,
@@ -1815,8 +1942,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                   type="text"
                   value={infoDraft.phone}
                   onChange={(event) =>
-                    setInfoDraft((current) => ({ ...current, phone: event.target.value }))
+                      setInfoDraft((current) => ({ ...current, phone: formatLeadPhoneInput(event.target.value) }))
                   }
+                    autoComplete="new-password"
+                    maxLength={14}
+                    inputMode="numeric"
                   style={{
                     height: 36,
                     maxWidth: 360,
@@ -1842,6 +1972,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                   onChange={(event) =>
                     setInfoDraft((current) => ({ ...current, email: event.target.value }))
                   }
+                  autoComplete="new-password"
                   style={{
                     height: 36,
                     maxWidth: 360,
@@ -1879,7 +2010,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 >
                   <option value="whatsapp">WhatsApp</option>
                   <option value="metaads">MetaAds</option>
-                  <option value="flow">Flow</option>
+                  <option value="indicacao">Indicação</option>
                 </select>
               ) : (
                 <span style={{ display: 'inline-flex', justifyContent: 'flex-start' }}>
@@ -1943,6 +2074,153 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 </span>
               )}
 
+              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Links</span>
+              {isEditingLeadInfo ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: '#334155',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={infoDraft.selectedSocialLinks.includes('instagram')}
+                      onChange={() => {
+                        setInfoDraft((current) => {
+                          const isSelected = current.selectedSocialLinks.includes('instagram')
+
+                          if (isSelected) {
+                            return {
+                              ...current,
+                              selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'instagram'),
+                              socialLinks: {
+                                ...current.socialLinks,
+                                instagram: ''
+                              }
+                            }
+                          }
+
+                          return {
+                            ...current,
+                            selectedSocialLinks: [...current.selectedSocialLinks, 'instagram']
+                          }
+                        })
+                      }}
+                    />
+                    Instagram
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      color: '#334155',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={infoDraft.selectedSocialLinks.includes('url')}
+                      onChange={() => {
+                        setInfoDraft((current) => {
+                          const isSelected = current.selectedSocialLinks.includes('url')
+
+                          if (isSelected) {
+                            return {
+                              ...current,
+                              selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'url'),
+                              socialLinks: {
+                                ...current.socialLinks,
+                                url: ''
+                              }
+                            }
+                          }
+
+                          return {
+                            ...current,
+                            selectedSocialLinks: [...current.selectedSocialLinks, 'url']
+                          }
+                        })
+                      }}
+                    />
+                    URL
+                  </label>
+                </div>
+              ) : (
+                <span style={{ color: '#111827', fontSize: 17, fontWeight: 600 }}>
+                  -
+                </span>
+              )}
+
+              {isEditingLeadInfo && infoDraft.selectedSocialLinks.includes('instagram') ? (
+                <>
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Instagram</span>
+                  <input
+                    type="text"
+                    value={infoDraft.socialLinks.instagram}
+                    onChange={(event) =>
+                      setInfoDraft((current) => ({
+                        ...current,
+                        socialLinks: {
+                          ...current.socialLinks,
+                          instagram: event.target.value
+                        }
+                      }))
+                    }
+                    placeholder="@usuario ou link"
+                    style={{
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
+                      fontSize: 16,
+                      color: '#111827',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </>
+              ) : null}
+
+              {isEditingLeadInfo && infoDraft.selectedSocialLinks.includes('url') ? (
+                <>
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>URL</span>
+                  <input
+                    type="text"
+                    value={infoDraft.socialLinks.url}
+                    onChange={(event) =>
+                      setInfoDraft((current) => ({
+                        ...current,
+                        socialLinks: {
+                          ...current.socialLinks,
+                          url: event.target.value
+                        }
+                      }))
+                    }
+                    placeholder="https://"
+                    style={{
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
+                      fontSize: 16,
+                      color: '#111827',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </>
+              ) : null}
+
             </div>
             ) : (
               <div
@@ -1964,6 +2242,16 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
                   <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Mail size={14} /> Email</span>
                   <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>{emailLabel}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Instagram size={14} /> Instagram</span>
+                  <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>{instagramLabel}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Link2 size={14} /> URL</span>
+                  <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>{urlLabel}</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
@@ -2533,13 +2821,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             leadId: leadId ?? ''
                           })
                           const followUpDateTagColors = getFollowUpDateTagColors(visualStatus)
-                          const parsedDueDate = parsePersistedUtcClockToBrowserDate(followUp.dueAt)
-                          const dueTime = parsedDueDate
-                            ? new Intl.DateTimeFormat('pt-BR', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false
-                              }).format(parsedDueDate)
+                          const dueTime = followUp.dueAt
+                            ? formatDateTime(followUp.dueAt)
                             : '--:--'
                           const isHovered = hoveredFollowUpId === followUp.id
                           const cardBorderColor = isHovered
@@ -2568,7 +2851,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                                 gap: 2,
                                 lineHeight: 1.1
                               }}
-                              title={`${businessNameById.get(followUp.negotiationId) ?? 'Negócio sem nome'} - ${followUp.value}`}
+                              title={`${businessNameById.get(followUp.negotiationId) ?? 'Negócio sem nome'} - ${followUp.value} - ${dueTime}`}
                             >
                               <span
                                 style={{
@@ -2969,7 +3252,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         negotiationType: business.negotiationType ?? '',
         stage: business.stage,
         temperature: business.temperature ?? '',
-        value: business.value ?? '',
+        value: formatLeadValueInputField(business.value),
         notes: formatNegotiationNotes(business.notes)
       })
     }
@@ -3041,166 +3324,52 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 gap: 16
               }}
             >
-              {isEditingBusiness ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
-                <input
-                  type="text"
-                  value={businessDetailDraft?.title ?? ''}
-                  onChange={(event) =>
-                    setBusinessDetailDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            title: event.target.value
-                          }
-                        : current
-                    )
-                  }
-                  style={{
-                    minWidth: 220,
-                    width: '68%',
-                    maxWidth: 364,
-                    height: 46,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#0f172a',
-                    fontSize: 20,
-                    fontWeight: 800,
-                    boxSizing: 'border-box'
-                  }}
-                />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                {[
+                  { key: 'informacoes' as const, label: 'Informações' },
+                  { key: 'followups' as const, label: 'FollowUps' },
+                  { key: 'notas' as const, label: 'Notas' }
+                ].map((tab) => {
+                  const isActive = activeBusinessTab === tab.key
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginLeft: 'auto' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!selectedBusiness) return
-                      resetBusinessDetailDraft(selectedBusiness)
-                      setIsEditingBusiness(false)
-                    }}
-                    style={{
-                      minWidth: 100,
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!selectedBusinessId || !businessDetailDraft) return
-
-                      const payload: UpdateNegotiationPayload = {
-                        title: businessDetailDraft.title,
-                        negotiationType: businessDetailDraft.negotiationType || null,
-                        stage: businessDetailDraft.stage,
-                        temperature: (businessDetailDraft.temperature || null) as NegotiationTemperature | null,
-                        value: parseLeadValueInput(businessDetailDraft.value),
-                        notes: businessDetailDraft.notes.trim()
-                          ? businessDetailDraft.notes.trim() === formatNegotiationNotes(selectedBusiness.notes).trim()
-                            ? (selectedBusiness.notes ?? []).map((note) => ({
-                                title: note.title,
-                                description: note.description,
-                                createdAt: note.createdAt ?? new Date().toISOString()
-                              }))
-                            : [{
-                                title: 'Nota',
-                                description: businessDetailDraft.notes.trim(),
-                                createdAt:
-                                  selectedBusiness.notes?.[0]?.createdAt ?? new Date().toISOString()
-                              }]
-                          : []
-                      }
-
-                      void (async () => {
-                        try {
-                          await WebhookService.updateNegotiation(selectedBusinessId, payload)
-                          await refreshLeadNegotiations(leadId ?? '')
-                          onLeadUpdated?.()
-                          setIsEditingBusiness(false)
-                          setBusinessesError(null)
-                        } catch (exception: unknown) {
-                          const message =
-                            exception instanceof Error
-                              ? exception.message
-                              : 'Falha ao atualizar negócio.'
-                          setBusinessesError(message)
-                        }
-                      })()
-                    }}
-                    style={{
-                      minWidth: 100,
-                      height: 42,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: '#1f7a4d',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Salvar
-                  </button>
-                </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  {[
-                    { key: 'informacoes' as const, label: 'Informações' },
-                    { key: 'followups' as const, label: 'FollowUps' },
-                    { key: 'notas' as const, label: 'Notas' }
-                  ].map((tab) => {
-                    const isActive = activeBusinessTab === tab.key
-
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => {
-                          setActiveBusinessTab(tab.key)
-                          setIsBusinessActionsOpen(false)
-                        }}
-                        onMouseEnter={() => setHoveredBusinessTab(tab.key)}
-                        onMouseLeave={() => setHoveredBusinessTab(null)}
-                        style={{
-                          border: 'none',
-                          background:
-                            isActive || hoveredBusinessTab === tab.key
-                              ? interactionTheme.clickableCardHoverBackground
-                              : 'transparent',
-                          borderRadius: 6,
-                          fontSize: 14,
-                          fontWeight: isActive ? 600 : 400,
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          color:
-                            isActive || hoveredBusinessTab === tab.key
-                              ? interactionTheme.activeIconColor
-                              : '#6b7280'
-                        }}
-                      >
-                        {tab.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveBusinessTab(tab.key)
+                        setIsBusinessActionsOpen(false)
+                      }}
+                      onMouseEnter={() => setHoveredBusinessTab(tab.key)}
+                      onMouseLeave={() => setHoveredBusinessTab(null)}
+                      style={{
+                        border: 'none',
+                        background:
+                          isActive || hoveredBusinessTab === tab.key
+                            ? interactionTheme.clickableCardHoverBackground
+                            : 'transparent',
+                        borderRadius: 6,
+                        fontSize: 14,
+                        fontWeight: isActive ? 600 : 400,
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        color:
+                          isActive || hoveredBusinessTab === tab.key
+                            ? interactionTheme.activeIconColor
+                            : '#6b7280'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  )
+                })}
+              </div>
 
               {!isEditingBusiness ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3238,21 +3407,18 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               ) : null}
             </div>
 
-            {!isEditingBusiness ? (
-              <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
-            ) : null}
+            <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
           </div>
 
           <div style={{ display: 'grid', gap: 18 }}>
-            {!isEditingBusiness ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800 }}>
-                    {selectedBusinessTitle || 'Negócio sem nome'}
-                  </h2>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800 }}>
+                  {(isEditingBusiness ? businessDetailDraft?.title : selectedBusinessTitle) || 'Negócio sem nome'}
+                </h2>
+              </div>
 
-                {activeBusinessTab !== 'followups' && activeBusinessTab !== 'notas' ? (
+              {!isEditingBusiness && activeBusinessTab !== 'followups' && activeBusinessTab !== 'notas' ? (
                   <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <button
                     type="button"
@@ -3413,9 +3579,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     </div>
                   ) : null}
                   </div>
-                ) : null}
-              </div>
-            ) : null}
+              ) : null}
+            </div>
 
             {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
 
@@ -3632,21 +3797,139 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     padding: 0,
                     background: 'transparent',
                     display: 'grid',
-                    gap: 18,
                     marginTop: 0
                   }}
                 >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
+                        <CircleUserRound size={15} />
+                      </span>
+                      <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Visão Geral</h3>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginLeft: 'auto' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedBusiness) return
+                          resetBusinessDetailDraft(selectedBusiness)
+                          setIsEditingBusiness(false)
+                        }}
+                        style={{
+                          minWidth: 100,
+                          height: 36,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedBusinessId || !businessDetailDraft) return
+
+                          const payload: UpdateNegotiationPayload = {
+                            title: businessDetailDraft.title,
+                            negotiationType: businessDetailDraft.negotiationType || null,
+                            stage: businessDetailDraft.stage,
+                            temperature: (businessDetailDraft.temperature || null) as NegotiationTemperature | null,
+                            value: parseLeadValueInput(businessDetailDraft.value),
+                            notes: businessDetailDraft.notes.trim()
+                              ? businessDetailDraft.notes.trim() === formatNegotiationNotes(selectedBusiness.notes).trim()
+                                ? (selectedBusiness.notes ?? []).map((note) => ({
+                                    title: note.title,
+                                    description: note.description,
+                                    createdAt: note.createdAt ?? new Date().toISOString()
+                                  }))
+                                : [{
+                                    title: 'Nota',
+                                    description: businessDetailDraft.notes.trim(),
+                                    createdAt:
+                                      selectedBusiness.notes?.[0]?.createdAt ?? new Date().toISOString()
+                                  }]
+                              : []
+                          }
+
+                          void (async () => {
+                            try {
+                              await WebhookService.updateNegotiation(selectedBusinessId, payload)
+                              await refreshLeadNegotiations(leadId ?? '')
+                              onLeadUpdated?.()
+                              setIsEditingBusiness(false)
+                              setBusinessesError(null)
+                            } catch (exception: unknown) {
+                              const message =
+                                exception instanceof Error
+                                  ? exception.message
+                                  : 'Falha ao atualizar negócio.'
+                              setBusinessesError(message)
+                            }
+                          })()
+                        }}
+                        style={{
+                          minWidth: 100,
+                          height: 36,
+                          border: 'none',
+                          borderRadius: 8,
+                          background: '#1f7a4d',
+                          color: '#ffffff',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+
                   <div
                     style={{
+                      marginTop: 12,
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      gap: 28
+                      gridTemplateColumns: '160px minmax(0, 1fr)',
+                      rowGap: 10,
+                      columnGap: 16,
+                      alignItems: 'center'
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 14 }}>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ color: '#334155', fontSize: 16, fontWeight: 500 }}>Tipo</span>
-                        <div style={{ position: 'relative', maxWidth: 280 }}>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
+                    <input
+                      type="text"
+                      value={businessDetailDraft?.title ?? ''}
+                      onChange={(event) =>
+                        setBusinessDetailDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                title: event.target.value
+                              }
+                            : current
+                        )
+                      }
+                      autoComplete="new-password"
+                      style={{
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 16,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Tipo</span>
+                    <div style={{ position: 'relative', maxWidth: 240 }}>
                           <select
                             value={selectedBusinessType}
                             onChange={(event) =>
@@ -3661,12 +3944,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             }
                             style={{
                               width: '100%',
-                              height: 42,
+                              height: 36,
                               border: '1px solid #d1d5db',
-                              borderRadius: 10,
-                              padding: '0 40px 0 12px',
+                              borderRadius: 8,
+                              padding: '0 36px 0 10px',
                               color: selectedBusinessType ? '#111827' : '#6b7280',
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: 600,
                               appearance: 'none',
                               background: '#ffffff',
@@ -3689,12 +3972,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                           >
                             <ChevronDown size={16} />
                           </span>
-                        </div>
-                      </div>
+                    </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ color: '#334155', fontSize: 16, fontWeight: 500 }}>Etapa</span>
-                        <div style={{ position: 'relative', maxWidth: 280 }}>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Etapa</span>
+                    <div style={{ position: 'relative', maxWidth: 240 }}>
                           <select
                             value={businessDetailDraft?.stage ?? selectedBusiness.stage}
                             onChange={(event) =>
@@ -3709,12 +3990,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             }
                             style={{
                               width: '100%',
-                              height: 42,
+                              height: 36,
                               border: '1px solid #d1d5db',
-                              borderRadius: 10,
-                              padding: '0 40px 0 12px',
+                              borderRadius: 8,
+                              padding: '0 36px 0 10px',
                               color: '#111827',
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: 600,
                               appearance: 'none',
                               background: '#ffffff',
@@ -3739,12 +4020,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                           >
                             <ChevronDown size={16} />
                           </span>
-                        </div>
-                      </div>
+                    </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ color: '#334155', fontSize: 16, fontWeight: 500 }}>Temperatura</span>
-                        <div style={{ position: 'relative', maxWidth: 280 }}>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</span>
+                    <div style={{ position: 'relative', maxWidth: 240 }}>
                           <select
                             value={businessDetailDraft?.temperature ?? selectedBusiness.temperature ?? ''}
                             onChange={(event) =>
@@ -3759,12 +4038,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             }
                             style={{
                               width: '100%',
-                              height: 42,
+                              height: 36,
                               border: '1px solid #d1d5db',
-                              borderRadius: 10,
-                              padding: '0 40px 0 12px',
+                              borderRadius: 8,
+                              padding: '0 36px 0 10px',
                               color: '#111827',
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: 600,
                               appearance: 'none',
                               background: '#ffffff',
@@ -3788,38 +4067,34 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                           >
                             <ChevronDown size={16} />
                           </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ color: '#334155', fontSize: 16, fontWeight: 500 }}>Valor</span>
-                        <input
-                          type="text"
-                          value={businessDetailDraft?.value ?? ''}
-                          onChange={(event) =>
-                            setBusinessDetailDraft((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    value: event.target.value
-                                  }
-                                : current
-                            )
-                          }
-                          style={{
-                            maxWidth: 280,
-                            height: 42,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 10,
-                            padding: '0 12px',
-                            color: '#111827',
-                            fontSize: 16,
-                            fontWeight: 600,
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
                     </div>
+
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Valor</span>
+                    <input
+                      type="text"
+                      value={businessDetailDraft?.value ?? ''}
+                      onChange={(event) =>
+                        setBusinessDetailDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                value: sanitizeLeadValueInput(event.target.value)
+                              }
+                            : current
+                        )
+                      }
+                      autoComplete="new-password"
+                      style={{
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 16,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    />
                   </div>
                 </article>
               ) : (
@@ -4590,7 +4865,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               inputMode="decimal"
               value={newBusinessDraft.value}
               onChange={(event) =>
-                setNewBusinessDraft((current) => ({ ...current, value: event.target.value }))
+                setNewBusinessDraft((current) => ({
+                  ...current,
+                  value: sanitizeLeadValueInput(event.target.value)
+                }))
               }
               style={{
                 height: 46,
@@ -5503,7 +5781,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   }, [isCreateLeadMode, leadId])
 
   if (isCreateLeadMode) {
-    const canCreateLead = Boolean(infoDraft.name.trim() && infoDraft.phone.trim())
+    const canCreateLead = Boolean(infoDraft.name.trim() && isLeadPhoneComplete(infoDraft.phone))
 
     return (
       <section
@@ -5574,6 +5852,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               type="text"
               value={infoDraft.name}
               onChange={(event) => setInfoDraft((current) => ({ ...current, name: event.target.value }))}
+              autoComplete="new-password"
               style={{
                 height: 36,
                 maxWidth: 360,
@@ -5590,7 +5869,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             <input
               type="text"
               value={infoDraft.phone}
-              onChange={(event) => setInfoDraft((current) => ({ ...current, phone: event.target.value }))}
+              onChange={(event) => setInfoDraft((current) => ({ ...current, phone: formatLeadPhoneInput(event.target.value) }))}
+              autoComplete="new-password"
+              maxLength={14}
+              inputMode="numeric"
               style={{
                 height: 36,
                 maxWidth: 360,
@@ -5608,6 +5890,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               type="email"
               value={infoDraft.email}
               onChange={(event) => setInfoDraft((current) => ({ ...current, email: event.target.value }))}
+              autoComplete="new-password"
               style={{
                 height: 36,
                 maxWidth: 360,
@@ -5638,7 +5921,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               <option value="">Selecione</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="metaads">MetaAds</option>
-              <option value="flow">Flow</option>
+              <option value="indicacao">Indicação</option>
             </select>
 
             <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Qualificação</span>
@@ -5665,6 +5948,147 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               <option value="qualify">Qualificado</option>
               <option value="not qualify">Não qualificado</option>
             </select>
+
+            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Links</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: '#334155',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={infoDraft.selectedSocialLinks.includes('instagram')}
+                  onChange={() => {
+                    setInfoDraft((current) => {
+                      const isSelected = current.selectedSocialLinks.includes('instagram')
+
+                      if (isSelected) {
+                        return {
+                          ...current,
+                          selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'instagram'),
+                          socialLinks: {
+                            ...current.socialLinks,
+                            instagram: ''
+                          }
+                        }
+                      }
+
+                      return {
+                        ...current,
+                        selectedSocialLinks: [...current.selectedSocialLinks, 'instagram']
+                      }
+                    })
+                  }}
+                />
+                Instagram
+              </label>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: '#334155',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={infoDraft.selectedSocialLinks.includes('url')}
+                  onChange={() => {
+                    setInfoDraft((current) => {
+                      const isSelected = current.selectedSocialLinks.includes('url')
+
+                      if (isSelected) {
+                        return {
+                          ...current,
+                          selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'url'),
+                          socialLinks: {
+                            ...current.socialLinks,
+                            url: ''
+                          }
+                        }
+                      }
+
+                      return {
+                        ...current,
+                        selectedSocialLinks: [...current.selectedSocialLinks, 'url']
+                      }
+                    })
+                  }}
+                />
+                URL
+              </label>
+            </div>
+
+            {infoDraft.selectedSocialLinks.includes('instagram') ? (
+              <>
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Instagram</span>
+                <input
+                  type="text"
+                  value={infoDraft.socialLinks.instagram}
+                  onChange={(event) =>
+                    setInfoDraft((current) => ({
+                      ...current,
+                      socialLinks: {
+                        ...current.socialLinks,
+                        instagram: event.target.value
+                      }
+                    }))
+                  }
+                  placeholder="@usuario ou link"
+                  style={{
+                    height: 36,
+                    maxWidth: 360,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 16,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </>
+            ) : null}
+
+            {infoDraft.selectedSocialLinks.includes('url') ? (
+              <>
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>URL</span>
+                <input
+                  type="text"
+                  value={infoDraft.socialLinks.url}
+                  onChange={(event) =>
+                    setInfoDraft((current) => ({
+                      ...current,
+                      socialLinks: {
+                        ...current.socialLinks,
+                        url: event.target.value
+                      }
+                    }))
+                  }
+                  placeholder="https://"
+                  style={{
+                    height: 36,
+                    maxWidth: 360,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 16,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </>
+            ) : null}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

@@ -21,16 +21,8 @@ type FollowUpInlineFormProps = {
 const formatDateToInputValue = (dateValue?: string): string => {
   if (!dateValue) return ''
 
-  const parsedDate = new Date(dateValue)
-  if (Number.isNaN(parsedDate.getTime())) return ''
-
-  const year = parsedDate.getFullYear()
-  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
-  const day = String(parsedDate.getDate()).padStart(2, '0')
-  const hours = String(parsedDate.getHours()).padStart(2, '0')
-  const minutes = String(parsedDate.getMinutes()).padStart(2, '0')
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`
+  const normalizedDateValue = dateValue.trim().replace(' ', 'T')
+  return normalizedDateValue.slice(0, 16)
 }
 
 export function FollowUpInlineForm({
@@ -66,7 +58,7 @@ export function FollowUpInlineForm({
     try {
       setIsSubmitting(true)
       setError(null)
-      await onConfirm(value.trim(), new Date(dueAt).toISOString())
+      await onConfirm(value.trim(), dueAt)
       resetForm()
       onCancel()
     } catch (exception: unknown) {

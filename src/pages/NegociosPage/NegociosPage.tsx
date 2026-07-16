@@ -1396,7 +1396,7 @@ export default function NegociosPage() {
                       onMouseLeave={() => setHoveredNegocioId(null)}
                     >
                       <td
-                        colSpan={8}
+                        colSpan={7}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -1404,81 +1404,70 @@ export default function NegociosPage() {
                           fontWeight: 600
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '19% 14% 11% 11% 12% 11% 12% 10%',
-                            alignItems: 'center',
-                            columnGap: 12
-                          }}
-                        >
-                          <span style={{ gridColumn: '1 / 8' }}>Deletar Negócio?</span>
-                          <div
+                        Deletar Negócio?
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            aria-label="Cancelar exclusão de negócio"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingDeleteNegocioId(null)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifySelf: 'start',
-                              gridColumn: '8 / 9',
-                              paddingLeft: 16,
-                              boxSizing: 'border-box'
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
                             }}
                           >
-                            <button
-                              type="button"
-                              aria-label="Cancelar exclusão de negócio"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setConfirmingDeleteNegocioId(null)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              X
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Confirmar exclusão de negócio"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void handleDeleteNegocio(negocio.id)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          </div>
+                            X
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Confirmar exclusão de negócio"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleDeleteNegocio(negocio.id)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                          >
+                            ✓
+                          </button>
                         </div>
                       </td>
                     </tr>

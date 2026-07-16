@@ -18,10 +18,10 @@ export type UserNotification = {
   id: string
   organizationId: string | null
   userId: string
-  type: 'LEAD_CREATED' | 'MESSAGE_RECEIVED'
+  type: 'LEAD_CREATED' | 'MESSAGE_RECEIVED' | 'FOLLOW_UP_REMINDER_1H'
   title: string
   description: string
-  referenceType: 'LEAD' | 'MESSAGE'
+  referenceType: 'LEAD' | 'MESSAGE' | 'FOLLOW_UP'
   referenceId: string
   isRead: boolean
   readAt: string | Date | null

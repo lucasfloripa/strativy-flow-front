@@ -14,6 +14,8 @@ export type ChatMessage = {
 }
 
 export type LeadRuntimeMode = 'HUMAN' | 'AUTOMATION'
+export type LeadSocialLinkKey = 'instagram' | 'url'
+export type LeadSocialLinks = Partial<Record<LeadSocialLinkKey, string>>
 
 export type LeadStage =
   | 'NEW'
@@ -35,6 +37,7 @@ export type LeadResponse = {
   leadStage?: LeadStage | null
   value?: string | null
   source?: string | null
+  socialLinks?: LeadSocialLinks | null
   initialContext?: string | null
   createdAt?: string | null
   closedAt?: string | null
@@ -50,6 +53,7 @@ export type UpdateLeadPayload = {
   phone?: string
   email?: string
   source?: string
+  socialLinks?: LeadSocialLinks | null
   leadQualification?: 'qualify' | 'not qualify' | null
   initialContext?: string
   value?: string | null
@@ -61,6 +65,7 @@ export type CreateLeadPayload = {
   phone: string
   email?: string
   source?: string
+  socialLinks?: LeadSocialLinks | null
   leadQualification?: 'qualify' | 'not qualify' | null
 }
 

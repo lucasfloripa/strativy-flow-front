@@ -1,10 +1,11 @@
-import { Archive, Clock3, Facebook, ListFilter, MessageCircle, Smartphone, Star, Trash2 } from 'lucide-react'
+import { Archive, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Star, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import {
+  formatDateTime,
   getApiDateTimestamp,
   parseApiDateToBrowserDate,
   parsePersistedUtcClockToBrowserDate
@@ -42,10 +43,14 @@ type LeadSortKey = 'createdAt' | 'name' | 'qualification' | 'nextAgenda' | 'last
 type LeadSortDirection = 'asc' | 'desc'
 type QualificationSortFocus = 'qualify' | 'notQualify' | 'unqualified'
 type NextAgendaSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
-type SourceSortFocus = 'whatsappFirst' | 'flowFirst' | 'metaAdsFirst'
+type SourceSortFocus = 'whatsappFirst' | 'metaAdsFirst' | 'indicacaoFirst'
 
 const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source.trim().toLowerCase()
+  const normalizedSource = source
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 
   if (normalizedSource === 'metaads') {
     return {
@@ -63,11 +68,11 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
     }
   }
 
-  if (normalizedSource === 'flow') {
+  if (normalizedSource === 'indicacao') {
     return {
-      label: 'Flow',
-      textColor: '#1f7a4d',
-      icon: <Smartphone size={12} />
+      label: 'Indicação',
+      textColor: '#0f766e',
+      icon: <Handshake size={12} />
     }
   }
 
@@ -114,45 +119,10 @@ const getInteractionTagPresentation = (
   lastMessageAt: string | Date | null,
   createdAt: string | Date | null
 ): TagPresentation => {
-  const interactionReferenceDate = lastMessageAt
-    ? parsePersistedUtcClockToBrowserDate(lastMessageAt)
-    : createdAt
-      ? parseApiDateToBrowserDate(createdAt)
-      : null
-
-  if (!interactionReferenceDate || Number.isNaN(interactionReferenceDate.getTime())) {
-    return {
-      label: '1 dia',
-      textColor: '#6b7280',
-      icon: <Clock3 size={12} />
-    }
-  }
-
-  const diffMs = Date.now() - interactionReferenceDate.getTime()
-  const safeDiffMs = diffMs > 0 ? diffMs : 0
-  const diffMinutes = Math.floor(safeDiffMs / (1000 * 60))
-
-  if (diffMinutes < 24 * 60) {
-    if (diffMinutes < 60) {
-      return {
-        label: '<1h',
-        textColor: '#6b7280',
-        icon: <Clock3 size={12} />
-      }
-    }
-
-    const diffHours = Math.floor(diffMinutes / 60)
-    const remainingMinutes = diffMinutes % 60
-
-    return {
-      label: `${diffHours}h ${remainingMinutes}m`,
-      textColor: '#6b7280',
-      icon: <Clock3 size={12} />
-    }
-  }
+  const referenceValue = lastMessageAt ?? createdAt
 
   return {
-    label: '1 dia',
+    label: referenceValue ? formatDateTime(referenceValue) : '-',
     textColor: '#6b7280',
     icon: <Clock3 size={12} />
   }
@@ -199,20 +169,7 @@ const formatAgendaDateTime = (value?: string | Date | null): string => {
     return '-'
   }
 
-  const date = parseApiDateToBrowserDate(value)
-
-  if (!date) {
-    return '-'
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(date)
+  return formatDateTime(value)
 }
 
 const resolveNextAgendaStatus = (
@@ -349,19 +306,26 @@ const getQualificationSortRank = (
   return ranksByFocus[focus][qualificationKind]
 }
 
-const normalizeSourceValue = (source: string): 'whatsapp' | 'flow' | 'metaads' | 'other' => {
-  const normalizedSource = source.trim().toLowerCase().replace(/[_\s]+/g, '')
+const normalizeSourceValue = (
+  source: string
+): 'whatsapp' | 'metaads' | 'indicacao' | 'other' => {
+  const normalizedSource = source
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\s]+/g, '')
 
   if (normalizedSource === 'whatsapp') {
     return 'whatsapp'
   }
 
-  if (normalizedSource === 'flow') {
-    return 'flow'
-  }
-
   if (normalizedSource === 'metaads') {
     return 'metaads'
+  }
+
+  if (normalizedSource === 'indicacao') {
+    return 'indicacao'
   }
 
   return 'other'
@@ -370,23 +334,26 @@ const normalizeSourceValue = (source: string): 'whatsapp' | 'flow' | 'metaads' |
 const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
   const normalizedSource = normalizeSourceValue(source)
 
-  const ranksByFocus: Record<SourceSortFocus, Record<'whatsapp' | 'flow' | 'metaads' | 'other', number>> = {
+  const ranksByFocus: Record<
+    SourceSortFocus,
+    Record<'whatsapp' | 'metaads' | 'indicacao' | 'other', number>
+  > = {
     whatsappFirst: {
       whatsapp: 0,
-      flow: 1,
-      metaads: 2,
-      other: 3
-    },
-    flowFirst: {
-      flow: 0,
-      whatsapp: 1,
-      metaads: 2,
+      metaads: 1,
+      indicacao: 2,
       other: 3
     },
     metaAdsFirst: {
       metaads: 0,
       whatsapp: 1,
-      flow: 2,
+      indicacao: 2,
+      other: 3
+    },
+    indicacaoFirst: {
+      indicacao: 0,
+      whatsapp: 1,
+      metaads: 2,
       other: 3
     }
   }
@@ -836,11 +803,11 @@ export default function LeadsPage() {
 
       setSourceSortFocus((currentFocus) => {
         if (currentFocus === 'whatsappFirst') {
-          return 'flowFirst'
+          return 'metaAdsFirst'
         }
 
-        if (currentFocus === 'flowFirst') {
-          return 'metaAdsFirst'
+        if (currentFocus === 'metaAdsFirst') {
+          return 'indicacaoFirst'
         }
 
         return 'whatsappFirst'
@@ -1238,7 +1205,7 @@ export default function LeadsPage() {
                       <td
                         colSpan={6}
                         style={{
-                          padding: '14px 16px',
+                          padding: '14px 12px',
                           color: '#2f2f2f',
                           fontSize: 13,
                           fontWeight: 600
@@ -1337,7 +1304,7 @@ export default function LeadsPage() {
                       onMouseLeave={() => setHoveredLeadId(null)}
                     >
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -1345,81 +1312,70 @@ export default function LeadsPage() {
                           fontWeight: 600
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '24% 14% 18% 16% 18% 10%',
-                            alignItems: 'center',
-                            columnGap: 12
-                          }}
-                        >
-                          <span style={{ gridColumn: '1 / 6' }}>Deletar Lead?</span>
-                          <div
+                        Deletar Lead?
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            aria-label="Cancelar exclusão de lead"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingDeleteLeadId(null)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifySelf: 'start',
-                              gridColumn: '6 / 7',
-                              paddingLeft: 16,
-                              boxSizing: 'border-box'
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
                             }}
                           >
-                            <button
-                              type="button"
-                              aria-label="Cancelar exclusão de lead"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setConfirmingDeleteLeadId(null)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              X
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Confirmar exclusão de lead"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void handleDeleteLead(lead.id)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          </div>
+                            X
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Confirmar exclusão de lead"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleDeleteLead(lead.id)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                          >
+                            ✓
+                          </button>
                         </div>
                       </td>
                     </tr>

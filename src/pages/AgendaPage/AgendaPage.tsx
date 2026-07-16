@@ -11,7 +11,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
-import { getApiDateTimestamp, parseApiDateToBrowserDate } from '../../core/utils/dateTime'
+import {
+  formatDateTime,
+  getApiDateTimestamp,
+  parseApiDateToBrowserDate
+} from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
@@ -95,25 +99,12 @@ const getFilterOptionStyle = (isSelected: boolean) => ({
   cursor: 'pointer'
 })
 
-const formatDateTime = (value?: string | null): string => {
+const formatAgendaDateTimeLabel = (value?: string | null): string => {
   if (!value) {
     return '-'
   }
 
-  const date = parseApiDateToBrowserDate(value)
-  if (!date) {
-    return '-'
-
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).format(date)
+  return formatDateTime(value)
 }
 
 const getAgendaVisualStatus = (
@@ -518,15 +509,11 @@ export default function AgendaPage() {
       await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         value: agendaFollowUpDraft.value.trim(),
-        dueAt: new Date(agendaFollowUpDraft.dueAt).toISOString()
+        dueAt: agendaFollowUpDraft.dueAt
       })
 
       setShouldRefreshOnAgendaClose(true)
-      setAgendaFollowUpDraft((currentDraft) => ({
-        ...currentDraft,
-        value: '',
-        dueAt: ''
-      }))
+      closeAgendaFollowUpPanel()
     } catch (exception: unknown) {
       const message = exception instanceof Error ? exception.message : 'Falha ao criar follow-up.'
       setAgendaFollowUpError(message)
@@ -753,6 +740,47 @@ export default function AgendaPage() {
 
       setAgendaError(message)
       setConfirmingDeleteFollowUpId(null)
+    }
+  }
+
+  const handleToggleFollowUpStatus = async (
+    followUpId: string,
+    currentStatus: AgendaRow['status']
+  ) => {
+    try {
+      setAgendaError(null)
+
+      if (currentStatus === 'done') {
+        await WebhookService.updateNegotiationFollowUp(followUpId, {
+          status: 'pending',
+          completedAt: null
+        })
+      } else {
+        await WebhookService.updateNegotiationFollowUp(followUpId, {
+          status: 'done',
+          completedAt: new Date().toISOString()
+        })
+      }
+
+      setFollowUps((current) =>
+        current.map((followUp) => {
+          if (followUp.id !== followUpId) {
+            return followUp
+          }
+
+          return {
+            ...followUp,
+            status: currentStatus === 'done' ? 'pending' : 'done'
+          }
+        })
+      )
+    } catch (exception: unknown) {
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao atualizar status do follow-up.'
+
+      setAgendaError(message)
     }
   }
 
@@ -1451,7 +1479,7 @@ export default function AgendaPage() {
                       onMouseLeave={() => setHoveredFollowUpId(null)}
                     >
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -1459,81 +1487,70 @@ export default function AgendaPage() {
                           fontWeight: 600
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '28% 14% 18% 16% 14% 10%',
-                            alignItems: 'center',
-                            columnGap: 12
-                          }}
-                        >
-                          <span style={{ gridColumn: '1 / 6' }}>Deletar Follow-up?</span>
-                          <div
+                        Deletar Follow-up?
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            aria-label="Cancelar exclusão de follow-up"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingDeleteFollowUpId(null)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifySelf: 'start',
-                              gridColumn: '6 / 7',
-                              paddingLeft: 16,
-                              boxSizing: 'border-box'
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
                             }}
                           >
-                            <button
-                              type="button"
-                              aria-label="Cancelar exclusão de follow-up"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setConfirmingDeleteFollowUpId(null)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              X
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Confirmar exclusão de follow-up"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void handleDeleteFollowUp(row.followUpId)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          </div>
+                            X
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Confirmar exclusão de follow-up"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleDeleteFollowUp(row.followUpId)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                          >
+                            ✓
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1572,7 +1589,7 @@ export default function AgendaPage() {
                       {(() => {
                         const dateStatus = getAgendaVisualStatus(row.status, row.dueAt)
                         const dateTagColors = getAgendaDateTagColors(dateStatus)
-                        const formattedDateTime = formatDateTime(row.dueAt)
+                        const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
 
                         if (formattedDateTime === '-') {
                           return <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
@@ -1657,6 +1674,30 @@ export default function AgendaPage() {
                           }}
                         >
                           <Trash2 size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label={
+                            row.status === 'done'
+                              ? 'Desfazer conclusão do follow-up'
+                              : 'Concluir follow-up'
+                          }
+                          onClick={() => {
+                            void handleToggleFollowUpStatus(row.followUpId, row.status)
+                          }}
+                          style={{
+                            height: 24,
+                            width: 24,
+                            border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
+                            borderRadius: 4,
+                            background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
+                            color: row.status === 'done' ? '#16a34a' : '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✓
                         </button>
                       </div>
                     </td>

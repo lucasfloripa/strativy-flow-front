@@ -41,6 +41,19 @@ export const HomeService = {
     })
   },
 
+  async deleteNotification(notificationId: string): Promise<void> {
+    await appApiClient.delete(`/notifications/${notificationId}`)
+  },
+
+  async deleteAllMessageNotifications(referenceId: string): Promise<void> {
+    await appApiClient.delete('/notifications', {
+      params: {
+        type: 'MESSAGE_RECEIVED',
+        referenceId
+      }
+    })
+  },
+
   async getDashboardIncome(startDate: string, endDate: string): Promise<DashboardIncome> {
     const { data } = await appApiClient.get<DashboardIncome>('/leads/dashboard/income', {
       params: {

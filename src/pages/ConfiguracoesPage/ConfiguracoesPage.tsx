@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
-import { appApiClient } from '../../core/api/appApiClient'
 
-type SettingsSection = 'usuario' | 'notificacoes' | null
+type SettingsSection = 'usuario' | null
 
-type UserInformationsResponse = {
-  id: string
-  notificationWhatsAppNumbers?: string[]
-}
-
-const settingsTitleFontSize = 18
+const settingsTitleFontSize = 14
 const settingsPanelWidth = 'min(46vw, 680px)'
 
 export default function ConfiguracoesPage() {
@@ -18,9 +12,6 @@ export default function ConfiguracoesPage() {
   const [isPanelVisible, setIsPanelVisible] = useState<boolean>(false)
   const [isUsuarioButtonHovered, setIsUsuarioButtonHovered] =
     useState<boolean>(false)
-  const [isNotificacoesButtonHovered, setIsNotificacoesButtonHovered] =
-    useState<boolean>(false)
-  const [notificationNumbers, setNotificationNumbers] = useState<string[]>([])
 
   useEffect(() => {
     if (!selectedSection) {
@@ -38,56 +29,7 @@ export default function ConfiguracoesPage() {
     }
   }, [selectedSection])
 
-  useEffect(() => {
-    if (selectedSection !== 'notificacoes') {
-      return
-    }
-
-    let isMounted = true
-
-    const loadNotificationNumbers = async () => {
-      const { data } = await appApiClient.get<UserInformationsResponse[]>(
-        '/user/user-informations'
-      )
-
-      if (!isMounted) {
-        return
-      }
-
-      const uniqueNumbers = Array.from(
-        new Set(
-          data.flatMap((item) =>
-            (item.notificationWhatsAppNumbers ?? [])
-              .map((number) => number.trim())
-              .filter((number) => Boolean(number))
-          )
-        )
-      )
-
-      setNotificationNumbers(uniqueNumbers)
-    }
-
-    void loadNotificationNumbers()
-
-    return () => {
-      isMounted = false
-    }
-  }, [selectedSection])
-
   const usuarioButtonIsActive = selectedSection === 'usuario'
-  const notificacoesButtonIsActive = selectedSection === 'notificacoes'
-
-  const panelTitle = useMemo(() => {
-    if (selectedSection === 'usuario') {
-      return 'Usuário'
-    }
-
-    if (selectedSection === 'notificacoes') {
-      return 'Notificações'
-    }
-
-    return ''
-  }, [selectedSection])
 
   return (
     <section
@@ -149,33 +91,6 @@ export default function ConfiguracoesPage() {
         >
           Usuário
         </button>
-
-        <button
-          type="button"
-          onClick={() => setSelectedSection('notificacoes')}
-          onMouseEnter={() => setIsNotificacoesButtonHovered(true)}
-          onMouseLeave={() => setIsNotificacoesButtonHovered(false)}
-          style={{
-            height: 38,
-            width: 190,
-            marginTop: 10,
-            border: '1px solid #d1d5db',
-            borderRadius: 8,
-            background:
-              notificacoesButtonIsActive || isNotificacoesButtonHovered
-                ? interactionTheme.clickableCardHoverBackground
-                : '#ffffff',
-            color: notificacoesButtonIsActive
-              ? interactionTheme.sidebarItemActiveColor
-              : '#111827',
-            padding: '0 12px',
-            fontWeight: 600,
-            textAlign: 'left',
-            cursor: 'pointer'
-          }}
-        >
-          Notificações
-        </button>
       </div>
 
       {selectedSection ? (
@@ -222,36 +137,19 @@ export default function ConfiguracoesPage() {
             style={{
               margin: 0,
               color: '#111827',
-              fontSize: 20,
+              fontSize: 14,
               fontWeight: 700,
               lineHeight: 1.2
             }}
           >
-            {panelTitle}
+            Usuário
           </h2>
 
-          {selectedSection === 'notificacoes' ? (
-            <div style={{ marginTop: 16 }}>
-              {notificationNumbers.length ? (
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: 18,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    color: '#111827'
-                  }}
-                >
-                  {notificationNumbers.map((phoneNumber) => (
-                    <li key={phoneNumber}>{phoneNumber}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ margin: 0, color: '#6b7280', fontSize: 14 }}>
-                  Nenhum número cadastrado.
-                </p>
-              )}
+          {selectedSection === 'usuario' ? (
+            <div style={{ marginTop: 20, display: 'grid', gap: 20 }}>
+              <p style={{ margin: 0, color: '#6b7280', fontSize: 14 }}>
+                Página de usuário - Em desenvolvimento
+              </p>
             </div>
           ) : null}
         </aside>

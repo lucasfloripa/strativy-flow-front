@@ -1,4 +1,4 @@
-import { Archive, Briefcase, CalendarClock, Home, Lock, LogOut, Mail, MessageCircle, PanelLeft, Phone, Settings, Trash2, Users } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, Edit, Home, Lock, LogOut, Mail, MessageCircle, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -10,12 +10,110 @@ import { authApiClient } from '../../core/api/authApiClient'
 import { AuthService } from '../../features/auth/services/AuthService'
 
 type SettingsTab = 'usuario' | 'notificacoes'
+type NotificationChannelKey = 'inApp' | 'whatsApp' | 'email'
+type NotificationPreference = {
+  id: string
+  title: string
+  description: string
+  icon: 'bell' | 'message' | 'clock' | 'list'
+  channels: Record<NotificationChannelKey, boolean>
+}
 
 type UserInformationsResponse = {
   id: string
   name?: string | null
+  email?: string | null
   phoneNumber?: string | null
   notificationWhatsAppNumbers?: string[]
+  notificationEmails?: string[]
+  notificationPreferences?: Record<string, string[]>
+}
+
+const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
+  {
+    id: 'new-lead',
+    title: 'Novo lead',
+    description: 'Quando um novo lead é criado no sistema',
+    icon: 'bell',
+    channels: { inApp: true, whatsApp: false, email: false }
+  },
+  {
+    id: 'new-message',
+    title: 'Mensagem recebida',
+    description: 'Quando você recebe uma mensagem de um lead',
+    icon: 'message',
+    channels: { inApp: true, whatsApp: true, email: false }
+  },
+  {
+    id: 'followup-1h',
+    title: 'Follow-up a 1 hora do vencimento',
+    description: 'Quando falta 1 hora para um follow-up vencer',
+    icon: 'clock',
+    channels: { inApp: true, whatsApp: false, email: false }
+  },
+  {
+    id: 'followup-list',
+    title: 'Lista Follow-ups do dia',
+    description: 'Resumo diário de todos os follow-ups para hoje',
+    icon: 'list',
+    channels: { inApp: true, whatsApp: false, email: true }
+  }
+]
+
+const buildNotificationPreferences = (
+  apiPreferences?: Record<string, string[]> | null
+): NotificationPreference[] => {
+  const preferences = INITIAL_NOTIFICATION_PREFERENCES.map((pref) => ({
+    ...pref,
+    channels: {
+      inApp: false,
+      whatsApp: false,
+      email: false
+    }
+  }))
+
+  if (!apiPreferences || Object.keys(apiPreferences).length === 0) {
+    return preferences
+  }
+
+  const notificationTypeMap: Record<string, string> = {
+    NEW_LEAD: 'new-lead',
+    MESSAGE_RECEIVED: 'new-message',
+    FOLLOWUP_ONE_HOUR: 'followup-1h',
+    DAILY_FOLLOWUP_SUMMARY: 'followup-list'
+  }
+
+  const channelMap: Record<string, keyof typeof preferences[0]['channels']> = {
+    APP: 'inApp',
+    WHATSAPP: 'whatsApp',
+    EMAIL: 'email'
+  }
+
+  Object.entries(apiPreferences).forEach(([notificationType, channels]) => {
+    const preferencesId = notificationTypeMap[notificationType]
+    const preference = preferences.find((p) => p.id === preferencesId)
+
+    if (preference && Array.isArray(channels)) {
+      channels.forEach((channel) => {
+        const channelKey = channelMap[channel]
+        if (channelKey) {
+          preference.channels[channelKey] = true
+        }
+      })
+    }
+  })
+
+  return preferences
+}
+
+type WhatsAppNumber = {
+  id: string
+  number: string
+}
+
+type EmailAddress = {
+  id: string
+  email: string
 }
 
 const formatPhoneNumber = (value: string): string => {
@@ -161,10 +259,24 @@ export function AuthenticatedLayout() {
   const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState<boolean>(false)
   const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTab>('usuario')
   const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null)
+  const [selectedNotificationsTab, setSelectedNotificationsTab] = useState<'tipos' | 'canais' | 'preferencias'>('tipos')
+  const [whatsAppNumbers, setWhatsAppNumbers] = useState<WhatsAppNumber[]>([])
+  const [emailAddresses, setEmailAddresses] = useState<EmailAddress[]>([])
+  const [isAddingWhatsAppNumber, setIsAddingWhatsAppNumber] = useState<boolean>(false)
+  const [newWhatsAppNumber, setNewWhatsAppNumber] = useState<string>('')
+  const [editingWhatsAppNumberId, setEditingWhatsAppNumberId] = useState<string | null>(null)
+  const [editingWhatsAppNumberValue, setEditingWhatsAppNumberValue] = useState<string>('')
+  const [isAddingEmailAddress, setIsAddingEmailAddress] = useState<boolean>(false)
+  const [newEmailAddress, setNewEmailAddress] = useState<string>('')
+  const [editingEmailAddressId, setEditingEmailAddressId] = useState<string | null>(null)
+  const [editingEmailAddressValue, setEditingEmailAddressValue] = useState<string>('')
+  const [isListFollowupsTooltipVisible, setIsListFollowupsTooltipVisible] = useState<boolean>(false)
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState<boolean>(false)
+  const [isUpdatingPreferences, setIsUpdatingPreferences] = useState<boolean>(false)
   const [headerUserName, setHeaderUserName] = useState<string>('')
   const [settingsUserRole, setSettingsUserRole] = useState<string>('Administrador')
-  const [settingsUserInformationId, setSettingsUserInformationId] = useState<string>('')
   const [settingsUserName, setSettingsUserName] = useState<string>('')
+  const [settingsUserEmail, setSettingsUserEmail] = useState<string>('')
   const [settingsUserPhoneNumber, setSettingsUserPhoneNumber] = useState<string>('')
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false)
   const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('')
@@ -173,10 +285,7 @@ export function AuthenticatedLayout() {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false)
   const [passwordChangeFeedback, setPasswordChangeFeedback] = useState<string | null>(null)
   const [passwordChangeSucceeded, setPasswordChangeSucceeded] = useState<boolean>(false)
-  const [notificationNumbers, setNotificationNumbers] = useState<string[]>([])
-  const [notificationNumberInput, setNotificationNumberInput] = useState<string>('')
-  const [isSavingNotificationNumbers, setIsSavingNotificationNumbers] = useState<boolean>(false)
-  const [notificationNumbersFeedback, setNotificationNumbersFeedback] = useState<string | null>(null)
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreference[]>([])
   const greetingLabel = getGreetingLabel()
   const userFirstName =
     getFirstName(headerUserName) || getFirstName(settingsUserName) || getUserFirstName(authUserEmail)
@@ -267,22 +376,9 @@ export function AuthenticatedLayout() {
       }
 
       const primaryUserInformation = data[0]
-      setSettingsUserInformationId(primaryUserInformation?.id ?? '')
       setSettingsUserName(primaryUserInformation?.name?.trim() ?? '')
+      setSettingsUserEmail(primaryUserInformation?.email?.trim() ?? '')
       setSettingsUserPhoneNumber(primaryUserInformation?.phoneNumber?.trim() ?? '')
-
-      const uniqueNumbers = Array.from(
-        new Set(
-          data.flatMap((item) =>
-            (item.notificationWhatsAppNumbers ?? [])
-              .map((number) => number.trim())
-              .filter((number) => Boolean(number))
-          )
-        )
-      )
-
-      setNotificationNumbers(uniqueNumbers)
-      setNotificationNumbersFeedback(null)
     }
 
     void loadUserInformations()
@@ -291,6 +387,55 @@ export function AuthenticatedLayout() {
       isMounted = false
     }
   }, [isSettingsPanelOpen])
+
+  useEffect(() => {
+    if (!isSettingsPanelOpen || selectedSettingsTab !== 'notificacoes') {
+      return
+    }
+
+    let isMounted = true
+
+    const loadNotificationData = async () => {
+      try {
+        setIsLoadingNotifications(true)
+        const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+
+        if (!isMounted) {
+          return
+        }
+
+        const primaryUserInformation = data[0]
+
+        // Load WhatsApp Numbers
+        const whatsAppList = (primaryUserInformation?.notificationWhatsAppNumbers ?? []).map((number, index) => ({
+          id: String(index + 1),
+          number
+        }))
+        setWhatsAppNumbers(whatsAppList)
+
+        // Load Email Addresses
+        const emailList = (primaryUserInformation?.notificationEmails ?? []).map((email, index) => ({
+          id: String(index + 1),
+          email
+        }))
+        setEmailAddresses(emailList)
+
+        // Load Notification Preferences
+        const preferences = buildNotificationPreferences(primaryUserInformation?.notificationPreferences)
+        setNotificationPreferences(preferences)
+      } finally {
+        if (isMounted) {
+          setIsLoadingNotifications(false)
+        }
+      }
+    }
+
+    void loadNotificationData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isSettingsPanelOpen, selectedSettingsTab])
 
   useEffect(() => {
     if (!passwordChangeSucceeded || passwordChangeFeedback !== 'Senha alterada com sucesso.') {
@@ -310,69 +455,279 @@ export function AuthenticatedLayout() {
   const usuarioTabIsActive = selectedSettingsTab === 'usuario'
   const notificacoesTabIsActive = selectedSettingsTab === 'notificacoes'
 
-  const persistNotificationNumbers = async (nextNumbers: string[]) => {
-    if (!settingsUserInformationId) {
-      setNotificationNumbersFeedback('User informations não encontrado para salvar notificações.')
-      return false
+
+
+  const renderNotificationIcon = (iconType: NotificationPreference['icon']) => {
+    const iconProps = { size: 20, color: '#2f8f55' }
+    switch (iconType) {
+      case 'bell':
+        return <UserPlus {...iconProps} />
+      case 'message':
+        return <MessageCircle {...iconProps} />
+      case 'clock':
+        return <CalendarClock {...iconProps} />
+      case 'list':
+        return <CheckCircle2 {...iconProps} />
+      default:
+        return <UserPlus {...iconProps} />
+    }
+  }
+
+  const convertPreferencesToBackendFormat = (
+    prefs: NotificationPreference[]
+  ): Record<string, string[]> => {
+    const notificationTypeMap: Record<string, string> = {
+      'new-lead': 'NEW_LEAD',
+      'new-message': 'MESSAGE_RECEIVED',
+      'followup-1h': 'FOLLOWUP_ONE_HOUR',
+      'followup-list': 'DAILY_FOLLOWUP_SUMMARY'
     }
 
-    setIsSavingNotificationNumbers(true)
-    setNotificationNumbersFeedback(null)
+    const channelMap: Record<NotificationChannelKey, string> = {
+      inApp: 'APP',
+      whatsApp: 'WHATSAPP',
+      email: 'EMAIL'
+    }
 
+    const result: Record<string, string[]> = {}
+
+    prefs.forEach((pref) => {
+      const backendType = notificationTypeMap[pref.id]
+      if (!backendType) return
+
+      const enabledChannels = Object.entries(pref.channels)
+        .filter(([, isEnabled]) => isEnabled)
+        .map(([channel]) => channelMap[channel as NotificationChannelKey])
+
+      if (enabledChannels.length > 0) {
+        result[backendType] = enabledChannels
+      }
+    })
+
+    return result
+  }
+
+  const persistNotificationPreferences = async (updatedPreferences: NotificationPreference[]) => {
     try {
+      setIsUpdatingPreferences(true)
+      const backendFormat = convertPreferencesToBackendFormat(updatedPreferences)
+
+      const userInformationsId = getUserIdFromStoredAccessToken()
+      if (!userInformationsId) return
+
       await appApiClient.patch(
-        `/user/user-informations/${settingsUserInformationId}/notifications`,
-        {
-          notificationWhatsAppNumbers: nextNumbers
-        }
+        `/user/user-informations/${userInformationsId}/preferences`,
+        { notificationPreferences: backendFormat }
       )
-
-      setNotificationNumbers(nextNumbers)
-      setNotificationNumbersFeedback('Números de notificação salvos com sucesso.')
-      return true
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível salvar os números de notificação.'
-      setNotificationNumbersFeedback(errorMessage)
-      return false
+    } catch (error) {
+      console.error('Erro ao atualizar preferências de notificação:', error)
     } finally {
-      setIsSavingNotificationNumbers(false)
+      setIsUpdatingPreferences(false)
     }
   }
 
-  const handleAddNotificationNumber = async () => {
-    const normalizedNumber = notificationNumberInput.trim()
-
-    if (!normalizedNumber) {
-      setNotificationNumbersFeedback('Informe um número para adicionar.')
-      return
-    }
-
-    if (notificationNumbers.includes(normalizedNumber)) {
-      setNotificationNumbersFeedback('Esse número já está na lista.')
-      return
-    }
-
-    const nextNumbers = [...notificationNumbers, normalizedNumber]
-    const persisted = await persistNotificationNumbers(nextNumbers)
-
-    if (persisted) {
-      setNotificationNumberInput('')
-    }
-  }
-
-  const handleRemoveNotificationNumber = async (numberToRemove: string) => {
-    const nextNumbers = notificationNumbers.filter(
-      (currentNumber) => currentNumber !== numberToRemove
+  const toggleNotificationChannel = (
+    preferenceId: NotificationPreference['id'],
+    channel: NotificationChannelKey
+  ) => {
+    const updatedPreferences = notificationPreferences.map((pref) =>
+      pref.id === preferenceId
+        ? {
+            ...pref,
+            channels: {
+              ...pref.channels,
+              [channel]: !pref.channels[channel]
+            }
+          }
+        : pref
     )
 
-    await persistNotificationNumbers(nextNumbers)
+    setNotificationPreferences(updatedPreferences)
+    void persistNotificationPreferences(updatedPreferences)
   }
 
-  const handleClearNotificationNumbers = async () => {
-    await persistNotificationNumbers([])
+  const renderChannelSwitch = (
+    preferenceId: NotificationPreference['id'],
+    channel: NotificationChannelKey,
+    isEnabled: boolean
+  ) => {
+    return (
+      <button
+        type="button"
+        onClick={() => toggleNotificationChannel(preferenceId, channel)}
+        disabled={isUpdatingPreferences}
+        aria-label={`Alternar ${channel}`}
+        style={{
+          width: 44,
+          height: 26,
+          borderRadius: 999,
+          border: 'none',
+          background: isEnabled ? '#2f8f55' : '#d1d5db',
+          padding: 3,
+          cursor: isUpdatingPreferences ? 'not-allowed' : 'pointer',
+          opacity: isUpdatingPreferences ? 0.6 : 1,
+          display: 'inline-flex',
+          justifyContent: isEnabled ? 'flex-end' : 'flex-start',
+          alignItems: 'center',
+          transition: 'all 120ms ease'
+        }}
+      >
+        <span
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.2)'
+          }}
+        />
+      </button>
+    )
+  }
+
+  const formatWhatsAppNumber = (number: string): string => {
+    const digits = number.replace(/\D/g, '')
+    if (digits.length < 10) return number
+    
+    // Remove country code if present
+    let localDigits = digits
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+      localDigits = digits.slice(2)
+    }
+    
+    const areaCode = localDigits.slice(0, 2)
+    
+    if (localDigits.length === 10) {
+      // Fixo: (DDD) XXXX-XXXX
+      const firstPart = localDigits.slice(2, 6)
+      const secondPart = localDigits.slice(6, 10)
+      return `(${areaCode}) ${firstPart}-${secondPart}`
+    } else {
+      // Celular: (DDD) 9XXXX-XXXX
+      const firstPart = localDigits.slice(2, 7)
+      const secondPart = localDigits.slice(7, 11)
+      return `(${areaCode}) ${firstPart}-${secondPart}`
+    }
+  }
+
+  const formatWhatsAppInputNumber = (input: string): string => {
+    const digits = input.replace(/\D/g, '').slice(0, 11)
+    
+    if (digits.length === 0) return ''
+    
+    const ddd = digits.slice(0, 2)
+    const numberPart = digits.slice(2)
+    
+    if (digits.length <= 2) {
+      return `(${ddd}`
+    }
+    
+    if (numberPart.length <= 4) {
+      return `(${ddd})${numberPart}`
+    }
+    
+    if (numberPart.length <= 8) {
+      return `(${ddd})${numberPart.slice(0, 4)}-${numberPart.slice(4)}`
+    }
+    
+    return `(${ddd})${numberPart.slice(0, 5)}-${numberPart.slice(5, 9)}`
+  }
+
+  const isValidWhatsAppNumber = (number: string): boolean => {
+    const digits = number.replace(/\D/g, '')
+    return digits.length === 10 || digits.length === 11
+  }
+
+  const handleDeleteWhatsAppNumber = (id: string) => {
+    // Delete immediately without confirmation
+    setWhatsAppNumbers((prev) => prev.filter((num) => num.id !== id))
+  }
+
+  const handleStartEditWhatsAppNumber = (id: string, number: string) => {
+    setEditingWhatsAppNumberId(id)
+    // Remove 55 from the number to show in input (user edits only local digits)
+    const digits = number.replace(/\D/g, '')
+    const localDigits = digits.startsWith('55') ? digits.slice(2) : digits
+    setEditingWhatsAppNumberValue(localDigits)
+  }
+
+  const handleCancelEditWhatsAppNumber = () => {
+    setEditingWhatsAppNumberId(null)
+    setEditingWhatsAppNumberValue('')
+  }
+
+  const handleConfirmEditWhatsAppNumber = (id: string) => {
+    if (isValidWhatsAppNumber(editingWhatsAppNumberValue)) {
+      const digits = editingWhatsAppNumberValue.replace(/\D/g, '')
+      // Add country code if not present
+      const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
+      setWhatsAppNumbers((prev) =>
+        prev.map((num) => (num.id === id ? { ...num, number: numberWithCountryCode } : num))
+      )
+      setEditingWhatsAppNumberId(null)
+      setEditingWhatsAppNumberValue('')
+    }
+  }
+
+  const handleDeleteEmailAddress = (id: string) => {
+    // Delete immediately without confirmation
+    setEmailAddresses((prev) => prev.filter((email) => email.id !== id))
+  }
+
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const handleStartEditEmailAddress = (id: string, email: string) => {
+    setEditingEmailAddressId(id)
+    setEditingEmailAddressValue(email)
+  }
+
+  const handleCancelEditEmailAddress = () => {
+    setEditingEmailAddressId(null)
+    setEditingEmailAddressValue('')
+  }
+
+  const handleConfirmEditEmailAddress = (id: string) => {
+    if (isValidEmail(editingEmailAddressValue)) {
+      setEmailAddresses((prev) =>
+        prev.map((email) => (email.id === id ? { ...email, email: editingEmailAddressValue } : email))
+      )
+      setEditingEmailAddressId(null)
+      setEditingEmailAddressValue('')
+    }
+  }
+
+  const handleCancelAddEmailAddress = () => {
+    setIsAddingEmailAddress(false)
+    setNewEmailAddress('')
+  }
+
+  const handleConfirmAddEmailAddress = () => {
+    if (isValidEmail(newEmailAddress)) {
+      const newId = String(Math.max(...emailAddresses.map(e => parseInt(e.id, 10)), 0) + 1)
+      setEmailAddresses((prev) => [{ id: newId, email: newEmailAddress }, ...prev])
+      setIsAddingEmailAddress(false)
+      setNewEmailAddress('')
+    }
+  }
+
+  const handleCancelAddWhatsAppNumber = () => {
+    setIsAddingWhatsAppNumber(false)
+    setNewWhatsAppNumber('')
+  }
+
+  const handleConfirmAddWhatsAppNumber = () => {
+    if (isValidWhatsAppNumber(newWhatsAppNumber)) {
+      const newId = String(Math.max(...whatsAppNumbers.map(n => parseInt(n.id, 10)), 0) + 1)
+      const digits = newWhatsAppNumber.replace(/\D/g, '')
+      // Add country code if not present
+      const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
+      setWhatsAppNumbers((prev) => [{ id: newId, number: numberWithCountryCode }, ...prev])
+      setIsAddingWhatsAppNumber(false)
+      setNewWhatsAppNumber('')
+    }
   }
 
   const handleOpenChangePasswordForm = () => {
@@ -883,7 +1238,7 @@ export function AuthenticatedLayout() {
 
             <div
               style={{
-                padding: 24,
+                padding: '0 24px 24px 24px',
                 overflowY: 'auto',
                 minHeight: 0,
                 flex: 1
@@ -965,7 +1320,7 @@ export function AuthenticatedLayout() {
                           <Mail size={16} color="#64748b" />
                           <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>E-mail</span>
                           <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right' }}>
-                            {authUserEmail || '-'}
+                            {settingsUserEmail || authUserEmail || '-'}
                           </span>
                         </div>
 
@@ -1146,176 +1501,743 @@ export function AuthenticatedLayout() {
               ) : null}
 
               {selectedSettingsTab === 'notificacoes' ? (
-                <div style={{ display: 'grid', gap: 18 }}>
-                  <div style={{ display: 'grid', gap: 2 }}>
-                    <h3 style={{ margin: 0, color: '#111827', fontSize: 38 / 1.3, fontWeight: 800 }}>
-                      WhatsApp
-                    </h3>
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 14, fontWeight: 600 }}>
-                      Gerencie os números que receberão notificações de novos leads no Flow!
-                    </p>
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 14, fontWeight: 600 }}>
-                       Adicione os números no formato internacional, por exemplo: 5511999999999.
-                    </p>
-                  </div>
-
-                  <div
-                    style={{
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 12,
-                      background: '#ffffff',
-                      padding: 0,
-                      display: 'grid',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, borderBottom: '1px solid #e5e7eb' }}>
-                      <input
-                        type="text"
-                        value={notificationNumberInput}
-                        onChange={(event) => setNotificationNumberInput(event.target.value)}
-                        placeholder="Adicionar número WhatsApp"
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          height: 40,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 12px',
-                          fontSize: 14,
-                          color: '#111827',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleAddNotificationNumber()
-                        }}
-                        disabled={isSavingNotificationNumbers}
-                        style={{
-                          height: 40,
-                          border: 'none',
-                          borderRadius: 8,
-                          background: 'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
-                          color: '#ffffff',
-                          padding: '0 18px',
-                          fontSize: 30 / 1.7,
-                          fontWeight: 700,
-                          cursor: isSavingNotificationNumbers ? 'not-allowed' : 'pointer',
-                          opacity: isSavingNotificationNumbers ? 0.7 : 1
-                        }}
-                      >
-                        Adicionar
-                      </button>
-                    </div>
-
-                    {notificationNumbers.length ? (
-                      <ul
-                        style={{
-                          margin: 0,
-                          padding: '10px 12px',
-                          display: 'grid',
-                          gap: 6,
-                          listStyle: 'none'
-                        }}
-                      >
-                        {notificationNumbers.map((phoneNumber) => (
-                          <li
-                            key={phoneNumber}
-                            style={{
-                              minHeight: 48,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 12,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '6px 12px',
-                              gap: 12
-                            }}
-                          >
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-                              <MessageCircle size={17} color="#1f7a4d" />
-                              <span style={{ color: '#111827', fontSize: 16, fontWeight: 700 }}>
-                                {phoneNumber}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void handleRemoveNotificationNumber(phoneNumber)
-                              }}
-                              disabled={isSavingNotificationNumbers}
-                              style={{
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#9ca3af',
-                                cursor: isSavingNotificationNumbers ? 'not-allowed' : 'pointer',
-                                padding: 4,
-                                lineHeight: 0,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                opacity: isSavingNotificationNumbers ? 0.7 : 1
-                              }}
-                              aria-label="Remover numero"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p style={{ margin: 0, color: '#6b7280', fontSize: 14 }}>
-                        Nenhum número cadastrado.
-                      </p>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div
+                  style={{
+                    borderRadius: 12,
+                    background: '#ffffff',
+                    overflow: 'hidden',
+                    display: 'grid',
+                    gridTemplateRows: 'auto 1fr'
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}>
                     <button
                       type="button"
-                      onClick={() => {
-                        void handleClearNotificationNumbers()
-                      }}
-                      disabled={isSavingNotificationNumbers}
+                      onClick={() => setSelectedNotificationsTab('tipos')}
                       style={{
-                        height: 40,
-                        border: '1px solid #fecaca',
-                        borderRadius: 10,
-                        background: '#ffffff',
-                        color: '#dc2626',
-                        padding: '0 14px',
-                        fontSize: 30 / 1.7,
-                        fontWeight: 700,
-                        cursor: isSavingNotificationNumbers ? 'not-allowed' : 'pointer',
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: selectedNotificationsTab === 'tipos' ? '#2f8f55' : '#ffffff',
+                        color: selectedNotificationsTab === 'tipos' ? '#ffffff' : '#111827',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 8,
-                        opacity: isSavingNotificationNumbers ? 0.7 : 1
+                        gap: 6,
+                        border: selectedNotificationsTab === 'tipos' ? 'none' : '1px solid #d1d5db',
+                        flex: 1
                       }}
                     >
-                      <Trash2 size={16} />
-                      Limpar lista
+                      <Bell size={16} />
+                      Eventos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNotificationsTab('canais')}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: selectedNotificationsTab === 'canais' ? '#2f8f55' : '#ffffff',
+                        color: selectedNotificationsTab === 'canais' ? '#ffffff' : '#111827',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        border: selectedNotificationsTab === 'canais' ? 'none' : '1px solid #d1d5db',
+                        flex: 1
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      WhatsApps
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNotificationsTab('preferencias')}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: selectedNotificationsTab === 'preferencias' ? '#2f8f55' : '#ffffff',
+                        color: selectedNotificationsTab === 'preferencias' ? '#ffffff' : '#111827',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        border: selectedNotificationsTab === 'preferencias' ? 'none' : '1px solid #d1d5db',
+                        flex: 1
+                      }}
+                    >
+                      <Mail size={16} />
+                      E-mails
                     </button>
                   </div>
 
-                  {notificationNumbersFeedback ? (
-                    <p
-                      style={{
-                        margin: 0,
-                        color:
-                          notificationNumbersFeedback.includes('sucesso')
-                            ? '#166534'
-                            : '#b91c1c',
-                        fontSize: 13,
-                        fontWeight: 600
-                      }}
-                    >
-                      {notificationNumbersFeedback}
-                    </p>
+                  {selectedNotificationsTab === 'tipos' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                          Notificações
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b' }}>
+                          Escolha quais eventos você deseja receber e por qual canal
+                        </div>
+                      </div>
+
+                      {isLoadingNotifications ? (
+                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
+                          Carregando dados de notificações...
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '40% 20% 20% 20%',
+                              alignItems: 'center',
+                              gap: 0,
+                              padding: '12px 16px',
+                              background: '#ffffff',
+                              marginTop: 24,
+                            }}
+                          >
+                            <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 600 }}>
+                              
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                color: '#111827',
+                                fontSize: 14,
+                                fontWeight: 600
+                              }}
+                            >
+                              <Bell size={15} />
+                              App
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                color: '#111827',
+                                fontSize: 14,
+                                fontWeight: 600
+                              }}
+                            >
+                              <MessageCircle size={15} />
+                              WhatsApp
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                color: '#111827',
+                                fontSize: 14,
+                                fontWeight: 600
+                              }}
+                            >
+                              <Mail size={15} />
+                              E-mail
+                            </span>
+                          </div>
+
+                          <div>
+                            {notificationPreferences.map((preference, index) => (
+                          <div
+                            key={preference.id}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '40% 20% 20% 20%',
+                              alignItems: 'center',
+                              gap: 0,
+                              padding: '14px 16px',
+                              borderBottom:
+                                index === notificationPreferences.length - 1
+                                  ? 'none'
+                                  : '1px solid #e5e7eb',
+                              background: '#ffffff'
+                            }}
+                          >
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                              {renderNotificationIcon(preference.icon)}
+                              <span
+                                style={{
+                                  color: '#111827',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  lineHeight: 1.2
+                                }}
+                              >
+                                {preference.title}
+                              </span>
+                              {preference.title === 'Lista Follow-ups do dia' ? (
+                                <div style={{ position: 'relative', display: 'inline-flex' }}>
+                                  <button
+                                    type="button"
+                                    onMouseEnter={() => setIsListFollowupsTooltipVisible(true)}
+                                    onMouseLeave={() => setIsListFollowupsTooltipVisible(false)}
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      padding: 0,
+                                      cursor: 'help',
+                                      display: 'inline-flex',
+                                      alignItems: 'center'
+                                    }}
+                                    aria-label="Informação sobre envio da lista"
+                                  >
+                                    <AlertCircle size={14} color="#6b7280" />
+                                  </button>
+                                  {isListFollowupsTooltipVisible ? (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: '100%',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        marginBottom: 8,
+                                        background: '#1f2937',
+                                        color: '#ffffff',
+                                        padding: '8px 12px',
+                                        borderRadius: 6,
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        whiteSpace: 'nowrap',
+                                        zIndex: 1000,
+                                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                                      }}
+                                    >
+                                      Enviada às 7 da manhã
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          top: '100%',
+                                          left: '50%',
+                                          transform: 'translateX(-50%)',
+                                          width: 0,
+                                          height: 0,
+                                          borderLeft: '6px solid transparent',
+                                          borderRight: '6px solid transparent',
+                                          borderTop: '6px solid #1f2937'
+                                        }}
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                              {preference.id !== 'followup-list' && renderChannelSwitch(
+                                preference.id,
+                                'inApp',
+                                preference.channels.inApp
+                              )}
+                            </div>
+                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                              {renderChannelSwitch(
+                                preference.id,
+                                'whatsApp',
+                                preference.channels.whatsApp
+                              )}
+                            </div>
+                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
+                              {preference.id !== 'new-message' && renderChannelSwitch(
+                                preference.id,
+                                'email',
+                                preference.channels.email
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {selectedNotificationsTab === 'canais' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {isLoadingNotifications ? (
+                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
+                          Carregando dados de notificações...
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                              Números de WhatsApp
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
+                              Gerencie os números que irão receber notificações via WhatsApp
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingWhatsAppNumber(true)}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: 8,
+                              background: '#2f8f55',
+                              color: '#ffffff',
+                              fontSize: 14,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
+                              border: 'none',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                          >
+                            + Adicionar número
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '12px 16px' }}>
+                        {isAddingWhatsAppNumber ? (
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'auto 1fr auto auto',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '12px 0',
+                              borderBottom: '1px solid #e5e7eb'
+                            }}
+                          >
+                            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <MessageCircle size={20} color="#2f8f55" />
+                            </div>
+                            <input
+                              type="text"
+                              value={newWhatsAppNumber}
+                              onChange={(e) => setNewWhatsAppNumber(formatWhatsAppInputNumber(e.target.value))}
+                              placeholder="(00)00000-0000"
+                              maxLength={14}
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: '#111827',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                padding: '6px 10px',
+                                fontFamily: 'inherit'
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCancelAddWhatsAppNumber}
+                              aria-label="Cancelar"
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <X size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmAddWhatsAppNumber}
+                              disabled={!isValidWhatsAppNumber(newWhatsAppNumber)}
+                              aria-label="Confirmar"
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: isValidWhatsAppNumber(newWhatsAppNumber) ? '#2f8f55' : '#d1d5db',
+                                cursor: isValidWhatsAppNumber(newWhatsAppNumber) ? 'pointer' : 'not-allowed',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <Check size={16} />
+                            </button>
+                          </div>
+                        ) : null}
+                        {whatsAppNumbers.map((item, index) => (
+                          <div key={item.id}>
+                            {editingWhatsAppNumberId === item.id ? (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'auto 1fr auto auto',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '12px 0'
+                                }}
+                              >
+                                <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <MessageCircle size={20} color="#2f8f55" />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={editingWhatsAppNumberValue}
+                                  onChange={(e) => setEditingWhatsAppNumberValue(formatWhatsAppInputNumber(e.target.value))}
+                                  placeholder="(00)00000-0000"
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#111827',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 4,
+                                    padding: '8px 12px',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditWhatsAppNumber}
+                                  aria-label="Cancelar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <X size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmEditWhatsAppNumber(item.id)}
+                                  disabled={!isValidWhatsAppNumber(editingWhatsAppNumberValue)}
+                                  aria-label="Confirmar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? '#2f8f55' : '#d1d5db',
+                                    cursor: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? 'pointer' : 'not-allowed',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Check size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'auto 1fr auto auto',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '12px 0'
+                                }}
+                              >
+                                <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <MessageCircle size={20} color="#2f8f55" />
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                  {formatWhatsAppNumber(item.number)}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditWhatsAppNumber(item.id, item.number)}
+                                  aria-label="Editar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWhatsAppNumber(item.id)}
+                                  aria-label="Deletar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
+                            {index < whatsAppNumbers.length - 1 ? (
+                              <div style={{ height: '1px', background: '#e5e7eb' }} />
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {selectedNotificationsTab === 'preferencias' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                              Endereços de E-mail
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
+                              Gerencie os endereços que irão receber notificações via e-mail
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingEmailAddress(true)}
+                            style={{
+                              padding: '8px 14px',
+                              borderRadius: 8,
+                              background: '#2f8f55',
+                              color: '#ffffff',
+                              fontSize: 14,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 6,
+                              border: 'none',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                          >
+                            + Adicionar e-mail
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '12px 16px' }}>
+                        {isAddingEmailAddress ? (
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'auto 1fr auto auto',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '12px 0'
+                            }}
+                          >
+                            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <Mail size={20} color="#2f8f55" />
+                            </div>
+                            <input
+                              type="text"
+                              value={newEmailAddress}
+                              onChange={(e) => setNewEmailAddress(e.target.value)}
+                              placeholder="mail@email.com"
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: '#111827',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                padding: '8px 12px',
+                                fontFamily: 'inherit'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCancelAddEmailAddress}
+                              aria-label="Cancelar"
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <X size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmAddEmailAddress}
+                              disabled={!isValidEmail(newEmailAddress)}
+                              aria-label="Confirmar"
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                color: isValidEmail(newEmailAddress) ? '#2f8f55' : '#d1d5db',
+                                cursor: isValidEmail(newEmailAddress) ? 'pointer' : 'not-allowed',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              <Check size={16} />
+                            </button>
+                          </div>
+                        ) : null}
+                        {emailAddresses.map((item, index) => (
+                          <div key={item.id}>
+                            {editingEmailAddressId === item.id ? (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'auto 1fr auto auto',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '12px 0'
+                                }}
+                              >
+                                <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <Mail size={20} color="#2f8f55" />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={editingEmailAddressValue}
+                                  onChange={(e) => setEditingEmailAddressValue(e.target.value)}
+                                  placeholder="mail@email.com"
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#111827',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 4,
+                                    padding: '8px 12px',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditEmailAddress}
+                                  aria-label="Cancelar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <X size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmEditEmailAddress(item.id)}
+                                  disabled={!isValidEmail(editingEmailAddressValue)}
+                                  aria-label="Confirmar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: isValidEmail(editingEmailAddressValue) ? '#2f8f55' : '#d1d5db',
+                                    cursor: isValidEmail(editingEmailAddressValue) ? 'pointer' : 'not-allowed',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Check size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'auto 1fr auto auto',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '12px 0'
+                                }}
+                              >
+                                <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <Mail size={20} color="#2f8f55" />
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                  {item.email}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditEmailAddress(item.id, item.email)}
+                                  aria-label="Editar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEmailAddress(item.id)}
+                                  aria-label="Deletar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
+                            {index < emailAddresses.length - 1 ? (
+                              <div style={{ height: '1px', background: '#e5e7eb' }} />
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               ) : null}

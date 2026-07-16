@@ -5,7 +5,7 @@ export default function PrivacyPolicyPage() {
         maxWidth: 900,
         margin: '0 auto',
         padding: '40px 20px',
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: 'Montserrat, sans-serif',
         lineHeight: 1.6,
         color: '#111',
         backgroundColor: '#fff'

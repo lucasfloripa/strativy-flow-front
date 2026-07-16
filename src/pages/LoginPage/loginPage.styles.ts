@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import styled, { createGlobalStyle } from 'styled-components'
 
 export const GlobalStyle = createGlobalStyle`
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
   :root {
     color-scheme: light;
@@ -22,7 +22,7 @@ export const GlobalStyle = createGlobalStyle`
     margin: 0;
     background: #163d2e;
     color: #e6d5b8;
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+    font-family: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     overscroll-behavior: none;
   }
 `
