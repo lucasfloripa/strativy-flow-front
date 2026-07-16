@@ -13,6 +13,7 @@ import {
   CircleUserRound,
   Compass,
   Clock4,
+  Download,
   Facebook,
   Flame,
   Handshake,
@@ -57,6 +58,7 @@ import type {
   LeadStage,
   LeadRuntimeMode,
   NegotiationFollowUpResponse,
+  NegotiationAttachmentResponse,
   NegotiationNote,
   NegotiationResponse,
   NegotiationTemperature,
@@ -127,7 +129,7 @@ type NewBusinessNoteDraft = {
   description: string
 }
 
-type BusinessInnerTabKey = 'informacoes' | 'followups' | 'notas'
+type BusinessInnerTabKey = 'informacoes' | 'followups' | 'arquivos' | 'notas'
 
 const initialNewBusinessDraft: NewBusinessDraft = {
   negotiationType: '',
@@ -141,6 +143,23 @@ const initialNewBusinessDraft: NewBusinessDraft = {
 const initialNewBusinessNoteDraft: NewBusinessNoteDraft = {
   title: '',
   description: ''
+}
+
+const attachmentInputAccept =
+  '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif,.zip,.rar,.7z'
+
+const formatFileSize = (sizeInBytes: number): string => {
+  if (sizeInBytes < 1024) {
+    return `${sizeInBytes} B`
+  }
+
+  const sizeInKb = sizeInBytes / 1024
+  if (sizeInKb < 1024) {
+    return `${sizeInKb.toFixed(1)} KB`
+  }
+
+  const sizeInMb = sizeInKb / 1024
+  return `${sizeInMb.toFixed(1)} MB`
 }
 
 const tagIconStyle = {
@@ -647,6 +666,14 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   const [hoveredBusinessNoteIndex, setHoveredBusinessNoteIndex] = useState<number | null>(null)
   const [confirmingDeleteBusinessFollowUpId, setConfirmingDeleteBusinessFollowUpId] = useState<string | null>(null)
   const [hoveredBusinessFollowUpId, setHoveredBusinessFollowUpId] = useState<string | null>(null)
+  const [hoveredBusinessFileId, setHoveredBusinessFileId] = useState<string | null>(null)
+  const [businessAttachments, setBusinessAttachments] = useState<NegotiationAttachmentResponse[]>([])
+  const [isBusinessAttachmentsLoading, setIsBusinessAttachmentsLoading] = useState<boolean>(false)
+  const [isUploadingBusinessAttachment, setIsUploadingBusinessAttachment] = useState<boolean>(false)
+  const [confirmingDeleteBusinessAttachmentId, setConfirmingDeleteBusinessAttachmentId] = useState<string | null>(null)
+  const [deletingBusinessAttachmentId, setDeletingBusinessAttachmentId] = useState<string | null>(null)
+  const [downloadingBusinessAttachmentId, setDownloadingBusinessAttachmentId] = useState<string | null>(null)
+  const businessAttachmentInputRef = useRef<HTMLInputElement | null>(null)
   const [leadNegotiations, setLeadNegotiations] = useState<NegotiationResponse[]>([])
   const [negotiationFollowUps, setNegotiationFollowUps] = useState<NegotiationFollowUpResponse[]>([])
   const [businessesError, setBusinessesError] = useState<string | null>(null)
@@ -896,6 +923,99 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           ? exception.message
           : 'Falha ao atualizar status do follow-up.'
       setBusinessesError(message)
+    }
+  }
+
+  const loadBusinessAttachments = async (negotiationId: string) => {
+    setIsBusinessAttachmentsLoading(true)
+
+    try {
+      const attachments = await WebhookService.loadNegotiationAttachments(negotiationId)
+      setBusinessAttachments(attachments)
+      setBusinessesError(null)
+    } catch (exception: unknown) {
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao carregar arquivos do negocio.'
+
+      setBusinessesError(message)
+      setBusinessAttachments([])
+    } finally {
+      setIsBusinessAttachmentsLoading(false)
+    }
+  }
+
+  const handleUploadBusinessAttachment = async (
+    negotiationId: string,
+    file: File
+  ) => {
+    if (!leadId) {
+      throw new Error('Lead nao informado.')
+    }
+
+    setIsUploadingBusinessAttachment(true)
+
+    try {
+      setBusinessesError(null)
+      await WebhookService.uploadNegotiationAttachment(negotiationId, file)
+      await loadBusinessAttachments(negotiationId)
+      onLeadUpdated?.()
+    } catch (exception: unknown) {
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao enviar arquivo do negocio.'
+
+      setBusinessesError(message)
+    } finally {
+      setIsUploadingBusinessAttachment(false)
+    }
+  }
+
+  const handleDownloadBusinessAttachment = async (attachmentId: string) => {
+    setDownloadingBusinessAttachmentId(attachmentId)
+
+    try {
+      setBusinessesError(null)
+      const response = await WebhookService.getNegotiationAttachmentDownloadUrl(
+        attachmentId
+      )
+
+      window.open(response.url, '_blank', 'noopener,noreferrer')
+    } catch (exception: unknown) {
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao gerar link de download do arquivo.'
+
+      setBusinessesError(message)
+    } finally {
+      setDownloadingBusinessAttachmentId(null)
+    }
+  }
+
+  const handleDeleteBusinessAttachment = async (
+    attachmentId: string,
+    negotiationId: string
+  ) => {
+    setDeletingBusinessAttachmentId(attachmentId)
+
+    try {
+      setBusinessesError(null)
+      await WebhookService.deleteNegotiationAttachment(attachmentId)
+      await loadBusinessAttachments(negotiationId)
+      onLeadUpdated?.()
+    } catch (exception: unknown) {
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao excluir arquivo do negocio.'
+
+      setBusinessesError(message)
+    } finally {
+      setConfirmingDeleteBusinessAttachmentId(null)
+      setDeletingBusinessAttachmentId(null)
     }
   }
 
@@ -1239,6 +1359,13 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     setBusinessDetailDraft(null)
     setLeadNegotiations([])
     setNegotiationFollowUps([])
+    setBusinessAttachments([])
+    setIsBusinessAttachmentsLoading(false)
+    setIsUploadingBusinessAttachment(false)
+    setConfirmingDeleteBusinessAttachmentId(null)
+    setDeletingBusinessAttachmentId(null)
+    setDownloadingBusinessAttachmentId(null)
+    setHoveredBusinessFileId(null)
     setBusinessesError(null)
     setActiveBusinessTab(
       shouldOpenRequestedBusiness
@@ -1299,6 +1426,13 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       setEditingBusinessFollowUpId(null)
       setConfirmingDeleteBusinessFollowUpId(null)
       setHoveredBusinessFollowUpId(null)
+      setBusinessAttachments([])
+      setIsBusinessAttachmentsLoading(false)
+      setIsUploadingBusinessAttachment(false)
+      setConfirmingDeleteBusinessAttachmentId(null)
+      setDeletingBusinessAttachmentId(null)
+      setDownloadingBusinessAttachmentId(null)
+      setHoveredBusinessFileId(null)
       setBusinessDetailDraft(null)
 
       if (shouldPreserveRequestedBusiness) {
@@ -1379,6 +1513,27 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       setSelectedLeadNotesBusinessId(leadNegotiations[0].id)
     }
   }, [leadNegotiations, selectedLeadNotesBusinessId])
+
+  useEffect(() => {
+    if (activeBusinessTab === 'notas') {
+      return
+    }
+
+    setIsCreatingBusinessNote(false)
+    setViewingBusinessNoteIndex(null)
+    setEditingBusinessNoteIndex(null)
+    setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+    setHoveredBusinessNoteIndex(null)
+    requestedBusinessNoteIndexRef.current = null
+  }, [activeBusinessTab])
+
+  useEffect(() => {
+    if (activeBusinessTab !== 'arquivos' || !selectedBusinessId) {
+      return
+    }
+
+    void loadBusinessAttachments(selectedBusinessId)
+  }, [activeBusinessTab, selectedBusinessId])
 
   useEffect(() => {
     if (!isBusinessActionsOpen) {
@@ -3240,6 +3395,301 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     )
   }
 
+  const renderBusinessFilesTab = (negotiationId: string) => {
+    const filesColumns = '40% 15% 15% 15% 15%'
+    const filesRowMinHeight = 50
+
+    return (
+      <section
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          marginTop: 0,
+          flex: 1,
+          minHeight: 0
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (isUploadingBusinessAttachment) {
+                return
+              }
+
+              businessAttachmentInputRef.current?.click()
+            }}
+            style={{
+              width: 'fit-content',
+              border: 'none',
+              borderRadius: 8,
+              background: '#ffffff',
+              height: 42,
+              padding: '0 14px',
+              textAlign: 'left',
+              color: '#555555',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              lineHeight: 1.2,
+              opacity: isUploadingBusinessAttachment ? 0.7 : 1
+            }}
+          >
+            {isUploadingBusinessAttachment ? 'Enviando...' : '+ Adicionar arquivo'}
+          </button>
+
+          <input
+            ref={businessAttachmentInputRef}
+            type="file"
+            accept={attachmentInputAccept}
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              const selectedFile = event.target.files?.[0]
+
+              if (!selectedFile) {
+                return
+              }
+
+              void handleUploadBusinessAttachment(negotiationId, selectedFile)
+              event.target.value = ''
+            }}
+          />
+
+          <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
+            {businessAttachments.length} arquivo{businessAttachments.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1px solid #eeeeee',
+            borderRadius: 8,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: filesColumns,
+              alignItems: 'center',
+              justifyItems: 'start',
+              columnGap: 8,
+              background: '#f3f4f6',
+              borderBottom: '1px solid #ececec',
+              padding: '10px 12px'
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Nome</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Tipo</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Tamanho</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Enviado em</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Ações</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {isBusinessAttachmentsLoading ? (
+              <div style={{ padding: '10px 12px' }}>
+                <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Carregando arquivos...</p>
+              </div>
+            ) : businessAttachments.length === 0 ? (
+              <div style={{ padding: '10px 12px' }}>
+                <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Nenhum arquivo cadastrado.</p>
+              </div>
+            ) : (
+              businessAttachments.map((file) => {
+              const rowBackground =
+                hoveredBusinessFileId === file.id
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff'
+
+              if (confirmingDeleteBusinessAttachmentId === file.id) {
+                return (
+                  <div
+                    key={file.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: filesColumns,
+                      alignItems: 'center',
+                      justifyItems: 'start',
+                      columnGap: 8,
+                      borderBottom: '1px solid #f0f0f0',
+                      padding: '0 12px',
+                      background: rowBackground,
+                      minHeight: filesRowMinHeight,
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseEnter={() => setHoveredBusinessFileId(file.id)}
+                    onMouseLeave={() => setHoveredBusinessFileId(null)}
+                  >
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.2, color: '#2f2f2f' }}>
+                      Deletar arquivo?
+                    </p>
+                    <span />
+                    <span />
+                    <span />
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
+                      <button
+                        type="button"
+                        aria-label="Cancelar exclusão de arquivo"
+                        onClick={() => setConfirmingDeleteBusinessAttachmentId(null)}
+                        onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
+                        onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
+                        style={{
+                          height: 24,
+                          width: 24,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 4,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        X
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label="Confirmar exclusão de arquivo"
+                        disabled={deletingBusinessAttachmentId === file.id}
+                        onClick={() => void handleDeleteBusinessAttachment(file.id, negotiationId)}
+                        onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
+                        onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
+                        style={{
+                          height: 24,
+                          width: 24,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 4,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          opacity: deletingBusinessAttachmentId === file.id ? 0.7 : 1
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div
+                  key={file.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: filesColumns,
+                    alignItems: 'center',
+                    justifyItems: 'start',
+                    columnGap: 8,
+                    borderBottom: '1px solid #f0f0f0',
+                    padding: '0 12px',
+                    background: rowBackground,
+                    minHeight: filesRowMinHeight,
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseEnter={() => setHoveredBusinessFileId(file.id)}
+                  onMouseLeave={() => setHoveredBusinessFileId(null)}
+                >
+                <p
+                  style={{
+                    margin: 0,
+                    width: '100%',
+                    justifySelf: 'stretch',
+                    minWidth: 0,
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    color: '#2f2f2f',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {file.originalName}
+                </p>
+
+                <span style={{ fontSize: 12, color: '#4b5563', fontWeight: 700 }}>
+                  {file.extension.toUpperCase()}
+                </span>
+                <span style={{ fontSize: 12, color: '#4b5563', fontWeight: 700 }}>
+                  {formatFileSize(file.size)}
+                </span>
+                <span style={{ fontSize: 12, color: '#4b5563', fontWeight: 700 }}>
+                  {formatDate(file.createdAt)}
+                </span>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
+                  <button
+                    type="button"
+                    aria-label="Baixar arquivo"
+                    disabled={downloadingBusinessAttachmentId === file.id}
+                    onClick={() => void handleDownloadBusinessAttachment(file.id)}
+                    onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
+                    onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
+                    style={{
+                      height: 24,
+                      width: 24,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 4,
+                      background: '#ffffff',
+                      color: '#4b5563',
+                      padding: 0,
+                      cursor: 'pointer',
+                      opacity: downloadingBusinessAttachmentId === file.id ? 0.7 : 1
+                    }}
+                  >
+                    <Download size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-label="Excluir arquivo"
+                    onClick={() => {
+                      setConfirmingDeleteBusinessAttachmentId(file.id)
+                    }}
+                    onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
+                    onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
+                    style={{
+                      height: 24,
+                      width: 24,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 4,
+                      background: '#ffffff',
+                      color: '#4b5563',
+                      padding: 0,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                </div>
+              )
+            })
+            )}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   const renderBusinessesTab = () => {
     const businesses = leadNegotiations
     const selectedBusiness = selectedBusinessId
@@ -3334,6 +3784,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 {[
                   { key: 'informacoes' as const, label: 'Informações' },
                   { key: 'followups' as const, label: 'FollowUps' },
+                  { key: 'arquivos' as const, label: 'Arquivos' },
                   { key: 'notas' as const, label: 'Notas' }
                 ].map((tab) => {
                   const isActive = activeBusinessTab === tab.key
@@ -3413,12 +3864,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           <div style={{ display: 'grid', gap: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800 }}>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
                   {(isEditingBusiness ? businessDetailDraft?.title : selectedBusinessTitle) || 'Negócio sem nome'}
                 </h2>
               </div>
 
-              {!isEditingBusiness && activeBusinessTab !== 'followups' && activeBusinessTab !== 'notas' ? (
+              {!isEditingBusiness && activeBusinessTab !== 'followups' && activeBusinessTab !== 'arquivos' && activeBusinessTab !== 'notas' ? (
                   <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                   <button
                     type="button"
@@ -3586,6 +4037,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
             {!isEditingBusiness && !shouldShowDeleteBusinessConfirmation && !shouldShowCloseBusinessConfirmation && activeBusinessTab === 'followups'
               ? renderBusinessFollowUpsTab(selectedBusiness.id)
+              : null}
+
+            {!isEditingBusiness && !shouldShowDeleteBusinessConfirmation && !shouldShowCloseBusinessConfirmation && activeBusinessTab === 'arquivos'
+              ? renderBusinessFilesTab(selectedBusiness.id)
               : null}
 
             {!isEditingBusiness && shouldShowCloseBusinessConfirmation ? (

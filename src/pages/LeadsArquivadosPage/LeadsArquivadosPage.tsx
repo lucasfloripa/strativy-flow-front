@@ -162,7 +162,7 @@ export default function LeadsArquivadosPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 18, color: '#111827', lineHeight: 1.2 }}>
-          Arquivados
+          Leads Arquivados
         </h1>
 
         <input

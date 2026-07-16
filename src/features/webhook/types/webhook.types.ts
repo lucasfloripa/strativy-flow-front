@@ -156,3 +156,18 @@ export type CreateNegotiationFollowUpPayload = {
   value: string
   dueAt: string
 }
+
+export type NegotiationAttachmentResponse = {
+  id: string
+  originalName: string
+  mimeType: string
+  extension: string
+  size: number
+  createdAt: string
+  uploadedByUserId: string
+}
+
+export type NegotiationAttachmentDownloadUrlResponse = {
+  url: string
+  expiresIn: number
+}

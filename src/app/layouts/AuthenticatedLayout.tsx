@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, Edit, Home, Lock, LogOut, Mail, MessageCircle, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -1002,6 +1002,24 @@ export function AuthenticatedLayout() {
             </li>
             <li>
               <NavLink
+                to="/arquivos"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'arquivos',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('arquivos')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <FileText size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Arquivos</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
                 to="/arquivados"
                 onClick={() => setIsSettingsPanelOpen(false)}
                 style={({ isActive }) =>
@@ -1015,7 +1033,7 @@ export function AuthenticatedLayout() {
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Archive size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Arquivados</span> : null}
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Leads Arquivados</span> : null}
               </NavLink>
             </li>
           </ul>

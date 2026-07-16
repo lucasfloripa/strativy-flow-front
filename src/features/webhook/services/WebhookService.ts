@@ -12,6 +12,8 @@ import type {
   LeadFollowUpStatus,
   LeadResponse,
   LeadRuntimeMode,
+  NegotiationAttachmentDownloadUrlResponse,
+  NegotiationAttachmentResponse,
   NegotiationFollowUpResponse,
   NegotiationResponse,
   UpdateNegotiationPayload,
@@ -206,5 +208,49 @@ export const WebhookService = {
 
   async deleteNegotiationFollowUp(followUpId: string): Promise<void> {
     await appApiClient.delete(`/followups/${followUpId}`)
+  },
+
+  async loadNegotiationAttachments(
+    negotiationId: string
+  ): Promise<NegotiationAttachmentResponse[]> {
+    const { data } = await appApiClient.get<NegotiationAttachmentResponse[]>(
+      `/negotiations/${negotiationId}/attachments`
+    )
+
+    return data ?? []
+  },
+
+  async uploadNegotiationAttachment(
+    negotiationId: string,
+    file: File
+  ): Promise<NegotiationAttachmentResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const { data } = await appApiClient.post<NegotiationAttachmentResponse>(
+      `/negotiations/${negotiationId}/attachments`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    return data
+  },
+
+  async getNegotiationAttachmentDownloadUrl(
+    attachmentId: string
+  ): Promise<NegotiationAttachmentDownloadUrlResponse> {
+    const { data } = await appApiClient.get<NegotiationAttachmentDownloadUrlResponse>(
+      `/negotiations/attachments/${attachmentId}/download`
+    )
+
+    return data
+  },
+
+  async deleteNegotiationAttachment(attachmentId: string): Promise<void> {
+    await appApiClient.delete(`/negotiations/attachments/${attachmentId}`)
   }
 }
