@@ -461,6 +461,10 @@ const getNotificationNavigation = (
           initialLeadTab: 'chat'
         }
       }
+    case 'FOLLOW_UP_REMINDER_1H':
+      return {
+        path: '/agenda?followUp=today'
+      }
     default:
       return {
         path: '/leads'
