@@ -20,6 +20,24 @@ body,
   overflow: hidden;
 }
 
+html.ios-safari-browser,
+html.ios-safari-browser body {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
+html.ios-safari-browser body {
+  min-height: 100.3vh;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.ios-safari-browser #root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
 body {
   font-family: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   padding-bottom: env(safe-area-inset-bottom);

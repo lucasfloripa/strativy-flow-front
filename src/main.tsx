@@ -14,7 +14,7 @@ import AgendaPage from './pages/AgendaPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
 
-const setupIosSafariToolbarFallback = () => {
+const setupIosSafariBrowserMode = () => {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
     return
   }
@@ -24,22 +24,36 @@ const setupIosSafariToolbarFallback = () => {
   const isSafariBrowser = /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent)
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true
 
-  if (!isIosDevice || !isSafariBrowser || isStandalone) {
+  if (!isIosDevice || !isSafariBrowser) {
+    return
+  }
+
+  if (!isStandalone) {
+    document.documentElement.classList.add('ios-safari-browser')
+  }
+
+  if (isStandalone) {
     return
   }
 
   const nudgeToolbar = () => {
     window.requestAnimationFrame(() => {
       window.scrollTo(0, 1)
+      window.setTimeout(() => {
+        window.scrollTo(0, 1)
+      }, 120)
     })
   }
 
   window.addEventListener('load', nudgeToolbar)
   window.addEventListener('orientationchange', nudgeToolbar)
+  window.addEventListener('resize', nudgeToolbar)
   window.addEventListener('touchend', nudgeToolbar, { passive: true })
+
+  window.setTimeout(nudgeToolbar, 250)
 }
 
-setupIosSafariToolbarFallback()
+setupIosSafariBrowserMode()
 
 export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   if (localStorage.getItem('accessToken')) {
