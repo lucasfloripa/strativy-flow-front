@@ -6380,12 +6380,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           padding: isMobile ? '22px 18px 28px' : 0
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <h3 style={{ margin: 0, color: '#0f172a', fontSize: isMobile ? 24 : 20, fontWeight: 700 }}>
-            Nova nota
-          </h3>
+        {isMobile ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
+              Nova nota
+            </h3>
 
-          {isMobile ? (
             <button
               type="button"
               aria-label="Fechar criação de nota"
@@ -6406,8 +6406,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             >
               X
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {leadTabNotesError ? (
           <p style={{ margin: 0, color: '#b91c1c', fontSize: 13 }}>{leadTabNotesError}</p>
@@ -6543,246 +6543,283 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       </section>
     )
 
+    const shouldShowDesktopCreateOnly = !isMobile && isCreatingLeadTabNote
+
     return (
       <section style={{ display: 'grid', alignContent: 'start', gap: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <button
-            type="button"
-            onClick={() => {
-              if (!canOpenCreateLeadTabNote) {
-                return
-              }
-
-              setIsCreatingLeadTabNote(true)
-              setLeadTabNotesError(null)
-              setNewLeadTabNoteDraft({
-                businessId: selectedLeadNotesBusinessId || selectedNotesBusiness?.id || defaultNotesBusiness?.id || '',
-                title: '',
-                description: ''
-              })
-            }}
-            disabled={!canOpenCreateLeadTabNote}
-            style={{
-              width: 'fit-content',
-              border: 'none',
-              borderRadius: 8,
-              background: '#ffffff',
-              height: 42,
-              padding: '0 14px',
-              textAlign: 'left',
-              color: '#555555',
-              cursor: canOpenCreateLeadTabNote ? 'pointer' : 'not-allowed',
-              fontSize: 13,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              lineHeight: 1.2,
-              opacity: canOpenCreateLeadTabNote ? 1 : 0.65
-            }}
-          >
-            + Adicionar nota
-          </button>
-
-          <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
-            {notesTotal} nota{notesTotal === 1 ? '' : 's'}
-          </span>
-        </div>
-
-        <div style={{ display: 'grid', gap: 8, width: '100%', maxWidth: isMobile ? 'none' : 320 }}>
-          <label style={{ color: '#1f2937', fontSize: 14, fontWeight: 700 }}>Negocio</label>
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedLeadNotesBusinessId}
-              onChange={(event) => setSelectedLeadNotesBusinessId(event.target.value)}
-              disabled={notesBusinesses.length === 0}
-              style={{
-                width: '100%',
-                height: 38,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 36px 0 10px',
-                color: '#111827',
-                fontSize: 14,
-                fontWeight: 600,
-                appearance: 'none',
-                background: '#ffffff',
-                boxSizing: 'border-box',
-                cursor: notesBusinesses.length === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              <option value="">Selecione</option>
-              {notesBusinesses.length > 0
-                ? notesBusinesses.map((business) => (
-                    <option key={business.id} value={business.id}>
-                      {business.title?.trim() || 'Negócio sem nome'}
-                    </option>
-                  ))
-                : null}
-            </select>
-            <span
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#6b7280',
-                pointerEvents: 'none'
-              }}
-            >
-              <ChevronDown size={16} />
-            </span>
-          </div>
-        </div>
-
-        {!isMobile && isCreatingLeadTabNote ? (
-          <article
-            style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: 16,
-              padding: 20,
-              background: '#ffffff',
-              display: 'grid',
-              gap: 18,
-              maxWidth: 760
-            }}
-          >
-            {leadTabNoteCreateForm}
-          </article>
-        ) : null}
-
-        <div style={{ display: 'grid', gap: 8 }}>
-          {!selectedNotesBusiness ? (
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-              Nenhum negócio cadastrado para este lead.
-            </p>
-          ) : selectedNotesBusinessNotes.length === 0 ? (
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Nenhuma nota cadastrada.</p>
-          ) : (
-            selectedNotesBusinessNotes.map(({ note, originalIndex }, noteIndex) => (
-              <article
-                key={`${selectedNotesBusiness.id}-lead-note-${noteIndex}`}
+        {!shouldShowDesktopCreateOnly ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <button
+                type="button"
                 onClick={() => {
-                  setActiveTab('negocios')
-                  setIsCreatingBusinessNote(false)
-                  setEditingBusinessNoteIndex(null)
-                  setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
-
-                  if (selectedBusinessId === selectedNotesBusiness.id) {
-                    setActiveBusinessTab('notas')
-                    setViewingBusinessNoteIndex(originalIndex)
-                  } else {
-                    requestedBusinessTabRef.current = 'notas'
-                    requestedBusinessNoteIndexRef.current = originalIndex
-                    setSelectedBusinessId(selectedNotesBusiness.id)
+                  if (!canOpenCreateLeadTabNote) {
+                    return
                   }
+
+                  setIsCreatingLeadTabNote(true)
+                  setLeadTabNotesError(null)
+                  setNewLeadTabNoteDraft({
+                    businessId: selectedLeadNotesBusinessId || selectedNotesBusiness?.id || defaultNotesBusiness?.id || '',
+                    title: '',
+                    description: ''
+                  })
                 }}
-                onMouseEnter={() => setHoveredBusinessNoteIndex(originalIndex)}
-                onMouseLeave={() => setHoveredBusinessNoteIndex(null)}
+                disabled={!canOpenCreateLeadTabNote}
                 style={{
-                  position: 'relative',
-                  width: '100%',
-                  border:
-                    hoveredBusinessNoteIndex === originalIndex
-                      ? '1px solid #bfd6cb'
-                      : '1px solid #dbe3ef',
-                  borderRadius: 18,
-                  background:
-                    hoveredBusinessNoteIndex === originalIndex
-                      ? '#f8fffb'
-                      : '#ffffff',
-                  padding: '10px 28px',
-                  minHeight: 90,
-                  boxSizing: 'border-box',
-                  display: 'grid',
-                  gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                  width: 'fit-content',
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  height: 42,
+                  padding: '0 14px',
+                  textAlign: 'left',
+                  color: '#555555',
+                  cursor: canOpenCreateLeadTabNote ? 'pointer' : 'not-allowed',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
                   alignItems: 'center',
-                  columnGap: 20,
-                  overflow: 'hidden',
-                  boxShadow:
-                    hoveredBusinessNoteIndex === originalIndex
-                      ? '0 12px 28px rgba(15, 23, 42, 0.09)'
-                      : '0 8px 24px rgba(15, 23, 42, 0.05)',
-                  cursor: 'pointer'
+                  lineHeight: 1.2,
+                  opacity: canOpenCreateLeadTabNote ? 1 : 0.65
                 }}
               >
+                + Adicionar nota
+              </button>
+
+              <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
+                {notesTotal} nota{notesTotal === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gap: 8, width: '100%', maxWidth: isMobile ? 'none' : 320 }}>
+              <label style={{ color: '#1f2937', fontSize: 14, fontWeight: 700 }}>Negocio</label>
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedLeadNotesBusinessId}
+                  onChange={(event) => setSelectedLeadNotesBusinessId(event.target.value)}
+                  disabled={notesBusinesses.length === 0}
+                  style={{
+                    width: '100%',
+                    height: 38,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 36px 0 10px',
+                    color: '#111827',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    appearance: 'none',
+                    background: '#ffffff',
+                    boxSizing: 'border-box',
+                    cursor: notesBusinesses.length === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <option value="">Selecione</option>
+                  {notesBusinesses.length > 0
+                    ? notesBusinesses.map((business) => (
+                        <option key={business.id} value={business.id}>
+                          {business.title?.trim() || 'Negócio sem nome'}
+                        </option>
+                      ))
+                    : null}
+                </select>
                 <span
                   style={{
                     position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: 0,
-                    height: 0,
-                    borderTop: '52px solid #2ecc71',
-                    borderRight: '52px solid transparent'
-                  }}
-                />
-
-                <div
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: '50%',
-                    background: '#eafaf0',
-                    color: '#16a34a',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    alignSelf: 'center'
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280',
+                    pointerEvents: 'none'
                   }}
                 >
-                  <FileText size={18} />
-                </div>
-
-                <div style={{ minWidth: 0, display: 'grid', gap: 4, paddingTop: 2, alignSelf: 'center' }}>
-                  <span
-                    style={{
-                      color: '#0f172a',
-                      fontSize: 17,
-                      fontWeight: 800,
-                      lineHeight: 1.2,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {note.title?.trim() || 'Destacada'}
-                  </span>
-
-                  <span
-                    style={{
-                      color: '#64748b',
-                      fontSize: 15,
-                      fontWeight: 500,
-                      lineHeight: 1.35,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      width: '70%',
-                      maxWidth: '70%'
-                    }}
-                  >
-                    {formatBusinessNotePreview(note.description)}
-                  </span>
-                </div>
-
-                <span
-                  style={{
-                    color: '#111827',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    whiteSpace: 'nowrap',
-                    justifySelf: 'end',
-                    alignSelf: 'start'
-                  }}
-                >
-                  {formatDateOnly(note.createdAt) || '-'}
+                  <ChevronDown size={16} />
                 </span>
-              </article>
-            ))
-          )}
-        </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {!isMobile && isCreatingLeadTabNote ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+                Nova nota
+              </h2>
+
+              <button
+                type="button"
+                onClick={handleCloseLeadTabCreateNote}
+                style={{
+                  height: 28,
+                  minWidth: 28,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: '#6b7280',
+                  padding: '0 8px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  lineHeight: 1
+                }}
+                aria-label="Fechar criação de nota"
+              >
+                X
+              </button>
+            </div>
+
+            <article
+              style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 16,
+                padding: 20,
+                background: '#ffffff',
+                display: 'grid',
+                gap: 18,
+                maxWidth: 760
+              }}
+            >
+              {leadTabNoteCreateForm}
+            </article>
+          </>
+        ) : null}
+
+        {!shouldShowDesktopCreateOnly ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {!selectedNotesBusiness ? (
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
+                Nenhum negócio cadastrado para este lead.
+              </p>
+            ) : selectedNotesBusinessNotes.length === 0 ? (
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Nenhuma nota cadastrada.</p>
+            ) : (
+              selectedNotesBusinessNotes.map(({ note, originalIndex }, noteIndex) => (
+                <article
+                  key={`${selectedNotesBusiness.id}-lead-note-${noteIndex}`}
+                  onClick={() => {
+                    setActiveTab('negocios')
+                    setIsCreatingBusinessNote(false)
+                    setEditingBusinessNoteIndex(null)
+                    setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+
+                    if (selectedBusinessId === selectedNotesBusiness.id) {
+                      setActiveBusinessTab('notas')
+                      setViewingBusinessNoteIndex(originalIndex)
+                    } else {
+                      requestedBusinessTabRef.current = 'notas'
+                      requestedBusinessNoteIndexRef.current = originalIndex
+                      setSelectedBusinessId(selectedNotesBusiness.id)
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredBusinessNoteIndex(originalIndex)}
+                  onMouseLeave={() => setHoveredBusinessNoteIndex(null)}
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    border:
+                      hoveredBusinessNoteIndex === originalIndex
+                        ? '1px solid #bfd6cb'
+                        : '1px solid #dbe3ef',
+                    borderRadius: 18,
+                    background:
+                      hoveredBusinessNoteIndex === originalIndex
+                        ? '#f8fffb'
+                        : '#ffffff',
+                    padding: '10px 28px',
+                    minHeight: 90,
+                    boxSizing: 'border-box',
+                    display: 'grid',
+                    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                    alignItems: 'center',
+                    columnGap: 20,
+                    overflow: 'hidden',
+                    boxShadow:
+                      hoveredBusinessNoteIndex === originalIndex
+                        ? '0 12px 28px rgba(15, 23, 42, 0.09)'
+                        : '0 8px 24px rgba(15, 23, 42, 0.05)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: 0,
+                      height: 0,
+                      borderTop: '52px solid #2ecc71',
+                      borderRight: '52px solid transparent'
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: '50%',
+                      background: '#eafaf0',
+                      color: '#16a34a',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      alignSelf: 'center'
+                    }}
+                  >
+                    <FileText size={18} />
+                  </div>
+
+                  <div style={{ minWidth: 0, display: 'grid', gap: 4, paddingTop: 2, alignSelf: 'center' }}>
+                    <span
+                      style={{
+                        color: '#0f172a',
+                        fontSize: 17,
+                        fontWeight: 800,
+                        lineHeight: 1.2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {note.title?.trim() || 'Destacada'}
+                    </span>
+
+                    <span
+                      style={{
+                        color: '#64748b',
+                        fontSize: 15,
+                        fontWeight: 500,
+                        lineHeight: 1.35,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        width: '70%',
+                        maxWidth: '70%'
+                      }}
+                    >
+                      {formatBusinessNotePreview(note.description)}
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      color: '#111827',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                      justifySelf: 'end',
+                      alignSelf: 'start'
+                    }}
+                  >
+                    {formatDateOnly(note.createdAt) || '-'}
+                  </span>
+                </article>
+              ))
+            )}
+          </div>
+        ) : null}
 
         {isMobile && isCreatingLeadTabNote ? (
           <>
