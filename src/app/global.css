@@ -11,6 +11,7 @@ body,
 #root {
   width: 100%;
   height: 100%;
+  min-height: 100dvh;
   margin: 0;
 }
 
@@ -21,6 +22,15 @@ body,
 
 body {
   font-family: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@supports (-webkit-touch-callout: none) {
+  html,
+  body,
+  #root {
+    min-height: -webkit-fill-available;
+  }
 }
 
 button,
