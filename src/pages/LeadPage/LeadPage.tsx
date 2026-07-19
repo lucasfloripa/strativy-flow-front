@@ -39,6 +39,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import {
   formatDate,
   formatDateTime,
@@ -129,6 +130,12 @@ type NewBusinessNoteDraft = {
   description: string
 }
 
+type NewLeadTabNoteDraft = {
+  businessId: string
+  title: string
+  description: string
+}
+
 type BusinessInnerTabKey = 'informacoes' | 'followups' | 'arquivos' | 'notas'
 
 const initialNewBusinessDraft: NewBusinessDraft = {
@@ -141,6 +148,12 @@ const initialNewBusinessDraft: NewBusinessDraft = {
 }
 
 const initialNewBusinessNoteDraft: NewBusinessNoteDraft = {
+  title: '',
+  description: ''
+}
+
+const initialNewLeadTabNoteDraft: NewLeadTabNoteDraft = {
+  businessId: '',
   title: '',
   description: ''
 }
@@ -514,10 +527,8 @@ const formatLeadValue = (value?: string | null): string => {
     return '-'
   }
 
-  const hasCents = Math.round(parsed * 100) % 100 !== 0
-
   return new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: hasCents ? 2 : 0,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(parsed)
 }
@@ -603,6 +614,7 @@ const getLeadStageLabel = (stage?: string | null): string => {
 }
 
 export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
+  const { isMobile } = useViewportBreakpoint()
   const { leadId } = useParams<{ leadId: string }>()
   const location = useLocation()
   const navigate = useNavigate()
@@ -651,6 +663,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   const [newBusinessNoteDraft, setNewBusinessNoteDraft] = useState<NewBusinessNoteDraft>(
     initialNewBusinessNoteDraft
   )
+  const [isCreatingLeadTabNote, setIsCreatingLeadTabNote] = useState<boolean>(false)
+  const [newLeadTabNoteDraft, setNewLeadTabNoteDraft] = useState<NewLeadTabNoteDraft>(
+    initialNewLeadTabNoteDraft
+  )
+  const [leadTabNotesError, setLeadTabNotesError] = useState<string | null>(null)
   const [hoveredLeadTab, setHoveredLeadTab] = useState<LeadTabKey | null>(null)
   const [hoveredBusinessTab, setHoveredBusinessTab] = useState<BusinessInnerTabKey | null>(null)
   const [hoveredBusinessId, setHoveredBusinessId] = useState<string | null>(null)
@@ -846,6 +863,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       const message = exception instanceof Error ? exception.message : 'Falha ao criar follow-up.'
       setFollowUpsError(message)
     }
+  }
+
+  const handleCancelAgendaFollowUpCreation = () => {
+    setIsCreatingAgendaFollowUp(false)
+    setFollowUpsError(null)
   }
 
   const handleUpdateNegotiationFollowUp = async (
@@ -1282,6 +1304,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       void saveLeadNotes()
     }
 
+    if (activeTab === 'followups' && nextTab !== 'followups') {
+      handleCancelAgendaFollowUpCreation()
+    }
+
     setActiveTab(nextTab)
     if (nextTab !== 'negocios') {
       setIsCreatingBusiness(false)
@@ -1502,6 +1528,9 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       if (selectedLeadNotesBusinessId) {
         setSelectedLeadNotesBusinessId('')
       }
+      setIsCreatingLeadTabNote(false)
+      setNewLeadTabNoteDraft(initialNewLeadTabNoteDraft)
+      setLeadTabNotesError(null)
       return
     }
 
@@ -1509,8 +1538,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       (business) => business.id === selectedLeadNotesBusinessId
     )
 
-    if (!hasSelectedBusiness) {
-      setSelectedLeadNotesBusinessId(leadNegotiations[0].id)
+    if (!hasSelectedBusiness && selectedLeadNotesBusinessId) {
+      setSelectedLeadNotesBusinessId('')
     }
   }, [leadNegotiations, selectedLeadNotesBusinessId])
 
@@ -1526,6 +1555,16 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     setHoveredBusinessNoteIndex(null)
     requestedBusinessNoteIndexRef.current = null
   }, [activeBusinessTab])
+
+  useEffect(() => {
+    if (activeTab === 'notas') {
+      return
+    }
+
+    setIsCreatingLeadTabNote(false)
+    setNewLeadTabNoteDraft(initialNewLeadTabNoteDraft)
+    setLeadTabNotesError(null)
+  }, [activeTab])
 
   useEffect(() => {
     if (activeBusinessTab !== 'arquivos' || !selectedBusinessId) {
@@ -1619,6 +1658,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
     return (
       <section
+        className="mobile-tabs-scrollbar-hidden"
         style={{
           display: 'grid',
           alignContent: 'start',
@@ -1626,10 +1666,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           height: '100%',
           minHeight: 0,
           overflowY: 'auto',
-          paddingRight: 4,
+          paddingRight: isMobile ? 0 : 4,
           boxSizing: 'border-box'
         }}
       >
+        {!isMobile ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1802,6 +1843,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               ) : null}
             </div>
           </div>
+        ) : null}
 
           {isConfirmingLeadDelete ? (
             <article
@@ -2010,373 +2052,319 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 </span>
                 <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Informações</h3>
               </div>
-
-              {isEditingLeadInfo ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginLeft: 'auto' }}>
-                  <button
-                    type="button"
-                    onClick={handleCancelLeadInfoEdit}
-                    style={{
-                      minWidth: 100,
-                      height: 36,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancelar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleSaveLeadInfo()
-                    }}
-                    style={{
-                      minWidth: 100,
-                      height: 36,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: '#1f7a4d',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Salvar
-                  </button>
-                </div>
-              ) : null}
             </div>
 
             {isEditingLeadInfo ? (
-            <div
-              style={{
-                marginTop: 12,
-                display: 'grid',
-                gridTemplateColumns: '160px minmax(0, 1fr)',
-                rowGap: 10,
-                columnGap: 16,
-                alignItems: 'center'
-              }}
-            >
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
-              {isEditingLeadInfo ? (
-                <input
-                  type="text"
-                  value={infoDraft.name}
-                  onChange={(event) =>
-                    setInfoDraft((current) => ({ ...current, name: event.target.value }))
-                  }
-                  autoComplete="new-password"
-                  style={{
-                    height: 36,
-                    maxWidth: 360,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 16,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              ) : (
-                <span style={{ color: '#111827', fontSize: 17, fontWeight: 600 }}>
-                  {leadData?.name?.trim() || '-'}
-                </span>
-              )}
+              <div
+                style={{
+                  marginTop: 12,
+                  display: 'grid',
+                  gap: 14,
+                  maxWidth: 520
+                }}
+              >
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Nome</span>
+                  <input
+                    type="text"
+                    value={infoDraft.name}
+                    onChange={(event) =>
+                      setInfoDraft((current) => ({ ...current, name: event.target.value }))
+                    }
+                    autoComplete="new-password"
+                    style={{
+                      width: '100%',
+                      height: 42,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 12px',
+                      fontSize: 16,
+                      color: '#111827',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
 
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Telefone</span>
-              {isEditingLeadInfo ? (
-                <input
-                  type="text"
-                  value={infoDraft.phone}
-                  onChange={(event) =>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Telefone</span>
+                  <input
+                    type="text"
+                    value={infoDraft.phone}
+                    onChange={(event) =>
                       setInfoDraft((current) => ({ ...current, phone: formatLeadPhoneInput(event.target.value) }))
-                  }
+                    }
                     autoComplete="new-password"
                     maxLength={14}
                     inputMode="numeric"
-                  style={{
-                    height: 36,
-                    maxWidth: 360,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 16,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              ) : (
-                <span style={{ color: '#111827', fontSize: 17, fontWeight: 600 }}>
-                  {formattedPhone}
-                </span>
-              )}
-
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Email</span>
-              {isEditingLeadInfo ? (
-                <input
-                  type="email"
-                  value={infoDraft.email}
-                  onChange={(event) =>
-                    setInfoDraft((current) => ({ ...current, email: event.target.value }))
-                  }
-                  autoComplete="new-password"
-                  style={{
-                    height: 36,
-                    maxWidth: 360,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 16,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              ) : (
-                <span style={{ color: '#111827', fontSize: 17, fontWeight: 600 }}>
-                  {emailLabel}
-                </span>
-              )}
-
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Origem</span>
-              {isEditingLeadInfo ? (
-                <select
-                  value={infoDraft.source.toLowerCase()}
-                  onChange={(event) =>
-                    setInfoDraft((current) => ({ ...current, source: event.target.value }))
-                  }
-                  style={{
-                    height: 36,
-                    maxWidth: 240,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 14,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="metaads">MetaAds</option>
-                  <option value="indicacao">Indicação</option>
-                </select>
-              ) : (
-                <span style={{ display: 'inline-flex', justifyContent: 'flex-start' }}>
-                  <span
                     style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: sourceTagPresentation.textColor,
-                      whiteSpace: 'nowrap',
-                      background: `${sourceTagPresentation.textColor}44`,
-                      borderRadius: 6,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '7px 12px',
-                      lineHeight: 1.1,
-                      width: 'fit-content'
+                      width: '100%',
+                      height: 42,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 12px',
+                      fontSize: 16,
+                      color: '#111827',
+                      boxSizing: 'border-box'
                     }}
-                  >
-                    {sourceTagPresentation.icon ? (
-                      <span style={tagIconStyle}>{sourceTagPresentation.icon}</span>
-                    ) : null}
-                    <span style={tagContentStyle}>{sourceTagPresentation.label}</span>
-                  </span>
-                </span>
-              )}
-
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Qualificação</span>
-              {isEditingLeadInfo ? (
-                <select
-                  value={infoDraft.leadQualification}
-                  onChange={(event) =>
-                    setInfoDraft((current) => ({
-                      ...current,
-                      leadQualification: event.target.value as '' | 'qualify' | 'not qualify'
-                    }))
-                  }
-                  style={{
-                    height: 36,
-                    maxWidth: 240,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 14,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="">Não definido</option>
-                  <option value="qualify">Qualificado</option>
-                  <option value="not qualify">Não qualificado</option>
-                </select>
-              ) : (
-                <span
-                  style={getDefaultTagStyle(
-                    leadQualificationTagPresentation.textColor,
-                    leadQualificationTagPresentation.background
-                  )}
-                >
-                  {leadQualificationTagPresentation.label}
-                </span>
-              )}
-
-              <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Links</span>
-              {isEditingLeadInfo ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      color: '#334155',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={infoDraft.selectedSocialLinks.includes('instagram')}
-                      onChange={() => {
-                        setInfoDraft((current) => {
-                          const isSelected = current.selectedSocialLinks.includes('instagram')
-
-                          if (isSelected) {
-                            return {
-                              ...current,
-                              selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'instagram'),
-                              socialLinks: {
-                                ...current.socialLinks,
-                                instagram: ''
-                              }
-                            }
-                          }
-
-                          return {
-                            ...current,
-                            selectedSocialLinks: [...current.selectedSocialLinks, 'instagram']
-                          }
-                        })
-                      }}
-                    />
-                    Instagram
-                  </label>
-
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      color: '#334155',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={infoDraft.selectedSocialLinks.includes('url')}
-                      onChange={() => {
-                        setInfoDraft((current) => {
-                          const isSelected = current.selectedSocialLinks.includes('url')
-
-                          if (isSelected) {
-                            return {
-                              ...current,
-                              selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'url'),
-                              socialLinks: {
-                                ...current.socialLinks,
-                                url: ''
-                              }
-                            }
-                          }
-
-                          return {
-                            ...current,
-                            selectedSocialLinks: [...current.selectedSocialLinks, 'url']
-                          }
-                        })
-                      }}
-                    />
-                    URL
-                  </label>
+                  />
                 </div>
-              ) : (
-                <span style={{ color: '#111827', fontSize: 17, fontWeight: 600 }}>
-                  -
-                </span>
-              )}
 
-              {isEditingLeadInfo && infoDraft.selectedSocialLinks.includes('instagram') ? (
-                <>
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Instagram</span>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Email</span>
                   <input
-                    type="text"
-                    value={infoDraft.socialLinks.instagram}
+                    type="email"
+                    value={infoDraft.email}
                     onChange={(event) =>
-                      setInfoDraft((current) => ({
-                        ...current,
-                        socialLinks: {
-                          ...current.socialLinks,
-                          instagram: event.target.value
-                        }
-                      }))
+                      setInfoDraft((current) => ({ ...current, email: event.target.value }))
                     }
-                    placeholder="@usuario ou link"
+                    autoComplete="new-password"
                     style={{
-                      height: 36,
-                      maxWidth: 360,
+                      width: '100%',
+                      height: 42,
                       border: '1px solid #d1d5db',
                       borderRadius: 8,
-                      padding: '0 10px',
+                      padding: '0 12px',
                       fontSize: 16,
                       color: '#111827',
                       boxSizing: 'border-box'
                     }}
                   />
-                </>
-              ) : null}
+                </div>
 
-              {isEditingLeadInfo && infoDraft.selectedSocialLinks.includes('url') ? (
-                <>
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>URL</span>
-                  <input
-                    type="text"
-                    value={infoDraft.socialLinks.url}
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Origem</span>
+                  <select
+                    value={infoDraft.source.toLowerCase()}
                     onChange={(event) =>
-                      setInfoDraft((current) => ({
-                        ...current,
-                        socialLinks: {
-                          ...current.socialLinks,
-                          url: event.target.value
-                        }
-                      }))
+                      setInfoDraft((current) => ({ ...current, source: event.target.value }))
                     }
-                    placeholder="https://"
                     style={{
-                      height: 36,
-                      maxWidth: 360,
+                      width: '100%',
+                      height: 42,
                       border: '1px solid #d1d5db',
                       borderRadius: 8,
-                      padding: '0 10px',
-                      fontSize: 16,
+                      padding: '0 12px',
+                      fontSize: 14,
                       color: '#111827',
                       boxSizing: 'border-box'
                     }}
-                  />
-                </>
-              ) : null}
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="metaads">MetaAds</option>
+                    <option value="indicacao">Indicação</option>
+                  </select>
+                </div>
 
-            </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Qualificação</span>
+                  <select
+                    value={infoDraft.leadQualification}
+                    onChange={(event) =>
+                      setInfoDraft((current) => ({
+                        ...current,
+                        leadQualification: event.target.value as '' | 'qualify' | 'not qualify'
+                      }))
+                    }
+                    style={{
+                      width: '100%',
+                      height: 42,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 12px',
+                      fontSize: 14,
+                      color: '#111827',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="">Não definido</option>
+                    <option value="qualify">Qualificado</option>
+                    <option value="not qualify">Não qualificado</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Links</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: '#334155',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={infoDraft.selectedSocialLinks.includes('instagram')}
+                        onChange={() => {
+                          setInfoDraft((current) => {
+                            const isSelected = current.selectedSocialLinks.includes('instagram')
+
+                            if (isSelected) {
+                              return {
+                                ...current,
+                                selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'instagram'),
+                                socialLinks: {
+                                  ...current.socialLinks,
+                                  instagram: ''
+                                }
+                              }
+                            }
+
+                            return {
+                              ...current,
+                              selectedSocialLinks: [...current.selectedSocialLinks, 'instagram']
+                            }
+                          })
+                        }}
+                      />
+                      Instagram
+                    </label>
+
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: '#334155',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={infoDraft.selectedSocialLinks.includes('url')}
+                        onChange={() => {
+                          setInfoDraft((current) => {
+                            const isSelected = current.selectedSocialLinks.includes('url')
+
+                            if (isSelected) {
+                              return {
+                                ...current,
+                                selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'url'),
+                                socialLinks: {
+                                  ...current.socialLinks,
+                                  url: ''
+                                }
+                              }
+                            }
+
+                            return {
+                              ...current,
+                              selectedSocialLinks: [...current.selectedSocialLinks, 'url']
+                            }
+                          })
+                        }}
+                      />
+                      URL
+                    </label>
+                  </div>
+                </div>
+
+                {infoDraft.selectedSocialLinks.includes('instagram') ? (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Instagram</span>
+                    <input
+                      type="text"
+                      value={infoDraft.socialLinks.instagram}
+                      onChange={(event) =>
+                        setInfoDraft((current) => ({
+                          ...current,
+                          socialLinks: {
+                            ...current.socialLinks,
+                            instagram: event.target.value
+                          }
+                        }))
+                      }
+                      placeholder="@usuario ou link"
+                      style={{
+                        width: '100%',
+                        height: 42,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 12px',
+                        fontSize: 16,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {infoDraft.selectedSocialLinks.includes('url') ? (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>URL</span>
+                    <input
+                      type="text"
+                      value={infoDraft.socialLinks.url}
+                      onChange={(event) =>
+                        setInfoDraft((current) => ({
+                          ...current,
+                          socialLinks: {
+                            ...current.socialLinks,
+                            url: event.target.value
+                          }
+                        }))
+                      }
+                      placeholder="https://"
+                      style={{
+                        width: '100%',
+                        height: 42,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 12px',
+                        fontSize: 16,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleCancelLeadInfoEdit}
+                  style={{
+                    minWidth: 100,
+                    height: 36,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSaveLeadInfo()
+                  }}
+                  style={{
+                    minWidth: 100,
+                    height: 36,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: '#1f7a4d',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Salvar
+                </button>
+              </div>
+              </div>
             ) : (
               <div
                 style={{
@@ -2638,7 +2626,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               + Adicionar Follow-up
             </button>
           ) : (
-            <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo follow-up</span>
+            null
           )}
 
           <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
@@ -2742,10 +2730,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCreatingAgendaFollowUp(false)
-                    setFollowUpsError(null)
-                  }}
+                  onClick={handleCancelAgendaFollowUpCreation}
                   aria-label="Cancelar criação de follow-up da agenda"
                   style={{
                     height: 24,
@@ -3086,6 +3071,166 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           }
         />
 
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {businessFollowUps.length === 0 ? (
+              <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>
+                Nenhum follow-up cadastrado.
+              </div>
+            ) : (
+              businessFollowUps.map((followUp) => {
+                const visualStatus = getFollowUpVisualStatus({
+                  ...followUp,
+                  leadId: leadId ?? ''
+                })
+                const statusPresentation = getStatusPresentation(visualStatus)
+                const followUpDateTagColors = getFollowUpDateTagColors(visualStatus)
+                const isHovered = hoveredBusinessFollowUpId === followUp.id
+
+                if (editingBusinessFollowUpId === followUp.id) {
+                  return (
+                    <article
+                      key={followUp.id}
+                      style={{
+                        background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                        border: '1px solid #f1f5f9',
+                        borderRadius: 18,
+                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                        padding: 16
+                      }}
+                      onMouseEnter={() => setHoveredBusinessFollowUpId(followUp.id)}
+                      onMouseLeave={() => setHoveredBusinessFollowUpId(null)}
+                    >
+                      <FollowUpInlineForm
+                        modeLabel="EDITAR FOLLOW-UP"
+                        initialValue={followUp.value}
+                        initialDueAt={followUp.dueAt}
+                        variant="table-row"
+                        columnsTemplate="minmax(0, 1fr)"
+                        onCancel={() => setEditingBusinessFollowUpId(null)}
+                        onConfirm={(value, dueAt) =>
+                          handleUpdateNegotiationFollowUp(followUp.id, value, dueAt)
+                        }
+                      />
+                    </article>
+                  )
+                }
+
+                if (confirmingDeleteBusinessFollowUpId === followUp.id) {
+                  return (
+                    <article
+                      key={followUp.id}
+                      style={{
+                        background: interactionTheme.clickableCardHoverBackground,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 18,
+                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                        padding: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12
+                      }}
+                    >
+                      <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Follow-up?</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label="Cancelar exclusão de follow-up"
+                          onClick={() => setConfirmingDeleteBusinessFollowUpId(null)}
+                          style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                        >
+                          X
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Confirmar exclusão de follow-up"
+                          onClick={() => void handleDeleteNegotiationFollowUp(followUp.id)}
+                          style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </article>
+                  )
+                }
+
+                return (
+                  <article
+                    key={followUp.id}
+                    onMouseEnter={() => setHoveredBusinessFollowUpId(followUp.id)}
+                    onMouseLeave={() => setHoveredBusinessFollowUpId(null)}
+                    style={{
+                      background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'grid',
+                      gap: 18,
+                      transition: 'background 120ms ease'
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {followUp.value || 'Follow-up sem nome'}
+                        </h2>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label="Editar follow-up"
+                          onClick={() => {
+                            setConfirmingDeleteBusinessFollowUpId(null)
+                            setEditingBusinessFollowUpId(followUp.id)
+                          }}
+                          style={{ height: 34, width: 34, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Brush size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label="Excluir follow-up"
+                          onClick={() => {
+                            setEditingBusinessFollowUpId(null)
+                            setConfirmingDeleteBusinessFollowUpId(followUp.id)
+                          }}
+                          style={{ height: 34, width: 34, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label={followUp.status === 'done' ? 'Desfazer conclusão do follow-up' : 'Concluir follow-up'}
+                          onClick={() => void handleToggleNegotiationFollowUpStatus(followUp.id, followUp.status)}
+                          style={{ height: 34, width: 34, border: followUp.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb', borderRadius: 8, background: followUp.status === 'done' ? '#ecfdf3' : '#ffffff', color: followUp.status === 'done' ? '#16a34a' : '#4b5563', padding: 0, cursor: 'pointer' }}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: followUpDateTagColors.textColor, whiteSpace: 'nowrap', background: followUpDateTagColors.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        <CalendarClock size={12} />
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formatFollowUpDate(followUp.dueAt)}</span>
+                      </span>
+
+                      <span style={{ fontSize: 12, fontWeight: 700, color: statusPresentation.textColor, whiteSpace: 'nowrap', background: `${statusPresentation.textColor}33`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1, gap: 4 }}>
+                        {statusPresentation.icon}
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{statusPresentation.label}</span>
+                      </span>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
+        ) : (
         <div
           style={{
             background: '#ffffff',
@@ -3391,6 +3536,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             )}
           </div>
         </div>
+        )}
       </section>
     )
   }
@@ -3470,6 +3616,119 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           </span>
         </div>
 
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {isBusinessAttachmentsLoading ? (
+              <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando arquivos...</div>
+            ) : businessAttachments.length === 0 ? (
+              <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum arquivo cadastrado.</div>
+            ) : (
+              businessAttachments.map((file) => {
+                const isHovered = hoveredBusinessFileId === file.id
+
+                if (confirmingDeleteBusinessAttachmentId === file.id) {
+                  return (
+                    <article
+                      key={file.id}
+                      onMouseEnter={() => setHoveredBusinessFileId(file.id)}
+                      onMouseLeave={() => setHoveredBusinessFileId(null)}
+                      style={{
+                        background: interactionTheme.clickableCardHoverBackground,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 18,
+                        boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                        padding: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12
+                      }}
+                    >
+                      <strong style={{ color: '#111827', fontSize: 15 }}>Deletar arquivo?</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label="Cancelar exclusão de arquivo"
+                          onClick={() => setConfirmingDeleteBusinessAttachmentId(null)}
+                          style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                        >
+                          X
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Confirmar exclusão de arquivo"
+                          onClick={() => void handleDeleteBusinessAttachment(file.id, negotiationId)}
+                          style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </article>
+                  )
+                }
+
+                return (
+                  <article
+                    key={file.id}
+                    onMouseEnter={() => setHoveredBusinessFileId(file.id)}
+                    onMouseLeave={() => setHoveredBusinessFileId(null)}
+                    style={{
+                      background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'grid',
+                      gap: 18,
+                      transition: 'background 120ms ease'
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                      <div style={{ minWidth: 0, display: 'grid', gap: 8 }}>
+                        <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={file.originalName}>
+                          <FileText size={18} color="#4b5563" style={{ flexShrink: 0, verticalAlign: '-3px', marginRight: 8 }} />
+                          {file.originalName}
+                        </h2>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label="Baixar arquivo"
+                          onClick={() => void handleDownloadBusinessAttachment(file.id)}
+                          style={{ height: 34, width: 34, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Download size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label="Excluir arquivo"
+                          onClick={() => setConfirmingDeleteBusinessAttachmentId(file.id)}
+                          style={{ height: 34, width: 34, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', whiteSpace: 'nowrap', background: '#f1f5f9', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        {file.extension?.toUpperCase() || '-'}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap', background: '#e2e8f0', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        {formatFileSize(file.size)}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#7c2d12', whiteSpace: 'nowrap', background: '#ffedd5', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        {formatDate(file.createdAt)}
+                      </span>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
+        ) : (
         <div
           style={{
             background: '#ffffff',
@@ -3686,6 +3945,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             )}
           </div>
         </div>
+        )}
       </section>
     )
   }
@@ -3761,24 +4021,29 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             height: '100%',
             minHeight: 0,
             overflowY: 'auto',
-            paddingRight: 4,
+            overflowX: 'hidden',
+            paddingRight: isMobile ? 0 : 4,
             boxSizing: 'border-box'
           }}
         >
+          {!isMobile ? (
           <div style={{ display: 'grid', gap: 0 }}>
             <div
+              className={isMobile ? 'mobile-tabs-scrollbar-hidden' : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: 16
+                gap: 16,
+                overflowX: isMobile ? 'auto' : 'visible'
               }}
             >
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4
+                  gap: isMobile ? 10 : 4,
+                  minWidth: 0
                 }}
               >
                 {[
@@ -3794,6 +4059,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                       key={tab.key}
                       type="button"
                       onClick={() => {
+                        if (selectedBusiness) {
+                          resetBusinessDetailDraft(selectedBusiness)
+                        }
+                        setIsEditingBusiness(false)
+                        setIsConfirmingBusinessDelete(false)
+                        setIsConfirmingBusinessClose(false)
                         setActiveBusinessTab(tab.key)
                         setIsBusinessActionsOpen(false)
                       }}
@@ -3803,16 +4074,20 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                         border: 'none',
                         background:
                           isActive || hoveredBusinessTab === tab.key
-                            ? interactionTheme.clickableCardHoverBackground
+                            ? isMobile
+                              ? '#dcfce7'
+                              : interactionTheme.clickableCardHoverBackground
                             : 'transparent',
-                        borderRadius: 6,
-                        fontSize: 14,
-                        fontWeight: isActive ? 600 : 400,
-                        padding: '8px 12px',
+                        borderRadius: isMobile ? 8 : 6,
+                        fontSize: isMobile ? 13 : 14,
+                        fontWeight: isActive ? 700 : 600,
+                        padding: isMobile ? '12px 16px' : '8px 12px',
                         cursor: 'pointer',
                         color:
                           isActive || hoveredBusinessTab === tab.key
-                            ? interactionTheme.activeIconColor
+                            ? isMobile
+                              ? '#1f7a4d'
+                              : interactionTheme.activeIconColor
                             : '#6b7280'
                       }}
                     >
@@ -3822,7 +4097,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 })}
               </div>
 
-              {!isEditingBusiness ? (
+              {!isEditingBusiness && !isMobile ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
                     type="button"
@@ -3858,10 +4133,14 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               ) : null}
             </div>
 
-            <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+            {!isMobile ? (
+              <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+            ) : null}
           </div>
+          ) : null}
 
-          <div style={{ display: 'grid', gap: 18 }}>
+          <div style={{ display: 'grid', gap: 10, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+            {!isMobile ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
@@ -4032,6 +4311,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                   </div>
               ) : null}
             </div>
+            ) : null}
 
             {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
 
@@ -4252,7 +4532,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     padding: 0,
                     background: 'transparent',
                     display: 'grid',
-                    marginTop: 0
+                    marginTop: 8
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4262,8 +4542,222 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                       </span>
                       <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Visão Geral</h3>
                     </div>
+                  </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginLeft: 'auto' }}>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      display: 'grid',
+                      gap: 14,
+                      maxWidth: 520
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Nome</span>
+                      <input
+                        type="text"
+                        value={businessDetailDraft?.title ?? ''}
+                        onChange={(event) =>
+                          setBusinessDetailDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  title: event.target.value
+                                }
+                              : current
+                          )
+                        }
+                        autoComplete="new-password"
+                        style={{
+                          width: '100%',
+                          height: 42,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          padding: '0 12px',
+                          fontSize: 16,
+                          color: '#111827',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Tipo</span>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <select
+                          value={selectedBusinessType}
+                          onChange={(event) =>
+                            setBusinessDetailDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    negotiationType: event.target.value as '' | NegotiationType
+                                  }
+                                : current
+                            )
+                          }
+                          style={{
+                            width: '100%',
+                            height: 42,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 36px 0 12px',
+                            color: selectedBusinessType ? '#111827' : '#6b7280',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            appearance: 'none',
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <option value="">Selecione</option>
+                          <option value="service">Serviço</option>
+                          <option value="product">Produto</option>
+                        </select>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 12,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#6b7280',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          <ChevronDown size={16} />
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Etapa</span>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <select
+                          value={businessDetailDraft?.stage ?? selectedBusiness.stage}
+                          onChange={(event) =>
+                            setBusinessDetailDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    stage: event.target.value as LeadStage
+                                  }
+                                : current
+                            )
+                          }
+                          style={{
+                            width: '100%',
+                            height: 42,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 36px 0 12px',
+                            color: '#111827',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            appearance: 'none',
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          {leadStageOptions.map((stage) => (
+                            <option key={stage} value={stage}>
+                              {getLeadStageLabel(stage)}
+                            </option>
+                          ))}
+                        </select>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 12,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#6b7280',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          <ChevronDown size={16} />
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Temperatura</span>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <select
+                          value={businessDetailDraft?.temperature ?? selectedBusiness.temperature ?? ''}
+                          onChange={(event) =>
+                            setBusinessDetailDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    temperature: event.target.value as '' | NegotiationTemperature
+                                  }
+                                : current
+                            )
+                          }
+                          style={{
+                            width: '100%',
+                            height: 42,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 36px 0 12px',
+                            color: '#111827',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            appearance: 'none',
+                            background: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <option value="">Sem temperatura</option>
+                          <option value="hot">Quente</option>
+                          <option value="warm">Morno</option>
+                          <option value="cold">Frio</option>
+                        </select>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 12,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#6b7280',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          <ChevronDown size={16} />
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Valor</span>
+                      <input
+                        type="text"
+                        value={businessDetailDraft?.value ?? ''}
+                        onChange={(event) =>
+                          setBusinessDetailDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  value: sanitizeLeadValueInput(event.target.value)
+                                }
+                              : current
+                          )
+                        }
+                        autoComplete="new-password"
+                        style={{
+                          width: '100%',
+                          height: 42,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          padding: '0 12px',
+                          fontSize: 16,
+                          color: '#111827',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
                       <button
                         type="button"
                         onClick={() => {
@@ -4345,216 +4839,10 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                       </button>
                     </div>
                   </div>
-
-                  <div
-                    style={{
-                      marginTop: 12,
-                      display: 'grid',
-                      gridTemplateColumns: '160px minmax(0, 1fr)',
-                      rowGap: 10,
-                      columnGap: 16,
-                      alignItems: 'center'
-                    }}
-                  >
-                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
-                    <input
-                      type="text"
-                      value={businessDetailDraft?.title ?? ''}
-                      onChange={(event) =>
-                        setBusinessDetailDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                title: event.target.value
-                              }
-                            : current
-                        )
-                      }
-                      autoComplete="new-password"
-                      style={{
-                        height: 36,
-                        maxWidth: 360,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 10px',
-                        fontSize: 16,
-                        color: '#111827',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-
-                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Tipo</span>
-                    <div style={{ position: 'relative', maxWidth: 240 }}>
-                          <select
-                            value={selectedBusinessType}
-                            onChange={(event) =>
-                              setBusinessDetailDraft((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      negotiationType: event.target.value as '' | NegotiationType
-                                    }
-                                  : current
-                              )
-                            }
-                            style={{
-                              width: '100%',
-                              height: 36,
-                              border: '1px solid #d1d5db',
-                              borderRadius: 8,
-                              padding: '0 36px 0 10px',
-                              color: selectedBusinessType ? '#111827' : '#6b7280',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              appearance: 'none',
-                              background: '#ffffff',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            <option value="">Selecione</option>
-                            <option value="service">Serviço</option>
-                            <option value="product">Produto</option>
-                          </select>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              right: 12,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              color: '#6b7280',
-                              pointerEvents: 'none'
-                            }}
-                          >
-                            <ChevronDown size={16} />
-                          </span>
-                    </div>
-
-                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Etapa</span>
-                    <div style={{ position: 'relative', maxWidth: 240 }}>
-                          <select
-                            value={businessDetailDraft?.stage ?? selectedBusiness.stage}
-                            onChange={(event) =>
-                              setBusinessDetailDraft((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      stage: event.target.value as LeadStage
-                                    }
-                                  : current
-                              )
-                            }
-                            style={{
-                              width: '100%',
-                              height: 36,
-                              border: '1px solid #d1d5db',
-                              borderRadius: 8,
-                              padding: '0 36px 0 10px',
-                              color: '#111827',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              appearance: 'none',
-                              background: '#ffffff',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            {leadStageOptions.map((stage) => (
-                              <option key={stage} value={stage}>
-                                {getLeadStageLabel(stage)}
-                              </option>
-                            ))}
-                          </select>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              right: 12,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              color: '#6b7280',
-                              pointerEvents: 'none'
-                            }}
-                          >
-                            <ChevronDown size={16} />
-                          </span>
-                    </div>
-
-                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</span>
-                    <div style={{ position: 'relative', maxWidth: 240 }}>
-                          <select
-                            value={businessDetailDraft?.temperature ?? selectedBusiness.temperature ?? ''}
-                            onChange={(event) =>
-                              setBusinessDetailDraft((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      temperature: event.target.value as '' | NegotiationTemperature
-                                    }
-                                  : current
-                              )
-                            }
-                            style={{
-                              width: '100%',
-                              height: 36,
-                              border: '1px solid #d1d5db',
-                              borderRadius: 8,
-                              padding: '0 36px 0 10px',
-                              color: '#111827',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              appearance: 'none',
-                              background: '#ffffff',
-                              boxSizing: 'border-box'
-                            }}
-                          >
-                            <option value="">Sem temperatura</option>
-                            <option value="hot">Quente</option>
-                            <option value="warm">Morno</option>
-                            <option value="cold">Frio</option>
-                          </select>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              right: 12,
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              color: '#6b7280',
-                              pointerEvents: 'none'
-                            }}
-                          >
-                            <ChevronDown size={16} />
-                          </span>
-                    </div>
-
-                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Valor</span>
-                    <input
-                      type="text"
-                      value={businessDetailDraft?.value ?? ''}
-                      onChange={(event) =>
-                        setBusinessDetailDraft((current) =>
-                          current
-                            ? {
-                                ...current,
-                                value: sanitizeLeadValueInput(event.target.value)
-                              }
-                            : current
-                        )
-                      }
-                      autoComplete="new-password"
-                      style={{
-                        height: 36,
-                        maxWidth: 360,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 10px',
-                        fontSize: 16,
-                        color: '#111827',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
                 </article>
               ) : (
                 <>
-                  <section style={{ display: 'grid', gap: 8 }}>
+                  <section style={{ display: 'grid', gap: 8, width: '100%', minWidth: 0, marginTop: 8 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
                         <CircleUserRound size={15} />
@@ -4618,7 +4906,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     </div>
                   </section>
 
-                  <section style={{ display: 'grid', gap: 8 }}>
+                  <section style={{ display: 'grid', gap: 8, width: '100%', minWidth: 0 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
                         <CalendarClock size={15} />
@@ -4985,7 +5273,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             : 0.6
                       }}
                     >
-                      Salvar
+                      {editingBusinessNoteIndex === null ? 'Salvar' : 'Editar'}
                     </button>
                   </div>
                 </section>
@@ -5001,97 +5289,103 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     boxSizing: 'border-box'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <h3 style={{ margin: 0, color: '#0f172a', fontSize: 20, fontWeight: 700 }}>
-                      {`${viewedBusinessNote.title?.trim() || '-'}`}
+                      Nota
                     </h3>
+                  </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (viewingBusinessNoteIndex === null) {
-                            return
-                          }
-
-                          setEditingBusinessNoteIndex(viewingBusinessNoteIndex)
-                          setNewBusinessNoteDraft({
-                            title: viewedBusinessNote.title ?? '',
-                            description: viewedBusinessNote.description ?? ''
-                          })
-                          setViewingBusinessNoteIndex(null)
-                          setIsCreatingBusinessNote(true)
-                          setBusinessesError(null)
-                        }}
-                        style={{
-                          width: 38,
-                          height: 38,
-                          border: 'none',
-                          borderRadius: 10,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: 0
-                        }}
-                        aria-label="Editar nota"
-                        title="Editar"
-                      >
-                        <Brush size={16} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setViewingBusinessNoteIndex(null)}
-                        style={{
-                          width: 38,
-                          height: 38,
-                          border: 'none',
-                          borderRadius: 10,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: 0
-                        }}
-                        aria-label="Voltar para a lista de notas"
-                        title="Voltar"
-                      >
-                        <ArrowLeft size={16} />
-                      </button>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Título</label>
+                    <div
+                      style={{
+                        minHeight: 42,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                        background: '#f8fafc',
+                        color: '#111827',
+                        fontSize: 14,
+                        lineHeight: 1.4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {viewedBusinessNote.title?.trim() || '-'}
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gap: 14 }}>
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#1f2937', fontSize: 16, fontWeight: 700 }}>Descrição</span>
-                      <div
-                        style={{
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 14,
-                          background: '#ffffff',
-                          padding: '16px 18px',
-                          minHeight: 180,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            color: '#334155',
-                            fontSize: 18,
-                            lineHeight: 1.6,
-                            whiteSpace: 'pre-line'
-                          }}
-                        >
-                          {viewedBusinessNote.description?.trim() || '-'}
-                        </p>
-                      </div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
+                    <div
+                      style={{
+                        width: '100%',
+                        minHeight: 132,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 10,
+                        padding: '12px 14px',
+                        background: '#f8fafc',
+                        color: '#111827',
+                        fontSize: 14,
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-line',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      {viewedBusinessNote.description?.trim() || '-'}
                     </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => setViewingBusinessNoteIndex(null)}
+                      style={{
+                        minWidth: 120,
+                        height: 44,
+                        border: '1px solid #9ac6ae',
+                        borderRadius: 10,
+                        background: '#ffffff',
+                        color: '#1f7a4d',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewingBusinessNoteIndex === null) {
+                          return
+                        }
+
+                        setEditingBusinessNoteIndex(viewingBusinessNoteIndex)
+                        setNewBusinessNoteDraft({
+                          title: viewedBusinessNote.title ?? '',
+                          description: viewedBusinessNote.description ?? ''
+                        })
+                        setViewingBusinessNoteIndex(null)
+                        setIsCreatingBusinessNote(true)
+                        setBusinessesError(null)
+                      }}
+                      style={{
+                        minWidth: 120,
+                        height: 44,
+                        border: 'none',
+                        borderRadius: 10,
+                        background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
+                        color: '#ffffff',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Editar
+                    </button>
                   </div>
                 </section>
               ) : null}
@@ -5102,24 +5396,25 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       )
     }
 
-    if (isCreatingBusiness) {
-      return (
+    const businessCreateContent = (
         <section
           style={{
             display: 'grid',
             alignContent: 'start',
             gap: 16,
-            height: '100%',
-            minHeight: 0,
-            overflowY: 'auto',
-            paddingRight: 4,
+            height: isMobile ? 'auto' : '100%',
+            minHeight: isMobile ? 'auto' : 0,
+            overflowY: isMobile ? 'visible' : 'auto',
+            padding: isMobile ? '22px 18px 28px' : 24,
             boxSizing: 'border-box'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 40 / 2, fontWeight: 700 }}>
-              Novo negócio
-            </h3>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+                Novo negócio
+              </h2>
+            </div>
 
             <button
               type="button"
@@ -5129,312 +5424,422 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 setBusinessesError(null)
               }}
               style={{
-                height: 32,
-                minWidth: 32,
+                height: 28,
+                minWidth: 28,
                 border: 'none',
                 borderRadius: 6,
                 background: 'transparent',
                 color: '#6b7280',
                 padding: '0 8px',
                 cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: 1
               }}
-              aria-label="Voltar para a lista de negócios"
-              title="Voltar"
+              aria-label="Fechar criação de negócio"
             >
-              <ArrowLeft size={16} />
+              X
             </button>
           </div>
 
           {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
 
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Tipo</label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={newBusinessDraft.negotiationType}
+          <article
+            style={{
+              border: isMobile ? 'none' : '1px solid #e5e7eb',
+              borderRadius: isMobile ? 0 : 16,
+              padding: isMobile ? 0 : 24,
+              background: isMobile ? 'transparent' : '#ffffff',
+              display: 'grid',
+              gap: 18,
+              maxWidth: isMobile ? 'none' : 760
+            }}
+          >
+            {isMobile ? (
+              <div style={{ display: 'grid', gap: 14 }}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Tipo</label>
+                  <select
+                    value={newBusinessDraft.negotiationType}
+                    onChange={(event) =>
+                      setNewBusinessDraft((current) => ({
+                        ...current,
+                        negotiationType: event.target.value as '' | NegotiationType
+                      }))
+                    }
+                    style={{
+                      width: '100%',
+                      height: 46,
+                      border: '1px solid #d7dce4',
+                      borderRadius: 10,
+                      padding: '0 14px',
+                      color: newBusinessDraft.negotiationType ? '#111827' : '#6b7280',
+                      fontSize: 17 / 1.2,
+                      fontWeight: 600,
+                      boxSizing: 'border-box',
+                      background: '#ffffff'
+                    }}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="service">Serviço</option>
+                    <option value="product">Produto</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Nome</label>
+                  <input
+                    type="text"
+                    placeholder="Nome"
+                    autoComplete="off"
+                    name="business-title"
+                    value={newBusinessDraft.title}
+                    onChange={(event) =>
+                      setNewBusinessDraft((current) => ({ ...current, title: event.target.value }))
+                    }
+                    style={{
+                      height: 46,
+                      border: '1px solid #d7dce4',
+                      borderRadius: 10,
+                      padding: '0 14px',
+                      color: '#111827',
+                      fontSize: 17 / 1.2,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Etapa</label>
+                  <select
+                    value={newBusinessDraft.stage}
+                    onChange={(event) =>
+                      setNewBusinessDraft((current) => ({
+                        ...current,
+                        stage: event.target.value as LeadStage
+                      }))
+                    }
+                    style={{
+                      width: '100%',
+                      height: 46,
+                      border: '1px solid #d7dce4',
+                      borderRadius: 10,
+                      padding: '0 14px',
+                      color: '#111827',
+                      fontSize: 17 / 1.2,
+                      fontWeight: 700,
+                      boxSizing: 'border-box',
+                      background: '#ffffff'
+                    }}
+                  >
+                    <option value="NEW">Novo</option>
+                    <option value="CONTACTED">Contatado</option>
+                    <option value="QUALIFIED">Qualificado</option>
+                    <option value="PROPOSAL_SENT">Proposta enviada</option>
+                    <option value="NEGOTIATION">Negociação</option>
+                    <option value="WON">Ganho</option>
+                    <option value="LOST">Perdido</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Temperatura</label>
+                  <select
+                    value={newBusinessDraft.temperature}
+                    onChange={(event) =>
+                      setNewBusinessDraft((current) => ({
+                        ...current,
+                        temperature: event.target.value as '' | NegotiationTemperature
+                      }))
+                    }
+                    style={{
+                      width: '100%',
+                      height: 46,
+                      border: '1px solid #d7dce4',
+                      borderRadius: 10,
+                      padding: '0 14px',
+                      color: newBusinessDraft.temperature ? '#111827' : '#6b7280',
+                      fontSize: 17 / 1.2,
+                      fontWeight: 600,
+                      boxSizing: 'border-box',
+                      background: '#ffffff'
+                    }}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="hot">Quente</option>
+                    <option value="warm">Morno</option>
+                    <option value="cold">Frio</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Valor (R$)</label>
+                  <input
+                    type="text"
+                    placeholder="0,00"
+                    autoComplete="new-password"
+                    name="business-value"
+                    inputMode="decimal"
+                    value={newBusinessDraft.value}
+                    onChange={(event) =>
+                      setNewBusinessDraft((current) => ({
+                        ...current,
+                        value: sanitizeLeadValueInput(event.target.value)
+                      }))
+                    }
+                    style={{
+                      height: 46,
+                      border: '1px solid #d7dce4',
+                      borderRadius: 10,
+                      padding: '0 14px',
+                      color: '#111827',
+                      fontSize: 17 / 1.2,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '160px minmax(0, 1fr)',
+                  rowGap: 10,
+                  columnGap: 16,
+                  alignItems: 'center'
+                }}
+              >
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Tipo</span>
+                <select
+                  value={newBusinessDraft.negotiationType}
+                  onChange={(event) =>
+                    setNewBusinessDraft((current) => ({
+                      ...current,
+                      negotiationType: event.target.value as '' | NegotiationType
+                    }))
+                  }
+                  style={{
+                    height: 36,
+                    maxWidth: 240,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 14,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">Selecione</option>
+                  <option value="service">Serviço</option>
+                  <option value="product">Produto</option>
+                </select>
+
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
+                <input
+                  type="text"
+                  placeholder="Nome"
+                  autoComplete="off"
+                  name="business-title"
+                  value={newBusinessDraft.title}
+                  onChange={(event) =>
+                    setNewBusinessDraft((current) => ({ ...current, title: event.target.value }))
+                  }
+                  style={{
+                    height: 36,
+                    maxWidth: 360,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 16,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                />
+
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Etapa</span>
+                <select
+                  value={newBusinessDraft.stage}
+                  onChange={(event) =>
+                    setNewBusinessDraft((current) => ({
+                      ...current,
+                      stage: event.target.value as LeadStage
+                    }))
+                  }
+                  style={{
+                    height: 36,
+                    maxWidth: 240,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 14,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="NEW">Novo</option>
+                  <option value="CONTACTED">Contatado</option>
+                  <option value="QUALIFIED">Qualificado</option>
+                  <option value="PROPOSAL_SENT">Proposta enviada</option>
+                  <option value="NEGOTIATION">Negociação</option>
+                  <option value="WON">Ganho</option>
+                  <option value="LOST">Perdido</option>
+                </select>
+
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</span>
+                <select
+                  value={newBusinessDraft.temperature}
+                  onChange={(event) =>
+                    setNewBusinessDraft((current) => ({
+                      ...current,
+                      temperature: event.target.value as '' | NegotiationTemperature
+                    }))
+                  }
+                  style={{
+                    height: 36,
+                    maxWidth: 240,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 14,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="">Selecione</option>
+                  <option value="hot">Quente</option>
+                  <option value="warm">Morno</option>
+                  <option value="cold">Frio</option>
+                </select>
+
+                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Valor (R$)</span>
+                <input
+                  type="text"
+                  placeholder="0,00"
+                  autoComplete="new-password"
+                  name="business-value"
+                  inputMode="decimal"
+                  value={newBusinessDraft.value}
+                  onChange={(event) =>
+                    setNewBusinessDraft((current) => ({
+                      ...current,
+                      value: sanitizeLeadValueInput(event.target.value)
+                    }))
+                  }
+                  style={{
+                    height: 36,
+                    maxWidth: 360,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0 10px',
+                    fontSize: 16,
+                    color: '#111827',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Notas</label>
+              <textarea
+                placeholder="Escreva uma observação..."
+                value={newBusinessDraft.notes}
                 onChange={(event) =>
-                  setNewBusinessDraft((current) => ({
-                    ...current,
-                    negotiationType: event.target.value as '' | NegotiationType
-                  }))
+                  setNewBusinessDraft((current) => ({ ...current, notes: event.target.value }))
                 }
                 style={{
                   width: '100%',
-                  height: 46,
+                  minHeight: 132,
                   border: '1px solid #d7dce4',
                   borderRadius: 10,
-                  padding: '0 42px 0 14px',
-                  color: newBusinessDraft.negotiationType ? '#111827' : '#6b7280',
-                  fontSize: 17 / 1.2,
-                  fontWeight: 600,
-                  boxSizing: 'border-box',
-                  appearance: 'none',
-                  background: '#ffffff'
-                }}
-              >
-                <option value="">Selecione</option>
-                <option value="service">Serviço</option>
-                <option value="product">Produto</option>
-              </select>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#6b7280',
-                  pointerEvents: 'none'
-                }}
-              >
-                <ChevronDown size={18} />
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Nome</label>
-            <input
-              type="text"
-              placeholder="Nome"
-              autoComplete="off"
-              name="business-title"
-              value={newBusinessDraft.title}
-              onChange={(event) =>
-                setNewBusinessDraft((current) => ({ ...current, title: event.target.value }))
-              }
-              style={{
-                height: 46,
-                border: '1px solid #d7dce4',
-                borderRadius: 10,
-                padding: '0 14px',
-                color: '#111827',
-                fontSize: 17 / 1.2,
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Etapa</label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={newBusinessDraft.stage}
-                onChange={(event) =>
-                  setNewBusinessDraft((current) => ({
-                    ...current,
-                    stage: event.target.value as LeadStage
-                  }))
-                }
-                style={{
-                  width: '100%',
-                  height: 46,
-                  border: '1px solid #d7dce4',
-                  borderRadius: 10,
-                  padding: '0 42px 0 14px',
+                  padding: '12px 14px',
                   color: '#111827',
                   fontSize: 17 / 1.2,
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreatingBusiness(false)
+                  setNewBusinessDraft(initialNewBusinessDraft)
+                }}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 14,
                   fontWeight: 700,
-                  boxSizing: 'border-box',
-                  appearance: 'none',
-                  background: '#ffffff'
+                  cursor: 'pointer'
                 }}
               >
-                <option value="NEW">Novo</option>
-                <option value="CONTACTED">Contatado</option>
-                <option value="QUALIFIED">Qualificado</option>
-                <option value="PROPOSAL_SENT">Proposta enviada</option>
-                <option value="NEGOTIATION">Negociação</option>
-                <option value="WON">Ganho</option>
-                <option value="LOST">Perdido</option>
-              </select>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#6b7280',
-                  pointerEvents: 'none'
-                }}
-              >
-                <ChevronDown size={18} />
-              </span>
-            </div>
-          </div>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!leadId) return
 
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Temperatura</label>
-            <div style={{ position: 'relative' }}>
-              <select
-                value={newBusinessDraft.temperature}
-                onChange={(event) =>
-                  setNewBusinessDraft((current) => ({
-                    ...current,
-                    temperature: event.target.value as '' | NegotiationTemperature
-                  }))
-                }
-                style={{
-                  width: '100%',
-                  height: 46,
-                  border: '1px solid #d7dce4',
-                  borderRadius: 10,
-                  padding: '0 42px 0 14px',
-                  color: newBusinessDraft.temperature ? '#111827' : '#6b7280',
-                  fontSize: 17 / 1.2,
-                  fontWeight: 600,
-                  boxSizing: 'border-box',
-                  appearance: 'none',
-                  background: '#ffffff'
-                }}
-              >
-                <option value="">Selecione</option>
-                <option value="hot">Quente</option>
-                <option value="warm">Morno</option>
-                <option value="cold">Frio</option>
-              </select>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#6b7280',
-                  pointerEvents: 'none'
-                }}
-              >
-                <ChevronDown size={18} />
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Valor (R$)</label>
-            <input
-              type="text"
-              placeholder="0,00"
-              autoComplete="new-password"
-              name="business-value"
-              inputMode="decimal"
-              value={newBusinessDraft.value}
-              onChange={(event) =>
-                setNewBusinessDraft((current) => ({
-                  ...current,
-                  value: sanitizeLeadValueInput(event.target.value)
-                }))
-              }
-              style={{
-                height: 46,
-                border: '1px solid #d7dce4',
-                borderRadius: 10,
-                padding: '0 14px',
-                color: '#111827',
-                fontSize: 17 / 1.2,
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Notas</label>
-            <textarea
-              placeholder="Escreva uma observação..."
-              value={newBusinessDraft.notes}
-              onChange={(event) =>
-                setNewBusinessDraft((current) => ({ ...current, notes: event.target.value }))
-              }
-              style={{
-                width: '100%',
-                minHeight: 132,
-                border: '1px solid #d7dce4',
-                borderRadius: 10,
-                padding: '12px 14px',
-                color: '#111827',
-                fontSize: 17 / 1.2,
-                resize: 'vertical',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreatingBusiness(false)
-                setNewBusinessDraft(initialNewBusinessDraft)
-              }}
-              style={{
-                minWidth: 136,
-                height: 50,
-                border: '1px solid #9ac6ae',
-                borderRadius: 10,
-                background: '#ffffff',
-                color: '#1f7a4d',
-                fontSize: 30 / 2,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!leadId) return
-
-                const payload: CreateNegotiationPayload = {
-                  leadId,
-                  title: newBusinessDraft.title || undefined,
-                  stage: newBusinessDraft.stage,
-                  temperature: newBusinessDraft.temperature || undefined,
-                  negotiationType: newBusinessDraft.negotiationType || undefined,
-                  value: parseLeadValueInput(newBusinessDraft.value) ?? undefined,
-                  notes: newBusinessDraft.notes.trim()
-                    ? [{
-                        title: 'Nota',
-                        description: newBusinessDraft.notes.trim(),
-                        createdAt: new Date().toISOString()
-                      }]
-                    : undefined
-                }
-
-                void (async () => {
-                  try {
-                    await WebhookService.createNegotiation(payload)
-                    await refreshLeadNegotiations(leadId)
-                        onLeadUpdated?.()
-                    setIsCreatingBusiness(false)
-                    setNewBusinessDraft(initialNewBusinessDraft)
-                    setBusinessesError(null)
-                  } catch (exception: unknown) {
-                    const message =
-                      exception instanceof Error
-                        ? exception.message
-                        : 'Falha ao criar negócio.'
-                    setBusinessesError(message)
+                  const payload: CreateNegotiationPayload = {
+                    leadId,
+                    title: newBusinessDraft.title || undefined,
+                    stage: newBusinessDraft.stage,
+                    temperature: newBusinessDraft.temperature || undefined,
+                    negotiationType: newBusinessDraft.negotiationType || undefined,
+                    value: parseLeadValueInput(newBusinessDraft.value) ?? undefined,
+                    notes: newBusinessDraft.notes.trim()
+                      ? [{
+                          title: 'Nota',
+                          description: newBusinessDraft.notes.trim(),
+                          createdAt: new Date().toISOString()
+                        }]
+                      : undefined
                   }
-                })()
-              }}
-              style={{
-                minWidth: 136,
-                height: 50,
-                border: 'none',
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
-                color: '#ffffff',
-                fontSize: 30 / 2,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Salvar
-            </button>
-          </div>
+
+                  void (async () => {
+                    try {
+                      await WebhookService.createNegotiation(payload)
+                      await refreshLeadNegotiations(leadId)
+                      onLeadUpdated?.()
+                      setIsCreatingBusiness(false)
+                      setNewBusinessDraft(initialNewBusinessDraft)
+                      setBusinessesError(null)
+                    } catch (exception: unknown) {
+                      const message =
+                        exception instanceof Error
+                          ? exception.message
+                          : 'Falha ao criar negócio.'
+                      setBusinessesError(message)
+                    }
+                  })()
+                }}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#1f7a4d',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Salvar
+              </button>
+            </div>
+          </article>
         </section>
       )
+    if (isCreatingBusiness && !isMobile) {
+      return businessCreateContent
     }
 
     return (
@@ -5517,6 +5922,86 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 ) : (
                   <BriefcaseBusiness size={18} />
                 )
+
+              if (isMobile) {
+                return (
+                  <article
+                    key={business.id}
+                    onClick={() => {
+                      setSelectedBusinessId(business.id)
+                    }}
+                    onMouseEnter={() => setHoveredBusinessId(business.id)}
+                    onMouseLeave={() => setHoveredBusinessId(null)}
+                    style={{
+                      background:
+                        isHovered || isSelected
+                          ? interactionTheme.clickableCardHoverBackground
+                          : '#ffffff',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'grid',
+                      gap: 14,
+                      cursor: 'pointer',
+                      transition: 'background 120ms ease'
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                      <h3 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {business.title ?? 'Negócio sem nome'}
+                      </h3>
+
+                      <div
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 8,
+                          background: '#f0fdf4',
+                          color: '#1f7a4d',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}
+                      >
+                        {businessTypeIcon}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        <span style={tagContentStyle}>{getLeadStageLabel(business.stage)}</span>
+                      </span>
+
+                      <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                        <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
+                      </span>
+
+                      {businessTypeLabel === 'Sem tipo' ? null : (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap', background: '#ede9fe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                          <span style={tagContentStyle}>{businessTypeLabel}</span>
+                        </span>
+                      )}
+
+                      {temperatureTagPresentation.label === '-' ? null : (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: temperatureTagPresentation.textColor, whiteSpace: 'nowrap', background: `${temperatureTagPresentation.textColor}44`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                          {temperatureTagPresentation.icon ? (
+                            <span style={tagIconStyle}>{temperatureTagPresentation.icon}</span>
+                          ) : null}
+                          <span style={tagContentStyle}>{temperatureTagPresentation.label}</span>
+                        </span>
+                      )}
+
+                      {formatLeadValue(business.value) === '-' ? null : (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                          <span style={tagContentStyle}>{formatLeadValue(business.value)}</span>
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                )
+              }
 
               return (
                 <article
@@ -5768,6 +6253,47 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           )}
         </div>
 
+        {isMobile && isCreatingBusiness ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar criação de negócio"
+              onClick={() => {
+                setIsCreatingBusiness(false)
+                setNewBusinessDraft(initialNewBusinessDraft)
+                setBusinessesError(null)
+              }}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                border: 'none',
+                background: 'rgba(15, 23, 42, 0.18)',
+                zIndex: 40,
+                cursor: 'default'
+              }}
+            />
+
+            <aside
+              style={{
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 'calc(82px + env(safe-area-inset-bottom))',
+                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                zIndex: 45,
+                borderRadius: '22px 22px 0 0',
+                background: '#ffffff',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
+                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
+              }}
+            >
+              {businessCreateContent}
+            </aside>
+          </>
+        ) : null}
+
         {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
       </section>
     )
@@ -5775,9 +6301,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
   const renderNotesTab = () => {
     const notesBusinesses = leadNegotiations
+    const defaultNotesBusiness =
+      notesBusinesses.find((business) => (business.notes ?? []).length > 0) ?? notesBusinesses[0] ?? null
     const selectedNotesBusiness = notesBusinesses.find(
       (business) => business.id === selectedLeadNotesBusinessId
-    ) ?? notesBusinesses[0] ?? null
+    ) ?? defaultNotesBusiness
     const selectedNotesBusinessNotes = (selectedNotesBusiness?.notes ?? [])
       .map((note, originalIndex) => ({ note, originalIndex }))
       .sort((firstItem, secondItem) => {
@@ -5787,13 +6315,284 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         return secondTimestamp - firstTimestamp
       })
 
+    const notesTotal = selectedNotesBusinessNotes.length
+    const canOpenCreateLeadTabNote = notesBusinesses.length > 0
+    const canCreateLeadTabNote = Boolean(
+      newLeadTabNoteDraft.businessId.trim() &&
+      newLeadTabNoteDraft.title.trim() &&
+      newLeadTabNoteDraft.description.trim()
+    )
+
+    const handleCloseLeadTabCreateNote = () => {
+      setIsCreatingLeadTabNote(false)
+      setNewLeadTabNoteDraft(initialNewLeadTabNoteDraft)
+      setLeadTabNotesError(null)
+    }
+
+    const handleCreateLeadTabNote = async () => {
+      const targetBusinessId = newLeadTabNoteDraft.businessId.trim()
+      const trimmedTitle = newLeadTabNoteDraft.title.trim()
+      const trimmedDescription = newLeadTabNoteDraft.description.trim()
+
+      if (!leadId || !targetBusinessId || !trimmedTitle || !trimmedDescription) {
+        return
+      }
+
+      const targetBusiness = leadNegotiations.find((business) => business.id === targetBusinessId)
+      if (!targetBusiness) {
+        setLeadTabNotesError('Negócio não encontrado para salvar a nota.')
+        return
+      }
+
+      const currentNotes = targetBusiness.notes ?? []
+      const payload: UpdateNegotiationPayload = {
+        notes: [
+          ...currentNotes,
+          {
+            title: trimmedTitle,
+            description: trimmedDescription,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }
+
+      try {
+        await WebhookService.updateNegotiation(targetBusinessId, payload)
+        await refreshLeadNegotiations(leadId)
+        onLeadUpdated?.()
+        setSelectedLeadNotesBusinessId(targetBusinessId)
+        handleCloseLeadTabCreateNote()
+      } catch (exception: unknown) {
+        const message =
+          exception instanceof Error ? exception.message : 'Falha ao criar nota.'
+        setLeadTabNotesError(message)
+      }
+    }
+
+    const leadTabNoteCreateForm = (
+      <section
+        style={{
+          display: 'grid',
+          alignContent: 'start',
+          gap: 16,
+          minHeight: 0,
+          boxSizing: 'border-box',
+          padding: isMobile ? '22px 18px 28px' : 0
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h3 style={{ margin: 0, color: '#0f172a', fontSize: isMobile ? 24 : 20, fontWeight: 700 }}>
+            Nova nota
+          </h3>
+
+          {isMobile ? (
+            <button
+              type="button"
+              aria-label="Fechar criação de nota"
+              onClick={handleCloseLeadTabCreateNote}
+              style={{
+                height: 28,
+                minWidth: 28,
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
+                color: '#6b7280',
+                padding: '0 8px',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: 1
+              }}
+            >
+              X
+            </button>
+          ) : null}
+        </div>
+
+        {leadTabNotesError ? (
+          <p style={{ margin: 0, color: '#b91c1c', fontSize: 13 }}>{leadTabNotesError}</p>
+        ) : null}
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+            Negócio
+          </label>
+          <select
+            value={newLeadTabNoteDraft.businessId}
+            onChange={(event) =>
+              setNewLeadTabNoteDraft((current) => ({
+                ...current,
+                businessId: event.target.value
+              }))
+            }
+            style={{
+              width: '100%',
+              height: isMobile ? 46 : 42,
+              border: '1px solid #d7dce4',
+              borderRadius: 10,
+              padding: '0 14px',
+              color: newLeadTabNoteDraft.businessId ? '#111827' : '#6b7280',
+              fontSize: isMobile ? 17 / 1.2 : 14,
+              fontWeight: 600,
+              boxSizing: 'border-box',
+              background: '#ffffff'
+            }}
+          >
+            <option value="">Selecione</option>
+            {notesBusinesses.map((business) => (
+              <option key={business.id} value={business.id}>
+                {business.title?.trim() || 'Negócio sem nome'}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+            Título
+          </label>
+          <input
+            type="text"
+            placeholder="Título da nota"
+            autoComplete="off"
+            value={newLeadTabNoteDraft.title}
+            onChange={(event) =>
+              setNewLeadTabNoteDraft((current) => ({
+                ...current,
+                title: event.target.value
+              }))
+            }
+            style={{
+              height: isMobile ? 46 : 42,
+              border: '1px solid #d7dce4',
+              borderRadius: 10,
+              padding: '0 14px',
+              color: '#111827',
+              fontSize: isMobile ? 17 / 1.2 : 14,
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+            Descrição
+          </label>
+          <textarea
+            placeholder="Escreva a descrição da nota..."
+            value={newLeadTabNoteDraft.description}
+            onChange={(event) =>
+              setNewLeadTabNoteDraft((current) => ({
+                ...current,
+                description: event.target.value
+              }))
+            }
+            style={{
+              width: '100%',
+              minHeight: 132,
+              border: '1px solid #d7dce4',
+              borderRadius: 10,
+              padding: '12px 14px',
+              color: '#111827',
+              fontSize: isMobile ? 17 / 1.2 : 14,
+              resize: 'vertical',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+          <button
+            type="button"
+            onClick={handleCloseLeadTabCreateNote}
+            style={{
+              minWidth: 120,
+              height: 42,
+              border: '1px solid #d1d5db',
+              borderRadius: 8,
+              background: '#ffffff',
+              color: '#0f172a',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleCreateLeadTabNote()
+            }}
+            disabled={!canCreateLeadTabNote}
+            style={{
+              minWidth: 120,
+              height: 42,
+              border: 'none',
+              borderRadius: 8,
+              background: canCreateLeadTabNote ? '#1f7a4d' : '#9ca3af',
+              color: '#ffffff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: canCreateLeadTabNote ? 'pointer' : 'not-allowed'
+            }}
+          >
+            Confirmar
+          </button>
+        </div>
+      </section>
+    )
+
     return (
       <section style={{ display: 'grid', alignContent: 'start', gap: 16 }}>
-        <div style={{ display: 'grid', gap: 8, maxWidth: 320 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!canOpenCreateLeadTabNote) {
+                return
+              }
+
+              setIsCreatingLeadTabNote(true)
+              setLeadTabNotesError(null)
+              setNewLeadTabNoteDraft({
+                businessId: selectedLeadNotesBusinessId || selectedNotesBusiness?.id || defaultNotesBusiness?.id || '',
+                title: '',
+                description: ''
+              })
+            }}
+            disabled={!canOpenCreateLeadTabNote}
+            style={{
+              width: 'fit-content',
+              border: 'none',
+              borderRadius: 8,
+              background: '#ffffff',
+              height: 42,
+              padding: '0 14px',
+              textAlign: 'left',
+              color: '#555555',
+              cursor: canOpenCreateLeadTabNote ? 'pointer' : 'not-allowed',
+              fontSize: 13,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              lineHeight: 1.2,
+              opacity: canOpenCreateLeadTabNote ? 1 : 0.65
+            }}
+          >
+            + Adicionar nota
+          </button>
+
+          <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
+            {notesTotal} nota{notesTotal === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gap: 8, width: '100%', maxWidth: isMobile ? 'none' : 320 }}>
           <label style={{ color: '#1f2937', fontSize: 14, fontWeight: 700 }}>Negocio</label>
           <div style={{ position: 'relative' }}>
             <select
-              value={selectedNotesBusiness?.id ?? ''}
+              value={selectedLeadNotesBusinessId}
               onChange={(event) => setSelectedLeadNotesBusinessId(event.target.value)}
               disabled={notesBusinesses.length === 0}
               style={{
@@ -5811,15 +6610,14 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 cursor: notesBusinesses.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
-              {notesBusinesses.length === 0 ? (
-                <option value="">Nenhum negocio</option>
-              ) : (
-                notesBusinesses.map((business) => (
-                  <option key={business.id} value={business.id}>
-                    {business.title?.trim() || 'Negócio sem nome'}
-                  </option>
-                ))
-              )}
+              <option value="">Selecione</option>
+              {notesBusinesses.length > 0
+                ? notesBusinesses.map((business) => (
+                    <option key={business.id} value={business.id}>
+                      {business.title?.trim() || 'Negócio sem nome'}
+                    </option>
+                  ))
+                : null}
             </select>
             <span
               style={{
@@ -5835,6 +6633,22 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             </span>
           </div>
         </div>
+
+        {!isMobile && isCreatingLeadTabNote ? (
+          <article
+            style={{
+              border: '1px solid #e5e7eb',
+              borderRadius: 16,
+              padding: 20,
+              background: '#ffffff',
+              display: 'grid',
+              gap: 18,
+              maxWidth: 760
+            }}
+          >
+            {leadTabNoteCreateForm}
+          </article>
+        ) : null}
 
         <div style={{ display: 'grid', gap: 8 }}>
           {!selectedNotesBusiness ? (
@@ -5969,6 +6783,43 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             ))
           )}
         </div>
+
+        {isMobile && isCreatingLeadTabNote ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar criação de nota"
+              onClick={handleCloseLeadTabCreateNote}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                border: 'none',
+                background: 'rgba(15, 23, 42, 0.18)',
+                zIndex: 40,
+                cursor: 'default'
+              }}
+            />
+
+            <aside
+              style={{
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 'calc(82px + env(safe-area-inset-bottom))',
+                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                zIndex: 45,
+                borderRadius: '22px 22px 0 0',
+                background: '#ffffff',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
+                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
+              }}
+            >
+              {leadTabNoteCreateForm}
+            </aside>
+          </>
+        ) : null}
       </section>
     )
   }
@@ -6252,9 +7103,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'grid', gap: 4 }}>
-            <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo lead</span>
             <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
-              Criar lead
+              Novo lead
             </h2>
           </div>
 
@@ -6284,13 +7134,13 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
         <article
           style={{
-            border: '1px solid #e5e7eb',
-            borderRadius: 16,
-            padding: 24,
-            background: '#ffffff',
+            border: isMobile ? 'none' : '1px solid #e5e7eb',
+            borderRadius: isMobile ? 0 : 16,
+            padding: isMobile ? 0 : 24,
+            background: isMobile ? 'transparent' : '#ffffff',
             display: 'grid',
             gap: 18,
-            maxWidth: 760
+            maxWidth: isMobile ? 'none' : 760
           }}
         >
           <div
@@ -6591,27 +7441,407 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     )
   }
 
+  const mobileLeadStateLabel =
+    leadData?.state?.trim().toLowerCase() === 'archived' ? 'Arquivado' : 'Ativo'
+  const isMobileLeadArchived = mobileLeadStateLabel === 'Arquivado'
+  const isMobileLeadFavorite = Boolean(leadData?.isFavorite)
+  const mobileSelectedBusiness = isMobile && activeTab === 'negocios' && selectedBusinessId
+    ? leadNegotiations.find((business) => business.id === selectedBusinessId) ?? null
+    : null
+  const isMobileSelectedBusinessClosed = mobileSelectedBusiness
+    ? formatDateOnly(mobileSelectedBusiness.closedAt) !== '-'
+    : false
+
   return (
     <section
       style={{
         height: '100%',
         minHeight: 0,
-        padding: '40px',
+        padding: isMobile ? '18px 0 0' : '40px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8
+        gap: isMobile ? 0 : 8,
+        background: '#ffffff'
       }}
     >
-      {!shouldHideLeadTabs ? (
+      {isMobile ? (
+        <header
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            alignItems: 'center',
+            gap: 12,
+            padding: '0 12px 18px',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <button
+              type="button"
+              aria-label={mobileSelectedBusiness ? 'Voltar para o lead' : 'Voltar para listagem de leads'}
+              onClick={() => {
+                if (mobileSelectedBusiness) {
+                  setSelectedBusinessId(null)
+                  setIsBusinessActionsOpen(false)
+                  setIsConfirmingBusinessDelete(false)
+                  setIsConfirmingBusinessClose(false)
+                  setIsEditingBusiness(false)
+                  setActiveBusinessTab('informacoes')
+                  return
+                }
+
+                navigate(`${closeLeadPath}${location.search}`)
+              }}
+              style={{
+                height: 32,
+                width: 32,
+                border: 'none',
+                borderRadius: 8,
+                background: 'transparent',
+                color: '#111827',
+                padding: 0,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+
+            <h1
+              style={{
+                margin: 0,
+                color: '#111827',
+                fontSize: 20,
+                fontWeight: 800,
+                lineHeight: 1.15,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {mobileSelectedBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
+            </h1>
+            {!mobileSelectedBusiness && isMobileLeadFavorite ? (
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: '#fef9c3',
+                  color: '#f59e0b',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+                aria-label="Lead favoritado"
+                title="Lead favoritado"
+              >
+                <Star size={14} fill="#f59e0b" />
+              </span>
+            ) : null}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {mobileSelectedBusiness ? (
+              <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsBusinessActionsOpen((current) => !current)}
+                  style={{
+                    height: 32,
+                    width: 32,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: 'transparent',
+                    color: '#111827',
+                    padding: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                  aria-label="Abrir ações do negócio"
+                >
+                  <MoreVertical size={20} />
+                </button>
+
+                {isBusinessActionsOpen ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 38,
+                      minWidth: 188,
+                      background: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 10,
+                      boxShadow: '0 8px 24px rgba(2, 6, 23, 0.12)',
+                      padding: 6,
+                      zIndex: 10,
+                      display: 'grid',
+                      gap: 4
+                    }}
+                  >
+                    {isMobileSelectedBusinessClosed ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedBusinessId) return
+
+                          void (async () => {
+                            try {
+                              await WebhookService.updateNegotiation(selectedBusinessId, {
+                                stage: 'NEW',
+                                closedAt: null
+                              })
+                              await refreshLeadNegotiations(leadId ?? '')
+                              onLeadUpdated?.()
+                              setActiveBusinessTab('informacoes')
+                              setIsBusinessActionsOpen(false)
+                              setIsConfirmingBusinessClose(false)
+                            } catch (exception: unknown) {
+                              const message = exception instanceof Error ? exception.message : 'Falha ao reabrir negócio.'
+                              setBusinessesError(message)
+                            }
+                          })()
+                        }}
+                        style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                      >
+                        Reabrir Negócio
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsConfirmingBusinessClose(true)
+                          setIsConfirmingBusinessDelete(false)
+                          setIsBusinessActionsOpen(false)
+                        }}
+                        style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                      >
+                        Fechar Negócio
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={isMobileSelectedBusinessClosed}
+                      onClick={() => {
+                        if (isMobileSelectedBusinessClosed) return
+                        setIsEditingBusiness(true)
+                        setIsConfirmingBusinessDelete(false)
+                        setIsConfirmingBusinessClose(false)
+                        setActiveBusinessTab('informacoes')
+                        setIsBusinessActionsOpen(false)
+                      }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: isMobileSelectedBusinessClosed ? '#94a3b8' : '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: isMobileSelectedBusinessClosed ? 'not-allowed' : 'pointer' }}
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsConfirmingBusinessDelete(true)
+                        setIsConfirmingBusinessClose(false)
+                        setIsBusinessActionsOpen(false)
+                      }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#dc2626', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                    >
+                      Deletar
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+            <div ref={generalActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsGeneralActionsOpen((current) => !current)}
+                style={{
+                  height: 32,
+                  width: 32,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  color: '#111827',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                aria-label="Abrir ações do lead"
+              >
+                <MoreVertical size={20} />
+              </button>
+
+              {isGeneralActionsOpen ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 38,
+                    minWidth: 188,
+                    background: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    boxShadow: '0 8px 24px rgba(2, 6, 23, 0.12)',
+                    padding: 6,
+                    zIndex: 10,
+                    display: 'grid',
+                    gap: 4
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handleStartLeadInfoEdit}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleLeadFavorite()}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    {isMobileLeadFavorite ? 'Desfavoritar' : 'Favoritar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMobileLeadArchived) {
+                        void handleToggleLeadArchive()
+                        return
+                      }
+
+                      setIsConfirmingLeadArchive(true)
+                      setIsConfirmingLeadDelete(false)
+                      setIsEditingLeadInfo(false)
+                      setIsGeneralActionsOpen(false)
+                    }}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    {isMobileLeadArchived ? 'Desarquivar' : 'Arquivar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsConfirmingLeadDelete(true)
+                      setIsEditingLeadInfo(false)
+                      setIsGeneralActionsOpen(false)
+                    }}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#dc2626', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                  >
+                    Deletar
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            )}
+          </div>
+        </header>
+      ) : null}
+
+      {mobileSelectedBusiness ? (
         <div style={{ display: 'grid', gap: 0 }}>
           <nav
+            className="mobile-tabs-scrollbar-hidden"
             style={{
-              padding: 0
+              padding: '0 4px',
+              overflowX: 'auto'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              {[
+                { key: 'informacoes' as const, label: 'Informações' },
+                { key: 'followups' as const, label: 'FollowUps' },
+                { key: 'arquivos' as const, label: 'Arquivos' },
+                { key: 'notas' as const, label: 'Notas' }
+              ].map((tab) => {
+                const isActive = activeBusinessTab === tab.key
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      if (mobileSelectedBusiness) {
+                        setBusinessDetailDraft({
+                          title: mobileSelectedBusiness.title ?? '',
+                          negotiationType: mobileSelectedBusiness.negotiationType ?? '',
+                          stage: mobileSelectedBusiness.stage,
+                          temperature: mobileSelectedBusiness.temperature ?? '',
+                          value: formatLeadValueInputField(mobileSelectedBusiness.value),
+                          notes: formatNegotiationNotes(mobileSelectedBusiness.notes)
+                        })
+                      }
+                      setIsEditingBusiness(false)
+                      setIsConfirmingBusinessDelete(false)
+                      setIsConfirmingBusinessClose(false)
+                      setActiveBusinessTab(tab.key)
+                      setIsBusinessActionsOpen(false)
+                    }}
+                    onMouseEnter={() => setHoveredBusinessTab(tab.key)}
+                    onMouseLeave={() => setHoveredBusinessTab(null)}
+                    style={{
+                      border: 'none',
+                      background:
+                        isActive || hoveredBusinessTab === tab.key
+                          ? '#dcfce7'
+                          : 'transparent',
+                      borderRadius: 8,
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: isActive ? 700 : 600,
+                      color:
+                        isActive || hoveredBusinessTab === tab.key
+                          ? '#1f7a4d'
+                          : '#6b7280',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
+          </nav>
+        </div>
+      ) : !shouldHideLeadTabs ? (
+        <div style={{ display: 'grid', gap: 0 }}>
+          <nav
+            className={isMobile ? 'mobile-tabs-scrollbar-hidden' : undefined}
+            style={{
+              padding: isMobile ? '0 4px' : 0,
+              overflowX: isMobile ? 'auto' : 'visible'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: isMobile ? 'flex-start' : 'space-between',
+                gap: 12
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isMobile ? 10 : 4,
+                  minWidth: isMobile ? 'max-content' : 0
+                }}
+              >
                 {leadTabs.map((tab) => (
                   <button
                     key={tab.key}
@@ -6623,16 +7853,20 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                       border: 'none',
                       background:
                         activeTab === tab.key || hoveredLeadTab === tab.key
-                          ? interactionTheme.clickableCardHoverBackground
+                          ? isMobile
+                            ? '#dcfce7'
+                            : interactionTheme.clickableCardHoverBackground
                           : 'transparent',
-                      borderRadius: 6,
-                      padding: '8px 12px',
+                      borderRadius: isMobile ? 8 : 6,
+                      padding: isMobile ? '12px 16px' : '8px 12px',
                       cursor: 'pointer',
-                      fontSize: 14,
-                      fontWeight: activeTab === tab.key ? 600 : 400,
+                      fontSize: isMobile ? 13 : 14,
+                      fontWeight: activeTab === tab.key ? 700 : 600,
                       color:
                         activeTab === tab.key || hoveredLeadTab === tab.key
-                          ? interactionTheme.activeIconColor
+                          ? isMobile
+                            ? '#1f7a4d'
+                            : interactionTheme.activeIconColor
                           : '#6b7280'
                     }}
                   >
@@ -6640,34 +7874,38 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                aria-label="Fechar lead"
-                onClick={() => navigate(closeLeadPath)}
-                style={{
-                  height: 28,
-                  minWidth: 28,
-                  border: 'none',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  color: '#6b7280',
-                  padding: '0 8px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  lineHeight: 1
-                }}
-              >
-                X
-              </button>
+              {!isMobile ? (
+                <button
+                  type="button"
+                  aria-label="Fechar lead"
+                  onClick={() => navigate(closeLeadPath)}
+                  style={{
+                    height: 28,
+                    minWidth: 28,
+                    border: 'none',
+                    borderRadius: 6,
+                    background: 'transparent',
+                    color: '#6b7280',
+                    padding: '0 8px',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    lineHeight: 1
+                  }}
+                >
+                  X
+                </button>
+              ) : null}
             </div>
           </nav>
 
-          <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+          {!isMobile ? (
+            <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+          ) : null}
         </div>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: isMobile ? '16px 12px 0' : 0 }}>
         {isLoading ? <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p> : null}
         {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
         {!isLoading && !error ? renderTabContent() : null}

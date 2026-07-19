@@ -29,3 +29,12 @@ select,
 textarea {
   font: inherit;
 }
+
+.mobile-tabs-scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mobile-tabs-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

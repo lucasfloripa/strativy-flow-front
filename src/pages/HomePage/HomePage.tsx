@@ -1,4 +1,5 @@
 import {
+  Bell,
   CalendarClock,
   CalendarDays,
   ChevronDown,
@@ -12,13 +13,16 @@ import {
 import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useEffect,
   useRef,
   useState
 } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 
+import type { AuthenticatedLayoutOutletContext } from '../../app/layouts/AuthenticatedLayout'
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import {
   formatDateTime,
   formatElapsedHoursAndMinutes,
@@ -332,6 +336,10 @@ const getNextAgendaTagColors = (
   }
 }
 
+const getNextAgendaIcon = () => {
+  return <CalendarDays size={12} />
+}
+
 const mapApiLeadToHighlightedLead = (lead: HomeHighlightedLead): HighlightedLead => {
   const name = (lead.name ?? '').trim() || 'Lead sem nome'
 
@@ -474,6 +482,12 @@ const getNotificationNavigation = (
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { isMobile } = useViewportBreakpoint()
+  const {
+    isMobileHomeNotificationsOpen,
+    setIsMobileHomeNotificationsOpen,
+    setMobileHomeNotificationsCount
+  } = useOutletContext<AuthenticatedLayoutOutletContext>()
   const today = toDateInputValue(new Date())
   const [hoveredHighlightedLeadId, setHoveredHighlightedLeadId] = useState<string | null>(null)
   const [hoveredHighlightedNextAgendaLeadId, setHoveredHighlightedNextAgendaLeadId] = useState<string | null>(null)
@@ -549,6 +563,14 @@ export default function HomePage() {
       isActive = false
     }
   }, [appliedRevenueRange.endDate, appliedRevenueRange.startDate])
+
+  useEffect(() => {
+    setMobileHomeNotificationsCount(notifications.length)
+
+    return () => {
+      setMobileHomeNotificationsCount(0)
+    }
+  }, [notifications.length, setMobileHomeNotificationsCount])
 
   const summaryFollowUps = dashboardSummary.followUps
   const summaryNewToday = dashboardSummary.newToday
@@ -748,6 +770,414 @@ export default function HomePage() {
     }
   ]
 
+  const renderNotificationsList = (title: string, titleIcon?: ReactNode) => (
+    <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '10px 10px 8px', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {titleIcon ?? null}
+          <h3 style={{ margin: 0, color: '#0f172a', fontSize: 28, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void handleClearNotifications()
+          }}
+          onMouseEnter={() => setIsClearNotificationsHovered(true)}
+          onMouseLeave={() => setIsClearNotificationsHovered(false)}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: isClearNotificationsHovered
+              ? interactionTheme.sidebarItemActiveColor
+              : '#334155',
+            padding: 0,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Limpar
+        </button>
+      </div>
+
+      <div style={{ marginTop: 10, minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 4 }}>
+        {notifications.map((activity) => {
+          return (
+            <div
+              key={activity.id}
+              onMouseEnter={() => setHoveredNotificationId(activity.id)}
+              onMouseLeave={() => setHoveredNotificationId(null)}
+              onClick={() => {
+                void handleNotificationClick(activity)
+                setIsMobileHomeNotificationsOpen(false)
+              }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 10,
+                alignItems: 'center',
+                borderRadius: 8,
+                padding: '8px 8px',
+                cursor: 'pointer',
+                background: selectedNotificationId === activity.id || hoveredNotificationId === activity.id ? interactionTheme.clickableCardHoverBackground : 'transparent',
+                transition: 'background 120ms ease'
+              }}
+            >
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {activity.icon === 'message' ? (
+                  <MessageCircle size={19} color={activity.color} />
+                ) : activity.icon === 'followup' ? (
+                  <CalendarClock size={19} color={activity.color} />
+                ) : (
+                  <UserPlus size={19} color={activity.color} />
+                )}
+
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.title}</p>
+                  <p style={{ margin: '2px 0 0', color: '#475569', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.description}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#64748b', fontSize: 14 }}>{activity.time}</span>
+                {hoveredNotificationId === activity.id ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void handleDeleteNotification(activity)
+                    }}
+                    aria-label="Excluir notificação"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </article>
+  )
+
+  if (isMobile && isMobileHomeNotificationsOpen) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '12px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          overflow: 'hidden'
+        }}
+      >
+        {renderNotificationsList('Notificações', <Bell size={22} color={interactionTheme.sidebarItemActiveColor} />)}
+      </section>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '12px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+          <article
+            onClick={() => navigate('/leads?newLeads=true')}
+            onMouseEnter={() => setHoveredSummaryCardKey('new')}
+            onMouseLeave={() => setHoveredSummaryCardKey(null)}
+            style={{
+              background: hoveredSummaryCardKey === 'new' ? interactionTheme.clickableCardHoverBackground : cardBackground,
+              border: cardBorder,
+              borderRadius: 12,
+              padding: '6px 7px',
+              boxShadow: cardShadow,
+              minHeight: topSummaryCardHeight,
+              height: topSummaryCardHeight,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s ease'
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
+              <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Novos</p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ height: 44, width: 44, borderRadius: 12, background: '#e9f9ef', color: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <UserPlus size={23} />
+                </span>
+                <strong style={{ color: '#16a34a', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryNewToday}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article
+            onClick={() => navigate('/leads?withoutConversation24h=true')}
+            onMouseEnter={() => setHoveredSummaryCardKey('idle')}
+            onMouseLeave={() => setHoveredSummaryCardKey(null)}
+            style={{
+              background: hoveredSummaryCardKey === 'idle' ? interactionTheme.clickableCardHoverBackground : cardBackground,
+              border: cardBorder,
+              borderRadius: 12,
+              padding: '6px 7px',
+              boxShadow: cardShadow,
+              minHeight: topSummaryCardHeight,
+              height: topSummaryCardHeight,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s ease'
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
+              <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Sem conversa 24h+</p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ height: 44, width: 44, borderRadius: 12, background: '#fff6ec', color: '#f97316', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Clock3 size={23} />
+                </span>
+                <strong style={{ color: '#f97316', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryWithoutConversation24h}</strong>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '4px 5px', display: 'flex', flexDirection: 'column', minHeight: topSummaryCardHeight, flexShrink: 0, justifyContent: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+            {priorities.map((priority) => (
+              <div
+                key={priority.key}
+                onClick={() => navigate(`/agenda?followUp=${priority.key}`)}
+                onMouseEnter={() => setHoveredFollowUpMetricKey(priority.key)}
+                onMouseLeave={() => setHoveredFollowUpMetricKey(null)}
+                style={{
+                  borderRadius: 8,
+                  padding: '8px 2px',
+                  background: hoveredFollowUpMetricKey === priority.key ? interactionTheme.clickableCardHoverBackground : 'transparent',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 102,
+                  cursor: 'pointer'
+                }}
+              >
+                <p style={{ margin: 0, color: '#0f172a', fontSize: 16, lineHeight: 1.2, fontWeight: 600, textAlign: 'center' }}>{priority.title}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{priority.key === 'overdue' ? <Clock4 size={28} color="#ef4444" /> : priority.key === 'today' ? <CalendarClock size={28} color="#f59e0b" /> : <CalendarDays size={28} color="#2563eb" />}</span>
+                  <strong style={{ color: priority.color, fontSize: 26, lineHeight: 1, fontWeight: 700 }}>{priority.value}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <header style={{ padding: '12px 14px 6px' }}>
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Em Destaque</h3>
+          </header>
+
+          <div style={{ padding: '0 14px 14px', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2 }}>
+              {highlightedLeads.map((highlightedLead) => {
+                const isArchivedLead = highlightedLead.status === 'Arquivado'
+                const shouldShowNewTag = isNewLead(highlightedLead.createdAt)
+                const interactionTagPresentation = getInteractionTagPresentation(
+                  highlightedLead.lastMessageAt,
+                  highlightedLead.createdAt
+                )
+                const nextAgendaLabel = formatAgendaDateTime(highlightedLead.nextFollowUpDueAt)
+                const nextAgendaStatus = resolveNextAgendaStatus(highlightedLead)
+                const nextAgendaTagColors = getNextAgendaTagColors(nextAgendaStatus)
+                const nextAgendaIcon = getNextAgendaIcon()
+
+                const navigateToFollowUps = () => {
+                  if (!highlightedLead.nextFollowUpNegotiationId) {
+                    return
+                  }
+
+                  navigate(`/leads/${highlightedLead.id}`, {
+                    state: {
+                      initialLeadTab: 'negocios',
+                      initialBusinessId: highlightedLead.nextFollowUpNegotiationId,
+                      initialBusinessTab: 'followups'
+                    }
+                  })
+                }
+
+                return (
+                  <div
+                    key={highlightedLead.id}
+                    onClick={() => navigate(`/leads/${highlightedLead.id}`)}
+                    onMouseEnter={() => setHoveredHighlightedLeadId(highlightedLead.id)}
+                    onMouseLeave={() => {
+                      setHoveredHighlightedLeadId(null)
+                      setHoveredHighlightedNextAgendaLeadId(null)
+                    }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '10px 12px',
+                      border: '1px solid #f1f5f9',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      background: hoveredHighlightedLeadId === highlightedLead.id ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                      transition: 'background 120ms ease',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{highlightedLead.name}</p>
+                      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{highlightedLead.phone}</p>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 6, justifyItems: 'center', minWidth: 0 }}>
+                      {isArchivedLead ? (
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
+                      ) : (
+                        <span
+                          style={{
+                            maxWidth: '100%',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: shouldShowNewTag ? '#eab308' : interactionTagPresentation.textColor,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            background: shouldShowNewTag ? '#fef3c7' : `${interactionTagPresentation.textColor}44`,
+                            border: '1px solid transparent',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            padding: '6px 9px',
+                            cursor: 'default',
+                            lineHeight: 1.1
+                          }}
+                        >
+                          {!shouldShowNewTag && interactionTagPresentation.icon ? (
+                            <span style={tagIconStyle}>
+                              {interactionTagPresentation.icon}
+                            </span>
+                          ) : null}
+                          <span style={tagContentStyle}>
+                            {shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
+                          </span>
+                        </span>
+                      )}
+
+                      {isArchivedLead || nextAgendaLabel === '-' ? (
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
+                      ) : (
+                        <span
+                          onMouseEnter={() => setHoveredHighlightedNextAgendaLeadId(highlightedLead.id)}
+                          onMouseLeave={() => setHoveredHighlightedNextAgendaLeadId(null)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            navigateToFollowUps()
+                          }}
+                          style={{
+                            maxWidth: '100%',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: nextAgendaTagColors.textColor,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            background: nextAgendaTagColors.background,
+                            border: hoveredHighlightedNextAgendaLeadId === highlightedLead.id
+                              ? '1px solid #16a34a'
+                              : '1px solid transparent',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            padding: '6px 9px',
+                            cursor: highlightedLead.nextFollowUpNegotiationId ? 'pointer' : 'default',
+                            lineHeight: 1.1
+                          }}
+                        >
+                          <span style={tagIconStyle}>{nextAgendaIcon}</span>
+                          <span style={tagContentStyle}>{nextAgendaLabel}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </article>
+
+        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '0 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 92, flexShrink: 0, marginTop: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <div style={{ height: 52, width: 52, borderRadius: 16, background: '#edf8f0', color: '#0f7a43', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CircleDollarSign size={26} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Receita</p>
+                <strong style={{ marginTop: 4, display: 'block', color: '#0f7a43', fontSize: 30, lineHeight: 1.1, fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyBRL(summaryRevenue)}</strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRevenueDateButtonClick}
+              style={revenueDateButtonStyle}
+            >
+              <CalendarDays size={14} color="#0f7a43" />
+              <span style={{ fontSize: 14 }}>{revenueDateLabel}</span>
+              <ChevronDown size={14} />
+            </button>
+          </div>
+
+          <input
+            ref={revenueDatePickerInputRef}
+            type="date"
+            value={revenueDatePickerValue}
+            onChange={(event) => handleRevenueDatePickerChange(event.target.value)}
+            style={{
+              position: 'absolute',
+              opacity: 0,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none'
+            }}
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        </article>
+      </section>
+    )
+  }
+
   return (
     <section
       style={{
@@ -848,7 +1278,9 @@ export default function HomePage() {
                     highlightedLead.createdAt
                   )
                   const nextAgendaLabel = formatAgendaDateTime(highlightedLead.nextFollowUpDueAt)
-                  const nextAgendaTagColors = getNextAgendaTagColors(resolveNextAgendaStatus(highlightedLead))
+                  const nextAgendaStatus = resolveNextAgendaStatus(highlightedLead)
+                  const nextAgendaTagColors = getNextAgendaTagColors(nextAgendaStatus)
+                  const nextAgendaIcon = getNextAgendaIcon()
 
                   const navigateToFollowUps = () => {
                     if (!highlightedLead.nextFollowUpNegotiationId) {
@@ -959,6 +1391,7 @@ export default function HomePage() {
                                 lineHeight: 1.1
                               }}
                             >
+                              <span style={tagIconStyle}>{nextAgendaIcon}</span>
                               <span style={tagContentStyle}>{nextAgendaLabel}</span>
                             </span>
                           )}
@@ -1004,100 +1437,7 @@ export default function HomePage() {
             </div>
           </article>
 
-          <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '10px 10px 8px', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <h3 style={{ margin: 0, color: '#0f172a', fontSize: 28, fontWeight: 700, letterSpacing: '-0.01em' }}>Notificações</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleClearNotifications()
-                }}
-                onMouseEnter={() => setIsClearNotificationsHovered(true)}
-                onMouseLeave={() => setIsClearNotificationsHovered(false)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: isClearNotificationsHovered
-                    ? interactionTheme.sidebarItemActiveColor
-                    : '#334155',
-                  padding: 0,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Limpar
-              </button>
-            </div>
-
-            <div style={{ marginTop: 10, minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 4 }}>
-              {notifications.map((activity) => {
-                return (
-                  <div
-                    key={activity.id}
-                    onMouseEnter={() => setHoveredNotificationId(activity.id)}
-                    onMouseLeave={() => setHoveredNotificationId(null)}
-                    onClick={() => {
-                      void handleNotificationClick(activity)
-                    }}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      gap: 10,
-                      alignItems: 'center',
-                      borderRadius: 8,
-                      padding: '8px 8px',
-                      cursor: 'pointer',
-                      background: selectedNotificationId === activity.id || hoveredNotificationId === activity.id ? interactionTheme.clickableCardHoverBackground : 'transparent',
-                      transition: 'background 120ms ease'
-                    }}
-                  >
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      {activity.icon === 'message' ? (
-                        <MessageCircle size={19} color={activity.color} />
-                      ) : activity.icon === 'followup' ? (
-                        <CalendarClock size={19} color={activity.color} />
-                      ) : (
-                        <UserPlus size={19} color={activity.color} />
-                      )}
-
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.title}</p>
-                        <p style={{ margin: '2px 0 0', color: '#475569', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.description}</p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: '#64748b', fontSize: 14 }}>{activity.time}</span>
-                      {hoveredNotificationId === activity.id ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleDeleteNotification(activity)
-                          }}
-                          aria-label="Excluir notificação"
-                          style={{
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#64748b',
-                            cursor: 'pointer',
-                            padding: 0,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <X size={14} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-          </article>
+          {!isMobile ? renderNotificationsList('Notificações') : null}
 
           <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '0 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 70 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

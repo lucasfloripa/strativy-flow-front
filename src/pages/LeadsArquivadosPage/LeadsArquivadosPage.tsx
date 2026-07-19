@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
 import LeadPage from '../LeadPage'
@@ -15,18 +16,17 @@ type ArchivedLeadRow = {
 
 type NameSortDirection = 'asc' | 'desc'
 
-const leadsPerPage = 12
-
 export default function LeadsArquivadosPage() {
   const leadPanelWidth = 'min(48vw, 760px)'
   const leadPanelTransitionMs = 120
+  const { isMobile } = useViewportBreakpoint()
   const navigate = useNavigate()
   const location = useLocation()
   const { leadId } = useParams<{ leadId?: string }>()
   const { data, isLoading, error, reload } = useLeadsBootstrap()
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [, setCurrentPage] = useState<number>(1)
   const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null)
   const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<string | null>(null)
   const [nameSortDirection, setNameSortDirection] = useState<NameSortDirection>('asc')
@@ -63,11 +63,7 @@ export default function LeadsArquivadosPage() {
     })
   }, [archivedLeads, nameSortDirection])
 
-  const totalPages = Math.max(1, Math.ceil(sortedArchivedLeads.length / leadsPerPage))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStartIndex = (safeCurrentPage - 1) * leadsPerPage
-  const paginatedLeads = sortedArchivedLeads.slice(pageStartIndex, pageStartIndex + leadsPerPage)
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1)
+  const paginatedLeads = sortedArchivedLeads
 
   const getHeaderSortButtonStyle = () => ({
     border: 'none',
@@ -138,6 +134,222 @@ export default function LeadsArquivadosPage() {
   useEffect(() => {
     setCurrentPage(1)
   }, [nameSortDirection])
+
+  if (isMobile) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads Arquivados</h1>
+        </header>
+
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(event) => {
+            setSearchTerm(event.target.value)
+            setCurrentPage(1)
+          }}
+          onFocus={() => setIsSearchInputFocused(true)}
+          onBlur={() => setIsSearchInputFocused(false)}
+          placeholder="Buscar lead"
+          style={{
+            width: '100%',
+            height: 52,
+            border: `1px solid ${
+              isSearchInputFocused
+                ? interactionTheme.inputFocusBorderColor
+                : '#d1d5db'
+            }`,
+            borderRadius: 14,
+            padding: '0 16px',
+            background: '#ffffff',
+            color: '#111827',
+            boxShadow: isSearchInputFocused
+              ? interactionTheme.inputFocusBoxShadow
+              : 'none',
+            outline: 'none',
+            fontSize: 16,
+            boxSizing: 'border-box'
+          }}
+        />
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+          {paginatedLeads.map((lead) => {
+            const isHovered = hoveredLeadId === lead.id
+
+            if (confirmingDeleteLeadId === lead.id) {
+              return (
+                <article
+                  key={lead.id}
+                  style={{
+                    background: interactionTheme.clickableCardHoverBackground,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar lead arquivado?</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label="Cancelar exclusão de lead arquivado"
+                      onClick={() => setConfirmingDeleteLeadId(null)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Confirmar exclusão de lead arquivado"
+                      onClick={() => void handleDeleteLead(lead.id)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </article>
+              )
+            }
+
+            return (
+              <article
+                key={lead.id}
+                onClick={() => navigate(`/arquivados/${lead.id}${location.search}`)}
+                onMouseEnter={() => setHoveredLeadId(lead.id)}
+                onMouseLeave={() => setHoveredLeadId(null)}
+                style={{
+                  background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: 18,
+                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                  padding: 16,
+                  display: 'grid',
+                  gap: 4,
+                  cursor: 'pointer',
+                  transition: 'background 120ms ease'
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {lead.name}
+                    </h2>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      aria-label="Desarquivar lead"
+                      onClick={() => void handleUnarchiveLead(lead.id)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        background: '#e5e7eb',
+                        color: '#6b7280',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <ArchiveRestore size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label="Excluir lead"
+                      onClick={() => setConfirmingDeleteLeadId(lead.id)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: '#b45309',
+                      whiteSpace: 'nowrap',
+                      background: '#fef3c7',
+                      borderRadius: 6,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '7px 12px',
+                      lineHeight: 1.1
+                    }}
+                  >
+                    {lead.state}
+                  </span>
+                </div>
+              </article>
+            )
+          })}
+
+          {!isLoading && !error && archivedLeads.length === 0 ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead arquivado encontrado.</div>
+          ) : null}
+
+          {isLoading ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando arquivados...</div>
+          ) : null}
+
+          {error ? (
+            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+          ) : null}
+        </div>
+
+        {isLeadSelected ? (
+          <aside
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              overflow: 'hidden'
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        ) : null}
+      </section>
+    )
+  }
 
   return (
     <section
@@ -487,64 +699,6 @@ export default function LeadsArquivadosPage() {
             {archivedLeads.length} arquivado{archivedLeads.length === 1 ? '' : 's'}
           </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage <= 1) return
-                setCurrentPage((current) => current - 1)
-              }}
-              disabled={safeCurrentPage <= 1}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage <= 1 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'<'}
-            </button>
-
-            {pageNumbers.map((pageNumber) => (
-              <button
-                key={pageNumber}
-                type="button"
-                onClick={() => {
-                  if (pageNumber === safeCurrentPage) return
-                  setCurrentPage(pageNumber)
-                }}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: pageNumber === safeCurrentPage ? '#111827' : '#4b5563',
-                  padding: '0 4px',
-                  cursor: pageNumber === safeCurrentPage ? 'default' : 'pointer',
-                  fontWeight: pageNumber === safeCurrentPage ? 600 : 400
-                }}
-              >
-                {pageNumber}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage >= totalPages) return
-                setCurrentPage((current) => current + 1)
-              }}
-              disabled={safeCurrentPage >= totalPages}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'>'}
-            </button>
-          </div>
         </div>
 
         {isLeadSelected ? (

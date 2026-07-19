@@ -2,6 +2,7 @@ import {
   ChevronDown,
   Flame,
   ListFilter,
+  Plus,
   Snowflake,
   Sun,
   Trash2
@@ -11,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { getApiDateTimestamp } from '../../core/utils/dateTime'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
@@ -369,27 +371,56 @@ const initialBusinessCreateDraft: BusinessCreateDraft = {
   notes: ''
 }
 
+const sanitizeLeadValueInput = (value: string): string => {
+  const compact = value.replace(/\s+/g, '')
+  let hasComma = false
+  let sanitized = ''
+
+  for (const character of compact) {
+    if (/\d/.test(character)) {
+      sanitized += character
+      continue
+    }
+
+    if (character === ',' && !hasComma) {
+      sanitized += character
+      hasComma = true
+    }
+  }
+
+  return sanitized
+}
+
 const parseLeadValueInput = (value: string): string | null => {
-  const normalizedValue = value.replace(',', '.').trim()
-
-  if (!normalizedValue) {
+  const normalizedInput = sanitizeLeadValueInput(value)
+  if (!normalizedInput) {
     return null
   }
 
-  const parsed = Number(normalizedValue)
+  const [rawIntegerPart, rawFractionPart = ''] = normalizedInput.split(',')
+  const integerDigits = rawIntegerPart.replace(/\D/g, '')
 
-  if (!Number.isFinite(parsed)) {
+  if (!integerDigits && !rawFractionPart) {
     return null
   }
 
-  return parsed.toFixed(2)
+  if (!rawFractionPart) {
+    return String(Number(integerDigits || '0'))
+  }
+
+  const centsDigits = rawFractionPart.replace(/\D/g, '').slice(0, 2).padEnd(2, '0')
+
+  if (centsDigits === '00') {
+    return String(Number(integerDigits || '0'))
+  }
+
+  return `${Number(integerDigits || '0')}.${centsDigits}`
 }
 
 export default function NegociosPage() {
-  const negociosPerPage = 12
-  const paginationWindowSize = 3
   const leadPanelWidth = 'min(48vw, 760px)'
   const leadPanelTransitionMs = 120
+  const { isMobile } = useViewportBreakpoint()
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -411,7 +442,6 @@ export default function NegociosPage() {
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<BusinessStatusFilterValue[]>([])
   const [selectedTemperatureFilters, setSelectedTemperatureFilters] = useState<BusinessTemperatureFilterValue[]>([])
 
-  const [currentPage, setCurrentPage] = useState<number>(1)
   const [sortKey, setSortKey] = useState<BusinessSortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<BusinessSortDirection>('desc')
   const [typeSortFocus, setTypeSortFocus] = useState<BusinessTypeSortFocus>('serviceFirst')
@@ -434,6 +464,14 @@ export default function NegociosPage() {
     ? null
     : ((location.state as NegociosLocationState | null)?.initialBusinessId ?? null)
   const isBusinessPanelOpen = isCreateBusinessMode || Boolean(selectedBusinessId)  
+
+  const activeLeads = useMemo(
+    () =>
+      (leadsData.leads ?? []).filter(
+        (lead) => (lead.state ?? 'active').trim().toLowerCase() !== 'archived'
+      ),
+    [leadsData.leads]
+  )
 
   const userLeadIdSet = useMemo(
     () => new Set((leadsData.leads ?? []).map((lead) => lead.id)),
@@ -458,8 +496,9 @@ export default function NegociosPage() {
 
     setBusinessCreateError(null)
     setBusinessCreateDraft((current) => {
-      const defaultLeadId = leadsData.leads?.[0]?.id ?? ''
-      const nextLeadId = current.leadId || defaultLeadId
+      const defaultLeadId = activeLeads[0]?.id ?? ''
+      const hasSelectedLead = activeLeads.some((lead) => lead.id === current.leadId)
+      const nextLeadId = hasSelectedLead ? current.leadId : defaultLeadId
 
       if (
         current.leadId === nextLeadId &&
@@ -481,7 +520,7 @@ export default function NegociosPage() {
         leadId: nextLeadId
       }
     })
-  }, [isCreateBusinessMode, leadsData.leads])
+  }, [activeLeads, isCreateBusinessMode])
 
   useEffect(() => {
     let isMounted = true
@@ -731,36 +770,7 @@ export default function NegociosPage() {
     ]
   )
 
-  const totalPages = Math.max(1, Math.ceil(sortedNegocios.length / negociosPerPage))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStartIndex = (safeCurrentPage - 1) * negociosPerPage
-  const paginatedNegocios = sortedNegocios.slice(
-    pageStartIndex,
-    pageStartIndex + negociosPerPage
-  )
-
-  const firstVisiblePage = Math.max(
-    1,
-    Math.min(safeCurrentPage - 1, totalPages - (paginationWindowSize - 1))
-  )
-  const lastVisiblePage = Math.min(
-    totalPages,
-    firstVisiblePage + (paginationWindowSize - 1)
-  )
-  const pageNumbers = Array.from(
-    { length: Math.max(0, lastVisiblePage - firstVisiblePage + 1) },
-    (_, index) => firstVisiblePage + index
-  )
-
-  useEffect(() => {
-    setCurrentPage((current) => {
-      if (current <= totalPages) {
-        return current
-      }
-
-      return totalPages
-    })
-  }, [totalPages])
+  const paginatedNegocios = sortedNegocios
 
   useEffect(() => {
     if (!isBusinessPanelOpen) {
@@ -991,6 +1001,795 @@ export default function NegociosPage() {
       const message = exception instanceof Error ? exception.message : 'Falha ao criar negócio.'
       setBusinessCreateError(message)
     }
+  }
+
+  const canCreateBusiness = Boolean(
+    businessCreateDraft.leadId.trim() && businessCreateDraft.title.trim()
+  )
+
+  const mobileCreateBusinessSheet = isCreateBusinessMode ? (
+    <>
+      <button
+        type="button"
+        aria-label="Fechar criação de negócio"
+        onClick={() => navigate(`/negocios${location.search}`)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          border: 'none',
+          background: 'rgba(15, 23, 42, 0.18)',
+          zIndex: 40,
+          cursor: 'default'
+        }}
+      />
+
+      <aside
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          maxHeight: '86%',
+          zIndex: 45,
+          borderRadius: '22px 22px 0 0',
+          background: '#ffffff',
+          overflowY: 'auto',
+          boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
+        }}
+      >
+        <section
+          style={{
+            height: '100%',
+            padding: '22px 18px 28px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            background: '#ffffff',
+            boxSizing: 'border-box'
+          }}
+        >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+              Novo negócio
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Fechar criação de negócio"
+            onClick={() => navigate(`/negocios${location.search}`)}
+            style={{
+              height: 28,
+              minWidth: 28,
+              border: 'none',
+              borderRadius: 6,
+              background: 'transparent',
+              color: '#6b7280',
+              padding: '0 8px',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+              lineHeight: 1
+            }}
+          >
+            X
+          </button>
+        </div>
+
+        {businessCreateError ? (
+          <p style={{ margin: 0, color: '#b91c1c' }}>{businessCreateError}</p>
+        ) : null}
+
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Lead</label>
+            <select
+              value={businessCreateDraft.leadId}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({
+                  ...current,
+                  leadId: event.target.value
+                }))
+              }
+              style={{
+                width: '100%',
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: businessCreateDraft.leadId ? '#111827' : '#6b7280',
+                fontSize: 17 / 1.2,
+                fontWeight: 600,
+                boxSizing: 'border-box',
+                background: '#ffffff'
+              }}
+            >
+              <option value="">Selecione</option>
+              {activeLeads.map((lead, index) => (
+                <option key={lead.id} value={lead.id}>
+                  {lead.name?.trim() || `Lead ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Tipo</label>
+            <select
+              value={businessCreateDraft.negotiationType}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({
+                  ...current,
+                  negotiationType: event.target.value as '' | NegotiationType
+                }))
+              }
+              style={{
+                width: '100%',
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: businessCreateDraft.negotiationType ? '#111827' : '#6b7280',
+                fontSize: 17 / 1.2,
+                fontWeight: 600,
+                boxSizing: 'border-box',
+                background: '#ffffff'
+              }}
+            >
+              <option value="">Selecione</option>
+              <option value="service">Serviço</option>
+              <option value="product">Produto</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Nome</label>
+            <input
+              type="text"
+              placeholder="Nome"
+              value={businessCreateDraft.title}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({ ...current, title: event.target.value }))
+              }
+              style={{
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: '#111827',
+                fontSize: 17 / 1.2,
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Etapa</label>
+            <select
+              value={businessCreateDraft.stage}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({
+                  ...current,
+                  stage: event.target.value as LeadStage
+                }))
+              }
+              style={{
+                width: '100%',
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: '#111827',
+                fontSize: 17 / 1.2,
+                fontWeight: 700,
+                boxSizing: 'border-box',
+                background: '#ffffff'
+              }}
+            >
+              <option value="NEW">Novo</option>
+              <option value="CONTACTED">Contatado</option>
+              <option value="QUALIFIED">Qualificado</option>
+              <option value="PROPOSAL_SENT">Proposta enviada</option>
+              <option value="NEGOTIATION">Negociação</option>
+              <option value="WON">Ganho</option>
+              <option value="LOST">Perdido</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Temperatura</label>
+            <select
+              value={businessCreateDraft.temperature}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({
+                  ...current,
+                  temperature: event.target.value as '' | NegotiationTemperature
+                }))
+              }
+              style={{
+                width: '100%',
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: businessCreateDraft.temperature ? '#111827' : '#6b7280',
+                fontSize: 17 / 1.2,
+                fontWeight: 600,
+                boxSizing: 'border-box',
+                background: '#ffffff'
+              }}
+            >
+              <option value="">Selecione</option>
+              <option value="hot">Quente</option>
+              <option value="warm">Morno</option>
+              <option value="cold">Frio</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Valor (R$)</label>
+            <input
+              type="text"
+              value={businessCreateDraft.value}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({
+                  ...current,
+                  value: sanitizeLeadValueInput(event.target.value)
+                }))
+              }
+              inputMode="decimal"
+              style={{
+                height: 46,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: '#111827',
+                fontSize: 17 / 1.2,
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Notas</label>
+            <textarea
+              placeholder="Escreva uma observação..."
+              value={businessCreateDraft.notes}
+              onChange={(event) =>
+                setBusinessCreateDraft((current) => ({ ...current, notes: event.target.value }))
+              }
+              style={{
+                width: '100%',
+                minHeight: 132,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '12px 14px',
+                color: '#111827',
+                fontSize: 17 / 1.2,
+                resize: 'vertical',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setBusinessCreateDraft(initialBusinessCreateDraft)
+                setBusinessCreateError(null)
+                navigate(`/negocios${location.search}`)
+              }}
+              style={{
+                minWidth: 120,
+                height: 42,
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                background: '#ffffff',
+                color: '#0f172a',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCreateBusiness()
+              }}
+              disabled={!canCreateBusiness}
+              style={{
+                minWidth: 120,
+                height: 42,
+                border: 'none',
+                borderRadius: 8,
+                background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
+              }}
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+        </section>
+      </aside>
+    </>
+  ) : null
+
+  if (isMobile) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Negócios</h1>
+        </header>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            onFocus={() => setIsSearchInputFocused(true)}
+            onBlur={() => setIsSearchInputFocused(false)}
+            placeholder="Buscar negócio"
+            style={{
+              width: '100%',
+              height: 52,
+              border: `1px solid ${
+                isSearchInputFocused
+                  ? interactionTheme.inputFocusBorderColor
+                  : '#d1d5db'
+              }`,
+              borderRadius: 14,
+              padding: '0 16px',
+              background: '#ffffff',
+              color: '#111827',
+              boxShadow: isSearchInputFocused
+                ? interactionTheme.inputFocusBoxShadow
+                : 'none',
+              outline: 'none',
+              fontSize: 16,
+              boxSizing: 'border-box'
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => setIsFiltersPanelOpen((current) => !current)}
+            onMouseEnter={() => setIsFiltersButtonHovered(true)}
+            onMouseLeave={() => setIsFiltersButtonHovered(false)}
+            style={{
+              height: 52,
+              width: 52,
+              border: '1px solid #d1d5db',
+              borderRadius: 14,
+              background:
+                isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff',
+              padding: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            aria-label="Abrir filtros"
+          >
+            <ListFilter size={20} />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Adicionar negócio"
+            onClick={() => navigate(`/negocios/new${location.search}`)}
+            style={{
+              height: 52,
+              width: 52,
+              border: 'none',
+              borderRadius: 14,
+              background: interactionTheme.primaryButtonBackground,
+              color: '#ffffff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <Plus size={26} />
+          </button>
+        </div>
+
+        {isFiltersPanelOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar painel de filtros"
+              onClick={() => {
+                setIsFiltersPanelOpen(false)
+                setExpandedFilterSection(null)
+                setHoveredFilterOption(null)
+              }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'transparent',
+                zIndex: 35,
+                cursor: 'default'
+              }}
+            />
+
+            <section
+              style={{
+                position: 'absolute',
+                top: 150,
+                right: 16,
+                width: 'min(250px, calc(100vw - 32px))',
+                background: '#fcfdff',
+                border: `1px solid ${interactionTheme.sidebarItemActiveBackground}`,
+                borderRadius: 18,
+                zIndex: 36,
+                padding: '14px 16px 12px',
+                boxSizing: 'border-box',
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)'
+              }}
+            >
+              <div style={{ display: 'grid', gap: 8 }}>
+                {[
+                  { key: 'type' as const, label: 'Tipo' },
+                  { key: 'stage' as const, label: 'Etapa' },
+                  { key: 'status' as const, label: 'Status' },
+                  { key: 'temperature' as const, label: 'Temperatura' }
+                ].map((section) => {
+                  const isSelected =
+                    section.key === 'type'
+                      ? selectedTypeFilters.length > 0
+                      : section.key === 'stage'
+                        ? selectedStageFilters.length > 0
+                        : section.key === 'status'
+                          ? selectedStatusFilters.length > 0
+                          : selectedTemperatureFilters.length > 0
+                  const isExpanded = expandedFilterSection === section.key
+
+                  return (
+                    <div key={section.key} style={{ display: 'grid', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedFilterSection((current) => (current === section.key ? null : section.key))
+                        }
+                        onMouseEnter={() => setHoveredFilterOption(section.key)}
+                        onMouseLeave={() => setHoveredFilterOption(null)}
+                        style={getFilterGroupButtonStyle(isSelected || isExpanded || hoveredFilterOption === section.key)}
+                      >
+                        <span>{section.label}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          <ChevronDown size={14} />
+                        </span>
+                      </button>
+
+                      {isExpanded ? (
+                        <div style={{ display: 'grid', gap: 4, paddingLeft: 8 }}>
+                          {section.key === 'type'
+                            ? ([
+                                { value: 'service' as const, label: getBusinessTypeFilterLabel('service') },
+                                { value: 'product' as const, label: getBusinessTypeFilterLabel('product') }
+                              ]).map((option) => (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    toggleMultiFilterValue(
+                                      selectedTypeFilters,
+                                      option.value,
+                                      setSelectedTypeFilters
+                                    )
+                                  }}
+                                  style={getFilterOptionStyle(selectedTypeFilters.includes(option.value))}
+                                >
+                                  {option.label}
+                                </button>
+                              ))
+                            : section.key === 'stage'
+                              ? availableStageSortValues.map((value) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => {
+                                      toggleMultiFilterValue(
+                                        selectedStageFilters,
+                                        value,
+                                        setSelectedStageFilters
+                                      )
+                                    }}
+                                    style={getFilterOptionStyle(selectedStageFilters.includes(value))}
+                                  >
+                                    {getBusinessStageFilterLabel(value)}
+                                  </button>
+                                ))
+                              : section.key === 'status'
+                                ? availableStatusSortValues.map((value) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => {
+                                        toggleMultiFilterValue(
+                                          selectedStatusFilters,
+                                          value,
+                                          setSelectedStatusFilters
+                                        )
+                                      }}
+                                      style={getFilterOptionStyle(selectedStatusFilters.includes(value))}
+                                    >
+                                      {getBusinessStatusFilterLabel(value)}
+                                    </button>
+                                  ))
+                                : availableTemperatureSortValues.map((value) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => {
+                                        toggleMultiFilterValue(
+                                          selectedTemperatureFilters,
+                                          value,
+                                          setSelectedTemperatureFilters
+                                        )
+                                      }}
+                                      style={getFilterOptionStyle(selectedTemperatureFilters.includes(value))}
+                                    >
+                                      {getBusinessTemperatureFilterLabel(value)}
+                                    </button>
+                                  ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeFilterTags.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {activeFilterTags.map((tag) => (
+              <span
+                key={tag.key}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: tag.textColor,
+                  background: tag.background,
+                  borderRadius: 999,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 10px',
+                  lineHeight: 1
+                }}
+              >
+                <span>{tag.label}</span>
+                <button
+                  type="button"
+                  aria-label={`Remover filtro ${tag.label}`}
+                  onClick={tag.onRemove}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: tag.textColor,
+                    padding: 0,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  X
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+          {paginatedNegocios.map((negocio) => {
+            const isHovered = hoveredNegocioId === negocio.id
+            const isSelected = selectedBusinessId === negocio.id
+            const businessTypeLabel =
+              negocio.negotiationType === 'service'
+                ? 'Serviço'
+                : negocio.negotiationType === 'product'
+                  ? 'Produto'
+                  : '-'
+            const temperatureTagPresentation = getTemperatureTagPresentation(negocio.temperature)
+            const businessLifecycleTagPresentation = getBusinessLifecycleTagPresentation(
+              negocio.stage,
+              negocio.closedAt ?? null
+            )
+            const leadName = leadNameById.get(negocio.leadId) ?? 'Lead sem nome'
+
+            if (confirmingDeleteNegocioId === negocio.id) {
+              return (
+                <article
+                  key={negocio.id}
+                  style={{
+                    background: interactionTheme.clickableCardHoverBackground,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Negócio?</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label="Cancelar exclusão de negócio"
+                      onClick={() => setConfirmingDeleteNegocioId(null)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Confirmar exclusão de negócio"
+                      onClick={() => void handleDeleteNegocio(negocio.id)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </article>
+              )
+            }
+
+            return (
+              <article
+                key={negocio.id}
+                onClick={() => {
+                  navigate(`/negocios/${negocio.leadId}${location.search}`, {
+                    state: {
+                      initialLeadTab: 'negocios',
+                      initialBusinessId: negocio.id,
+                      initialBusinessTab: 'informacoes'
+                    }
+                  })
+                }}
+                onMouseEnter={() => setHoveredNegocioId(negocio.id)}
+                onMouseLeave={() => setHoveredNegocioId(null)}
+                style={{
+                  background: isHovered || isSelected ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: 18,
+                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                  padding: 16,
+                  display: 'grid',
+                  gap: 18,
+                  cursor: 'pointer',
+                  transition: 'background 120ms ease'
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {negocio.title ?? 'Negócio sem nome'}
+                    </h2>
+                    <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {leadName}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      aria-label="Excluir negócio"
+                      onClick={() => setConfirmingDeleteNegocioId(negocio.id)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {businessTypeLabel === '-' ? null : (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap', background: '#ede9fe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                      <span style={tagContentStyle}>{businessTypeLabel}</span>
+                    </span>
+                  )}
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={tagContentStyle}>{getLeadStageLabel(negocio.stage)}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
+                  </span>
+
+                  {temperatureTagPresentation.label === '-' ? null : (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: temperatureTagPresentation.textColor, whiteSpace: 'nowrap', background: `${temperatureTagPresentation.textColor}44`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                      {temperatureTagPresentation.icon ? (
+                        <span style={tagIconStyle}>{temperatureTagPresentation.icon}</span>
+                      ) : null}
+                      <span style={tagContentStyle}>{temperatureTagPresentation.label}</span>
+                    </span>
+                  )}
+
+                  {formatLeadValue(negocio.value) === '-' ? null : (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                      <span style={tagContentStyle}>{formatLeadValue(negocio.value)}</span>
+                    </span>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+
+          {!isLoadingNegocios && !negociosError && sortedNegocios.length === 0 ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum negócio encontrado.</div>
+          ) : null}
+          {isLoadingNegocios ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando negócios...</div>
+          ) : null}
+          {negociosError ? (
+            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{negociosError}</div>
+          ) : null}
+        </div>
+
+        {mobileCreateBusinessSheet}
+
+        {!isCreateBusinessMode && isBusinessPanelOpen ? (
+          <aside
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              overflow: 'hidden'
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        ) : null}
+      </section>
+    )
   }
 
   return (
@@ -1680,64 +2479,6 @@ export default function NegociosPage() {
           <span>
             {sortedNegocios.length} negócio{sortedNegocios.length === 1 ? '' : 's'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage <= 1) return
-                setCurrentPage((current) => current - 1)
-              }}
-              disabled={safeCurrentPage <= 1}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage <= 1 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'<'}
-            </button>
-
-            {pageNumbers.map((pageNumber) => (
-              <button
-                key={pageNumber}
-                type="button"
-                onClick={() => {
-                  if (pageNumber === safeCurrentPage) return
-                  setCurrentPage(pageNumber)
-                }}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: pageNumber === safeCurrentPage ? '#111827' : '#4b5563',
-                  padding: '0 4px',
-                  cursor: pageNumber === safeCurrentPage ? 'default' : 'pointer',
-                  fontWeight: pageNumber === safeCurrentPage ? 600 : 400
-                }}
-              >
-                {pageNumber}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage >= totalPages) return
-                setCurrentPage((current) => current + 1)
-              }}
-              disabled={safeCurrentPage >= totalPages}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'>'}
-            </button>
-          </div>
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}
@@ -1795,9 +2536,8 @@ export default function NegociosPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ display: 'grid', gap: 4 }}>
-                    <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo negócio</span>
                     <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
-                      Criar negócio
+                      Novo negócio
                     </h2>
                   </div>
 
@@ -1839,81 +2579,69 @@ export default function NegociosPage() {
                     overflowY: 'auto'
                   }}
                 >
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Lead</label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={businessCreateDraft.leadId}
-                        onChange={(event) =>
-                          setBusinessCreateDraft((current) => ({
-                            ...current,
-                            leadId: event.target.value
-                          }))
-                        }
-                        style={{
-                          width: '100%',
-                          height: 46,
-                          border: '1px solid #d7dce4',
-                          borderRadius: 10,
-                          padding: '0 42px 0 14px',
-                          color: businessCreateDraft.leadId ? '#111827' : '#6b7280',
-                          fontSize: 17 / 1.2,
-                          fontWeight: 600,
-                          boxSizing: 'border-box',
-                          appearance: 'none',
-                          background: '#ffffff'
-                        }}
-                      >
-                        <option value="">Selecione</option>
-                        {(leadsData.leads ?? []).map((lead, index) => (
-                          <option key={lead.id} value={lead.id}>
-                            {lead.name?.trim() || `Lead ${index + 1}`}
-                          </option>
-                        ))}
-                      </select>
-                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                        <ChevronDown size={18} />
-                      </span>
-                    </div>
-                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '160px minmax(0, 1fr)',
+                      rowGap: 10,
+                      columnGap: 16,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</span>
+                    <select
+                      value={businessCreateDraft.leadId}
+                      onChange={(event) =>
+                        setBusinessCreateDraft((current) => ({
+                          ...current,
+                          leadId: event.target.value
+                        }))
+                      }
+                      style={{
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 14,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Selecione</option>
+                      {activeLeads.map((lead, index) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name?.trim() || `Lead ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Tipo</label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={businessCreateDraft.negotiationType}
-                        onChange={(event) =>
-                          setBusinessCreateDraft((current) => ({
-                            ...current,
-                            negotiationType: event.target.value as '' | NegotiationType
-                          }))
-                        }
-                        style={{
-                          width: '100%',
-                          height: 46,
-                          border: '1px solid #d7dce4',
-                          borderRadius: 10,
-                          padding: '0 42px 0 14px',
-                          color: businessCreateDraft.negotiationType ? '#111827' : '#6b7280',
-                          fontSize: 17 / 1.2,
-                          fontWeight: 600,
-                          boxSizing: 'border-box',
-                          appearance: 'none',
-                          background: '#ffffff'
-                        }}
-                      >
-                        <option value="">Selecione</option>
-                        <option value="service">Serviço</option>
-                        <option value="product">Produto</option>
-                      </select>
-                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                        <ChevronDown size={18} />
-                      </span>
-                    </div>
-                  </div>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Tipo</span>
+                    <select
+                      value={businessCreateDraft.negotiationType}
+                      onChange={(event) =>
+                        setBusinessCreateDraft((current) => ({
+                          ...current,
+                          negotiationType: event.target.value as '' | NegotiationType
+                        }))
+                      }
+                      style={{
+                        height: 36,
+                        maxWidth: 240,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 14,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Selecione</option>
+                      <option value="service">Serviço</option>
+                      <option value="product">Produto</option>
+                    </select>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Nome</label>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
                     <input
                       type="text"
                       placeholder="Nome"
@@ -1922,107 +2650,91 @@ export default function NegociosPage() {
                         setBusinessCreateDraft((current) => ({ ...current, title: event.target.value }))
                       }
                       style={{
-                        height: 46,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 14px',
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
                         color: '#111827',
-                        fontSize: 17 / 1.2,
+                        fontSize: 16,
                         boxSizing: 'border-box'
                       }}
                     />
-                  </div>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Etapa</label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={businessCreateDraft.stage}
-                        onChange={(event) =>
-                          setBusinessCreateDraft((current) => ({
-                            ...current,
-                            stage: event.target.value as LeadStage
-                          }))
-                        }
-                        style={{
-                          width: '100%',
-                          height: 46,
-                          border: '1px solid #d7dce4',
-                          borderRadius: 10,
-                          padding: '0 42px 0 14px',
-                          color: '#111827',
-                          fontSize: 17 / 1.2,
-                          fontWeight: 700,
-                          boxSizing: 'border-box',
-                          appearance: 'none',
-                          background: '#ffffff'
-                        }}
-                      >
-                        <option value="NEW">Novo</option>
-                        <option value="CONTACTED">Contatado</option>
-                        <option value="QUALIFIED">Qualificado</option>
-                        <option value="PROPOSAL_SENT">Proposta enviada</option>
-                        <option value="NEGOTIATION">Negociação</option>
-                        <option value="WON">Ganho</option>
-                        <option value="LOST">Perdido</option>
-                      </select>
-                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                        <ChevronDown size={18} />
-                      </span>
-                    </div>
-                  </div>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Etapa</span>
+                    <select
+                      value={businessCreateDraft.stage}
+                      onChange={(event) =>
+                        setBusinessCreateDraft((current) => ({
+                          ...current,
+                          stage: event.target.value as LeadStage
+                        }))
+                      }
+                      style={{
+                        height: 36,
+                        maxWidth: 240,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 14,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="NEW">Novo</option>
+                      <option value="CONTACTED">Contatado</option>
+                      <option value="QUALIFIED">Qualificado</option>
+                      <option value="PROPOSAL_SENT">Proposta enviada</option>
+                      <option value="NEGOTIATION">Negociação</option>
+                      <option value="WON">Ganho</option>
+                      <option value="LOST">Perdido</option>
+                    </select>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Temperatura</label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={businessCreateDraft.temperature}
-                        onChange={(event) =>
-                          setBusinessCreateDraft((current) => ({
-                            ...current,
-                            temperature: event.target.value as '' | NegotiationTemperature
-                          }))
-                        }
-                        style={{
-                          width: '100%',
-                          height: 46,
-                          border: '1px solid #d7dce4',
-                          borderRadius: 10,
-                          padding: '0 42px 0 14px',
-                          color: businessCreateDraft.temperature ? '#111827' : '#6b7280',
-                          fontSize: 17 / 1.2,
-                          fontWeight: 600,
-                          boxSizing: 'border-box',
-                          appearance: 'none',
-                          background: '#ffffff'
-                        }}
-                      >
-                        <option value="">Selecione</option>
-                        <option value="hot">Quente</option>
-                        <option value="warm">Morno</option>
-                        <option value="cold">Frio</option>
-                      </select>
-                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                        <ChevronDown size={18} />
-                      </span>
-                    </div>
-                  </div>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</span>
+                    <select
+                      value={businessCreateDraft.temperature}
+                      onChange={(event) =>
+                        setBusinessCreateDraft((current) => ({
+                          ...current,
+                          temperature: event.target.value as '' | NegotiationTemperature
+                        }))
+                      }
+                      style={{
+                        height: 36,
+                        maxWidth: 240,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        fontSize: 14,
+                        color: '#111827',
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Selecione</option>
+                      <option value="hot">Quente</option>
+                      <option value="warm">Morno</option>
+                      <option value="cold">Frio</option>
+                    </select>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Valor (R$)</label>
+                    <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Valor (R$)</span>
                     <input
                       type="text"
                       value={businessCreateDraft.value}
                       onChange={(event) =>
-                        setBusinessCreateDraft((current) => ({ ...current, value: event.target.value }))
+                        setBusinessCreateDraft((current) => ({
+                          ...current,
+                          value: sanitizeLeadValueInput(event.target.value)
+                        }))
                       }
+                      inputMode="decimal"
                       style={{
-                        height: 46,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 14px',
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
                         color: '#111827',
-                        fontSize: 17 / 1.2,
+                        fontSize: 16,
                         boxSizing: 'border-box'
                       }}
                     />
@@ -2059,13 +2771,13 @@ export default function NegociosPage() {
                         navigate('/negocios')
                       }}
                       style={{
-                        minWidth: 136,
-                        height: 50,
-                        border: '1px solid #9ac6ae',
-                        borderRadius: 10,
+                        minWidth: 120,
+                        height: 42,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
                         background: '#ffffff',
-                        color: '#1f7a4d',
-                        fontSize: 15,
+                        color: '#0f172a',
+                        fontSize: 14,
                         fontWeight: 700,
                         cursor: 'pointer'
                       }}
@@ -2077,19 +2789,20 @@ export default function NegociosPage() {
                       onClick={() => {
                         void handleCreateBusiness()
                       }}
+                      disabled={!canCreateBusiness}
                       style={{
-                        minWidth: 136,
-                        height: 50,
+                        minWidth: 120,
+                        height: 42,
                         border: 'none',
-                        borderRadius: 10,
-                        background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
+                        borderRadius: 8,
+                        background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
                         color: '#ffffff',
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
                       }}
                     >
-                      Salvar
+                      Confirmar
                     </button>
                   </div>
                 </article>

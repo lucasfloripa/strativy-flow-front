@@ -4,6 +4,7 @@ import {
   Clock3,
   ChevronDown,
   ListFilter,
+  Plus,
   Trash2
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -11,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import {
   formatDateTime,
   getApiDateTimestamp,
@@ -23,11 +25,6 @@ import type {
   NegotiationResponse
 } from '../../features/webhook/types/webhook.types'
 import LeadPage from '../LeadPage'
-
-type AgendaLocationState = {
-  initialLeadTab?: 'negocios'
-  initialBusinessId?: string
-}
 
 type AgendaFollowUpFilter = 'all' | 'none' | 'scheduled' | 'today' | 'overdue'
 
@@ -275,10 +272,9 @@ const getAgendaStatusSortRank = (
 }
 
 export default function AgendaPage() {
-  const agendaItemsPerPage = 12
-  const paginationWindowSize = 3
   const leadPanelWidth = 'min(48vw, 760px)'
   const leadPanelTransitionMs = 120
+  const { isMobile } = useViewportBreakpoint()
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -313,7 +309,7 @@ export default function AgendaPage() {
     initialAgendaFollowUpDraft
   )
 
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [, setCurrentPage] = useState<number>(1)
   const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(null)
   const [confirmingDeleteFollowUpId, setConfirmingDeleteFollowUpId] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<AgendaSortKey>('status')
@@ -325,6 +321,14 @@ export default function AgendaPage() {
   const [agendaReloadVersion, setAgendaReloadVersion] = useState<number>(0)
   const previousIsAgendaFollowUpPanelOpenRef = useRef<boolean>(false)
   const previousIsLeadSelectedRef = useRef<boolean>(false)
+
+  const activeLeads = useMemo(
+    () =>
+      (leadsData.leads ?? []).filter(
+        (lead) => (lead.state ?? 'active').trim().toLowerCase() !== 'archived'
+      ),
+    [leadsData.leads]
+  )
 
   const activeFiltersCount =
     Number(followUpFilter !== 'all')
@@ -361,8 +365,6 @@ export default function AgendaPage() {
       }]
 
   const isLeadSelected = Boolean(leadId)
-  const selectedBusinessId =
-    ((location.state as AgendaLocationState | null)?.initialBusinessId ?? null)
 
   const agendaFollowUpBusinesses = useMemo(
     () => negocios.filter((negocio) => negocio.leadId === agendaFollowUpDraft.leadId),
@@ -397,6 +399,26 @@ export default function AgendaPage() {
   useEffect(() => {
     setFollowUpFilter(initialFollowUpFilter)
   }, [initialFollowUpFilter])
+
+  useEffect(() => {
+    setAgendaFollowUpDraft((currentDraft) => {
+      if (!currentDraft.leadId) {
+        return currentDraft
+      }
+
+      const hasSelectedLead = activeLeads.some((lead) => lead.id === currentDraft.leadId)
+
+      if (hasSelectedLead) {
+        return currentDraft
+      }
+
+      return {
+        ...currentDraft,
+        leadId: '',
+        negotiationId: ''
+      }
+    })
+  }, [activeLeads])
 
   useEffect(() => {
     let isMounted = true
@@ -673,36 +695,7 @@ export default function AgendaPage() {
     })
   }, [availableStatusSortValues, dateSortFocus, filteredAgendaRows, sortDirection, sortKey, statusSortFocus])
 
-  const totalPages = Math.max(1, Math.ceil(sortedFilteredAgendaRows.length / agendaItemsPerPage))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStartIndex = (safeCurrentPage - 1) * agendaItemsPerPage
-  const paginatedAgendaRows = sortedFilteredAgendaRows.slice(
-    pageStartIndex,
-    pageStartIndex + agendaItemsPerPage
-  )
-
-  const firstVisiblePage = Math.max(
-    1,
-    Math.min(safeCurrentPage - 1, totalPages - (paginationWindowSize - 1))
-  )
-  const lastVisiblePage = Math.min(
-    totalPages,
-    firstVisiblePage + (paginationWindowSize - 1)
-  )
-  const pageNumbers = Array.from(
-    { length: Math.max(0, lastVisiblePage - firstVisiblePage + 1) },
-    (_, index) => firstVisiblePage + index
-  )
-
-  useEffect(() => {
-    setCurrentPage((current) => {
-      if (current <= totalPages) {
-        return current
-      }
-
-      return totalPages
-    })
-  }, [totalPages])
+  const paginatedAgendaRows = sortedFilteredAgendaRows
 
   useEffect(() => {
     setCurrentPage(1)
@@ -870,6 +863,546 @@ export default function AgendaPage() {
     justifyContent: targetSortKey === 'dateTime' || targetSortKey === 'status' ? 'center' : 'flex-start',
     gap: 6
   })
+
+  if (isMobile) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Agenda</h1>
+        </header>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            onFocus={() => setIsSearchInputFocused(true)}
+            onBlur={() => setIsSearchInputFocused(false)}
+            placeholder="Buscar follow-up"
+            style={{
+              width: '100%',
+              height: 52,
+              border: `1px solid ${
+                isSearchInputFocused
+                  ? interactionTheme.inputFocusBorderColor
+                  : '#d1d5db'
+              }`,
+              borderRadius: 14,
+              padding: '0 16px',
+              background: '#ffffff',
+              color: '#111827',
+              boxShadow: isSearchInputFocused
+                ? interactionTheme.inputFocusBoxShadow
+                : 'none',
+              outline: 'none',
+              fontSize: 16,
+              boxSizing: 'border-box'
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => setIsFiltersPanelOpen((current) => !current)}
+            onMouseEnter={() => setIsFiltersButtonHovered(true)}
+            onMouseLeave={() => setIsFiltersButtonHovered(false)}
+            style={{
+              height: 52,
+              width: 52,
+              border: '1px solid #d1d5db',
+              borderRadius: 14,
+              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
+                ? interactionTheme.clickableCardHoverBackground
+                : '#ffffff',
+              padding: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            aria-label="Abrir filtros"
+          >
+            <ListFilter size={20} />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Adicionar follow-up"
+            onClick={() => {
+              setAgendaFollowUpDraft(initialAgendaFollowUpDraft)
+              setAgendaFollowUpError(null)
+              setIsCreatingAgendaFollowUp(true)
+            }}
+            style={{
+              height: 52,
+              width: 52,
+              border: 'none',
+              borderRadius: 14,
+              background: interactionTheme.primaryButtonBackground,
+              color: '#ffffff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <Plus size={26} />
+          </button>
+        </div>
+
+        {isFiltersPanelOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar painel de filtros"
+              onClick={() => setIsFiltersPanelOpen(false)}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'transparent',
+                zIndex: 35,
+                cursor: 'default'
+              }}
+            />
+
+            <section
+              style={{
+                position: 'absolute',
+                top: 150,
+                right: 16,
+                width: 'min(220px, calc(100vw - 32px))',
+                background: '#fcfdff',
+                border: `1px solid ${interactionTheme.sidebarItemActiveBackground}`,
+                borderRadius: 18,
+                zIndex: 36,
+                padding: '14px 16px 12px',
+                boxSizing: 'border-box',
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)'
+              }}
+            >
+              <div style={{ display: 'grid', gap: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => setFollowUpFilter((current) => (current === 'none' ? 'all' : 'none'))}
+                  onMouseEnter={() => setHoveredFilterOption('followup-none')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(followUpFilter === 'none' || hoveredFilterOption === 'followup-none')}
+                >
+                  Sem follow-up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowUpFilter((current) => (current === 'scheduled' ? 'all' : 'scheduled'))}
+                  onMouseEnter={() => setHoveredFilterOption('followup-scheduled')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(followUpFilter === 'scheduled' || hoveredFilterOption === 'followup-scheduled')}
+                >
+                  Agendados
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowUpFilter((current) => (current === 'today' ? 'all' : 'today'))}
+                  onMouseEnter={() => setHoveredFilterOption('followup-today')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(followUpFilter === 'today' || hoveredFilterOption === 'followup-today')}
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowUpFilter((current) => (current === 'overdue' ? 'all' : 'overdue'))}
+                  onMouseEnter={() => setHoveredFilterOption('followup-overdue')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(followUpFilter === 'overdue' || hoveredFilterOption === 'followup-overdue')}
+                >
+                  Atrasados
+                </button>
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeFilterTags.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {activeFilterTags.map((tag) => (
+              <span
+                key={tag.key}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: tag.textColor,
+                  background: tag.background,
+                  borderRadius: 999,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 10px',
+                  lineHeight: 1
+                }}
+              >
+                <span>{tag.label}</span>
+                <button
+                  type="button"
+                  aria-label={`Remover filtro ${tag.label}`}
+                  onClick={tag.onRemove}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: tag.textColor,
+                    padding: 0,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  X
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {isCreatingAgendaFollowUp ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar criação de follow-up"
+              onClick={closeAgendaFollowUpPanel}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'rgba(15, 23, 42, 0.18)',
+                zIndex: 40,
+                cursor: 'default'
+              }}
+            />
+
+            <aside
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                maxHeight: '86%',
+                zIndex: 45,
+                borderRadius: '22px 22px 0 0',
+                background: '#ffffff',
+                overflowY: 'auto',
+                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)',
+                padding: '22px 18px 28px',
+                boxSizing: 'border-box',
+                display: 'grid',
+                gap: 18
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Novo follow-up</h2>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Fechar criação de follow-up"
+                  onClick={closeAgendaFollowUpPanel}
+                  style={{
+                    height: 28,
+                    minWidth: 28,
+                    border: 'none',
+                    borderRadius: 6,
+                    background: 'transparent',
+                    color: '#6b7280',
+                    padding: '0 8px',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    lineHeight: 1
+                  }}
+                >
+                  X
+                </button>
+              </div>
+
+              {agendaFollowUpError ? <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p> : null}
+
+              <div style={{ display: 'grid', gap: 14 }}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={agendaFollowUpDraft.leadId}
+                      onChange={(event) => {
+                        setAgendaFollowUpDraft((currentDraft) => ({
+                          ...currentDraft,
+                          leadId: event.target.value,
+                          negotiationId: ''
+                        }))
+                      }}
+                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.leadId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                    >
+                      <option value="">Selecione</option>
+                      {activeLeads.map((lead, index) => (
+                        <option key={lead.id} value={lead.id}>{lead.name?.trim() || `Lead ${index + 1}`}</option>
+                      ))}
+                    </select>
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={agendaFollowUpDraft.negotiationId}
+                      onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, negotiationId: event.target.value }))}
+                      disabled={!agendaFollowUpDraft.leadId}
+                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                    >
+                      <option value="">Selecione</option>
+                      {agendaFollowUpBusinesses.map((negocio) => (
+                        <option key={negocio.id} value={negocio.id}>{negocio.title ?? 'Negócio sem nome'}</option>
+                      ))}
+                    </select>
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                  </div>
+                  {agendaFollowUpDraft.leadId && agendaFollowUpBusinesses.length === 0 ? (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                  ) : null}
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Nome do Follow-up</label>
+                  <input
+                    type="text"
+                    placeholder="Nome do Follow-up"
+                    value={agendaFollowUpDraft.value}
+                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, value: event.target.value }))}
+                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
+                  <input
+                    type="datetime-local"
+                    value={agendaFollowUpDraft.dueAt}
+                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, dueAt: event.target.value }))}
+                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={closeAgendaFollowUpPanel}
+                    style={{ height: 50, border: '1px solid #9ac6ae', borderRadius: 12, background: '#ffffff', color: '#1f7a4d', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateAgendaFollowUp()}
+                    disabled={!canConfirmAgendaFollowUp}
+                    style={{ height: 50, border: 'none', borderRadius: 12, background: canConfirmAgendaFollowUp ? interactionTheme.primaryButtonBackground : '#9ca3af', color: '#ffffff', fontSize: 15, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </>
+        ) : null}
+
+        {isLeadSelected && !isCreatingAgendaFollowUp ? (
+          <aside
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              overflow: 'hidden'
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        ) : null}
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+          {paginatedAgendaRows.map((row) => {
+            const isHovered = hoveredFollowUpId === row.followUpId
+            const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
+            const statusPresentation = getStatusPresentation(visualStatus)
+            const dateTagColors = getAgendaDateTagColors(visualStatus)
+            const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
+
+            if (confirmingDeleteFollowUpId === row.followUpId) {
+              return (
+                <article
+                  key={row.followUpId}
+                  style={{
+                    background: interactionTheme.clickableCardHoverBackground,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Follow-up?</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label="Cancelar exclusão de follow-up"
+                      onClick={() => setConfirmingDeleteFollowUpId(null)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Confirmar exclusão de follow-up"
+                      onClick={() => void handleDeleteFollowUp(row.followUpId)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </article>
+              )
+            }
+
+            return (
+              <article
+                key={row.followUpId}
+                onClick={() => {
+                  navigate(`/agenda/${row.leadId}${location.search}`, {
+                    state: {
+                      initialLeadTab: 'negocios',
+                      initialBusinessId: row.negotiationId,
+                      initialBusinessTab: 'followups'
+                    }
+                  })
+                }}
+                onMouseEnter={() => setHoveredFollowUpId(row.followUpId)}
+                onMouseLeave={() => setHoveredFollowUpId(null)}
+                style={{
+                  background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: 18,
+                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                  padding: 16,
+                  display: 'grid',
+                  gap: 18,
+                  cursor: 'pointer',
+                  transition: 'background 120ms ease'
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {row.value || 'Follow-up sem nome'}
+                    </h2>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      aria-label="Excluir follow-up"
+                      onClick={() => setConfirmingDeleteFollowUpId(row.followUpId)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label={row.status === 'done' ? 'Desfazer conclusão do follow-up' : 'Concluir follow-up'}
+                      onClick={() => void handleToggleFollowUpStatus(row.followUpId, row.status)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
+                        color: row.status === 'done' ? '#16a34a' : '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: dateTagColors.textColor, whiteSpace: 'nowrap', background: dateTagColors.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <CalendarClock size={12} />
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formattedDateTime}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: statusPresentation.textColor, whiteSpace: 'nowrap', background: `${statusPresentation.textColor}33`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1, gap: 4 }}>
+                    {statusPresentation.icon}
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{statusPresentation.label}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>Lead: {row.leadName}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>Negócio: {row.negotiationTitle}</span>
+                  </span>
+                </div>
+              </article>
+            )
+          })}
+
+          {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum follow-up encontrado.</div>
+          ) : null}
+          {isLoading ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando...</div>
+          ) : null}
+          {error ? (
+            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+          ) : null}
+        </div>
+
+      </section>
+    )
+  }
 
   return (
     <section
@@ -1110,9 +1643,8 @@ export default function AgendaPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo follow-up</span>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
-                    Adicionar FollowUp
+                    Novo follow-up
                   </h2>
                 </div>
 
@@ -1154,48 +1686,46 @@ export default function AgendaPage() {
                   overflowY: 'auto'
                 }}
               >
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={agendaFollowUpDraft.leadId}
-                      onChange={(event) => {
-                        setAgendaFollowUpDraft((currentDraft) => ({
-                          ...currentDraft,
-                          leadId: event.target.value,
-                          negotiationId: ''
-                        }))
-                      }}
-                      style={{
-                        width: '100%',
-                        height: 46,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 42px 0 14px',
-                        color: agendaFollowUpDraft.leadId ? '#111827' : '#6b7280',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        boxSizing: 'border-box',
-                        appearance: 'none',
-                        background: '#ffffff'
-                      }}
-                    >
-                      <option value="">Selecione</option>
-                      {(leadsData.leads ?? []).map((lead, index) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.name?.trim() || `Lead ${index + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                      <ChevronDown size={18} />
-                    </span>
-                  </div>
-                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '160px minmax(0, 1fr)',
+                    rowGap: 10,
+                    columnGap: 16,
+                    alignItems: 'center'
+                  }}
+                >
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</span>
+                  <select
+                    value={agendaFollowUpDraft.leadId}
+                    onChange={(event) => {
+                      setAgendaFollowUpDraft((currentDraft) => ({
+                        ...currentDraft,
+                        leadId: event.target.value,
+                        negotiationId: ''
+                      }))
+                    }}
+                    style={{
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
+                      color: '#111827',
+                      fontSize: 14,
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="">Selecione</option>
+                    {activeLeads.map((lead, index) => (
+                      <option key={lead.id} value={lead.id}>
+                        {lead.name?.trim() || `Lead ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
-                  <div style={{ position: 'relative' }}>
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</span>
+                  <div style={{ display: 'grid', gap: 6 }}>
                     <select
                       value={agendaFollowUpDraft.negotiationId}
                       onChange={(event) =>
@@ -1206,17 +1736,14 @@ export default function AgendaPage() {
                       }
                       disabled={!agendaFollowUpDraft.leadId}
                       style={{
-                        width: '100%',
-                        height: 46,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 42px 0 14px',
-                        color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280',
+                        height: 36,
+                        maxWidth: 360,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        color: '#111827',
                         fontSize: 14,
-                        fontWeight: 600,
-                        boxSizing: 'border-box',
-                        appearance: 'none',
-                        background: '#ffffff'
+                        boxSizing: 'border-box'
                       }}
                     >
                       <option value="">Selecione</option>
@@ -1226,17 +1753,12 @@ export default function AgendaPage() {
                         </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
-                      <ChevronDown size={18} />
-                    </span>
+                    {agendaFollowUpDraft.leadId && agendaFollowUpBusinesses.length === 0 ? (
+                      <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                    ) : null}
                   </div>
-                  {agendaFollowUpDraft.leadId && agendaFollowUpBusinesses.length === 0 ? (
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
-                  ) : null}
-                </div>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Nome do Follow-up</label>
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</span>
                   <input
                     type="text"
                     placeholder="Nome do Follow-up"
@@ -1248,19 +1770,18 @@ export default function AgendaPage() {
                       }))
                     }
                     style={{
-                      height: 46,
-                      border: '1px solid #d7dce4',
-                      borderRadius: 10,
-                      padding: '0 14px',
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
                       color: '#111827',
-                      fontSize: 14,
+                      fontSize: 16,
                       boxSizing: 'border-box'
                     }}
                   />
-                </div>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
                   <input
                     type="datetime-local"
                     value={agendaFollowUpDraft.dueAt}
@@ -1271,10 +1792,11 @@ export default function AgendaPage() {
                       }))
                     }
                     style={{
-                      height: 46,
-                      border: '1px solid #d7dce4',
-                      borderRadius: 10,
-                      padding: '0 14px',
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
                       color: '#111827',
                       fontSize: 14,
                       boxSizing: 'border-box'
@@ -1287,13 +1809,13 @@ export default function AgendaPage() {
                     type="button"
                     onClick={closeAgendaFollowUpPanel}
                     style={{
-                      minWidth: 136,
-                      height: 50,
-                      border: '1px solid #9ac6ae',
-                      borderRadius: 10,
+                      minWidth: 120,
+                      height: 42,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
                       background: '#ffffff',
-                      color: '#1f7a4d',
-                      fontSize: 15,
+                      color: '#0f172a',
+                      fontSize: 14,
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
@@ -1305,15 +1827,15 @@ export default function AgendaPage() {
                     onClick={() => void handleCreateAgendaFollowUp()}
                     disabled={!canConfirmAgendaFollowUp}
                     style={{
-                      minWidth: 136,
-                      height: 50,
+                      minWidth: 120,
+                      height: 42,
                       border: 'none',
-                      borderRadius: 10,
+                      borderRadius: 8,
                       background: canConfirmAgendaFollowUp
-                        ? interactionTheme.primaryButtonBackground
+                        ? '#1f7a4d'
                         : '#9ca3af',
                       color: '#ffffff',
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: 700,
                       cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed'
                     }}
@@ -1463,7 +1985,6 @@ export default function AgendaPage() {
             <tbody>
               {paginatedAgendaRows.map((row) => {
                 const isHovered = hoveredFollowUpId === row.followUpId
-                const isSelected = selectedBusinessId === row.negotiationId
                 const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
                 const statusPresentation = getStatusPresentation(visualStatus)
 
@@ -1572,7 +2093,7 @@ export default function AgendaPage() {
                     style={{
                       borderBottom: '1px solid #f3f4f6',
                       background:
-                        isHovered || isSelected
+                        isHovered
                           ? interactionTheme.clickableCardHoverBackground
                           : '#ffffff',
                       cursor: 'pointer'
@@ -1730,64 +2251,6 @@ export default function AgendaPage() {
           <span>
             {filteredAgendaRows.length} follow-up{filteredAgendaRows.length === 1 ? '' : 's'}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage <= 1) return
-                setCurrentPage((current) => current - 1)
-              }}
-              disabled={safeCurrentPage <= 1}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage <= 1 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'<'}
-            </button>
-
-            {pageNumbers.map((pageNumber) => (
-              <button
-                key={pageNumber}
-                type="button"
-                onClick={() => {
-                  if (pageNumber === safeCurrentPage) return
-                  setCurrentPage(pageNumber)
-                }}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: pageNumber === safeCurrentPage ? '#111827' : '#4b5563',
-                  padding: '0 4px',
-                  cursor: pageNumber === safeCurrentPage ? 'default' : 'pointer',
-                  fontWeight: pageNumber === safeCurrentPage ? 600 : 400
-                }}
-              >
-                {pageNumber}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage >= totalPages) return
-                setCurrentPage((current) => current + 1)
-              }}
-              disabled={safeCurrentPage >= totalPages}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'>'}
-            </button>
-          </div>
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}

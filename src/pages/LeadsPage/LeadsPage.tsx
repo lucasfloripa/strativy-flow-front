@@ -1,9 +1,10 @@
-import { Archive, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Star, Trash2 } from 'lucide-react'
+import { Archive, CalendarDays, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Plus, Star, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import {
   formatDateTime,
   getApiDateTimestamp,
@@ -376,10 +377,9 @@ const toSortableTimestamp = (value: string | Date | null): number => {
 }
 
 export default function LeadsPage() {
-  const leadsPerPage = 12
-  const paginationWindowSize = 3
   const leadPanelWidth = 'min(48vw, 760px)'
   const leadPanelTransitionMs = 120
+  const { isMobile } = useViewportBreakpoint()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -392,7 +392,7 @@ export default function LeadsPage() {
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(false)
   const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(null)
   const [isAddLeadButtonHovered, setIsAddLeadButtonHovered] = useState<boolean>(false)
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [, setCurrentPage] = useState<number>(1)
   const [sortKey, setSortKey] = useState<LeadSortKey>('nextAgenda')
   const [sortDirection, setSortDirection] = useState<LeadSortDirection>('desc')
   const [qualificationSortFocus, setQualificationSortFocus] = useState<QualificationSortFocus>('qualify')
@@ -651,30 +651,7 @@ export default function LeadsPage() {
     return getSourceSortRank(firstLead.source, sourceSortFocus) - getSourceSortRank(secondLead.source, sourceSortFocus)
   })
 
-  const totalPages = Math.max(1, Math.ceil(sortedFilteredLeads.length / leadsPerPage))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStartIndex = (safeCurrentPage - 1) * leadsPerPage
-  const paginatedLeads = sortedFilteredLeads.slice(pageStartIndex, pageStartIndex + leadsPerPage)
-
-  const firstVisiblePage = Math.max(
-    1,
-    Math.min(safeCurrentPage - 1, totalPages - (paginationWindowSize - 1))
-  )
-  const lastVisiblePage = Math.min(totalPages, firstVisiblePage + (paginationWindowSize - 1))
-  const pageNumbers = Array.from(
-    { length: Math.max(0, lastVisiblePage - firstVisiblePage + 1) },
-    (_, index) => firstVisiblePage + index
-  )
-
-  useEffect(() => {
-    setCurrentPage((current) => {
-      if (current <= totalPages) {
-        return current
-      }
-
-      return totalPages
-    })
-  }, [totalPages])
+  const paginatedLeads = sortedFilteredLeads
 
   useEffect(() => {
     setCurrentPage(1)
@@ -858,6 +835,575 @@ export default function LeadsPage() {
     justifyContent: 'flex-start',
     gap: 6
   })
+
+  if (isMobile) {
+    return (
+      <section
+        style={{
+          height: '100%',
+          padding: '24px 16px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          background: '#fafbfd',
+          boxSizing: 'border-box',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads</h1>
+        </header>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            onFocus={() => setIsSearchInputFocused(true)}
+            onBlur={() => setIsSearchInputFocused(false)}
+            placeholder="Buscar lead"
+            style={{
+              width: '100%',
+              height: 52,
+              border: `1px solid ${
+                isSearchInputFocused
+                  ? interactionTheme.inputFocusBorderColor
+                  : '#d1d5db'
+              }`,
+              borderRadius: 14,
+              padding: '0 16px',
+              background: '#ffffff',
+              color: '#111827',
+              boxShadow: isSearchInputFocused
+                ? interactionTheme.inputFocusBoxShadow
+                : 'none',
+              outline: 'none',
+              fontSize: 16,
+              boxSizing: 'border-box'
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => setIsFiltersPanelOpen((current) => !current)}
+            onMouseEnter={() => setIsFiltersButtonHovered(true)}
+            onMouseLeave={() => setIsFiltersButtonHovered(false)}
+            style={{
+              height: 52,
+              width: 52,
+              border: '1px solid #d1d5db',
+              borderRadius: 14,
+              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
+                ? interactionTheme.clickableCardHoverBackground
+                : '#ffffff',
+              padding: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            aria-label="Abrir filtros"
+          >
+            <ListFilter size={20} />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Adicionar lead"
+            onMouseEnter={() => setIsAddLeadButtonHovered(true)}
+            onMouseLeave={() => setIsAddLeadButtonHovered(false)}
+            onClick={() => navigate(`/leads/new${location.search}`)}
+            style={{
+              height: 52,
+              width: 52,
+              border: 'none',
+              borderRadius: 14,
+              background: isAddLeadButtonHovered
+                ? interactionTheme.primaryButtonHoverBackground
+                : interactionTheme.primaryButtonBackground,
+              color: '#ffffff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <Plus size={26} />
+          </button>
+        </div>
+
+        {isFiltersPanelOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar painel de filtros"
+              onClick={() => setIsFiltersPanelOpen(false)}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'transparent',
+                zIndex: 35,
+                cursor: 'default'
+              }}
+            />
+
+            <section
+              style={{
+                position: 'absolute',
+                top: 150,
+                right: 16,
+                width: 'min(220px, calc(100vw - 32px))',
+                background: '#fcfdff',
+                border: `1px solid ${interactionTheme.sidebarItemActiveBackground}`,
+                borderRadius: 18,
+                zIndex: 36,
+                padding: '14px 16px 12px',
+                boxSizing: 'border-box',
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)'
+              }}
+            >
+              <div style={{ display: 'grid', gap: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyFavorites((current) => !current)}
+                  onMouseEnter={() => setHoveredFilterOption('favorites')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(showOnlyFavorites || hoveredFilterOption === 'favorites')}
+                >
+                  Favoritos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyNewLeads((current) => !current)}
+                  onMouseEnter={() => setHoveredFilterOption('new-leads')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(showOnlyNewLeads || hoveredFilterOption === 'new-leads')}
+                >
+                  Novos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyWithoutConversation24h((current) => !current)}
+                  onMouseEnter={() => setHoveredFilterOption('without-conversation-24h')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(showOnlyWithoutConversation24h || hoveredFilterOption === 'without-conversation-24h')}
+                >
+                  Sem conversa 24h+
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyQualified((current) => !current)}
+                  onMouseEnter={() => setHoveredFilterOption('qualified')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(showOnlyQualified || hoveredFilterOption === 'qualified')}
+                >
+                  Qualificado
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyNotQualified((current) => !current)}
+                  onMouseEnter={() => setHoveredFilterOption('not-qualified')}
+                  onMouseLeave={() => setHoveredFilterOption(null)}
+                  style={getFilterOptionStyle(showOnlyNotQualified || hoveredFilterOption === 'not-qualified')}
+                >
+                  Não qualificado
+                </button>
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeFilterTags.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {activeFilterTags.map((tag) => (
+              <span
+                key={tag.key}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: tag.textColor,
+                  background: tag.background,
+                  borderRadius: 999,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 10px',
+                  lineHeight: 1
+                }}
+              >
+                <span>{tag.label}</span>
+                <button
+                  type="button"
+                  aria-label={`Remover filtro ${tag.label}`}
+                  onClick={tag.onRemove}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: tag.textColor,
+                    padding: 0,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  X
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+          {paginatedLeads.map((lead) => {
+            const isArchivedLead = lead.state === 'archived'
+            const shouldShowNewTag = isNewLead(lead.createdAt)
+            const interactionTagPresentation = getInteractionTagPresentation(
+              lead.lastMessageAt,
+              lead.createdAt
+            )
+            const sourceTagPresentation = getSourceTagPresentation(lead.source)
+            const nextAgendaLabel = formatAgendaDateTime(lead.nextFollowUpDueAt)
+            const nextAgendaTagColors = getNextAgendaTagColors(resolveNextAgendaStatus(lead))
+
+            if (confirmingArchiveLeadId === lead.id) {
+              return (
+                <article
+                  key={lead.id}
+                  style={{
+                    background: interactionTheme.clickableCardHoverBackground,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <strong style={{ color: '#111827', fontSize: 15 }}>Arquivar Lead?</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label="Cancelar arquivamento de lead"
+                      onClick={() => setConfirmingArchiveLeadId(null)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Confirmar arquivamento de lead"
+                      onClick={() => void handleArchiveLead(lead.id)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </article>
+              )
+            }
+
+            if (confirmingDeleteLeadId === lead.id) {
+              return (
+                <article
+                  key={lead.id}
+                  style={{
+                    background: interactionTheme.clickableCardHoverBackground,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12
+                  }}
+                >
+                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Lead?</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label="Cancelar exclusão de lead"
+                      onClick={() => setConfirmingDeleteLeadId(null)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Confirmar exclusão de lead"
+                      onClick={() => void handleDeleteLead(lead.id)}
+                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                    >
+                      ✓
+                    </button>
+                  </div>
+                </article>
+              )
+            }
+
+            return (
+              <article
+                key={lead.id}
+                onClick={() => navigate(`/leads/${lead.id}${location.search}`)}
+                onMouseEnter={() => setHoveredLeadId(lead.id)}
+                onMouseLeave={() => {
+                  setHoveredLeadId(null)
+                  setHoveredNextAgendaValueLeadId(null)
+                }}
+                style={{
+                  background:
+                    hoveredLeadId === lead.id || leadId === lead.id
+                      ? interactionTheme.clickableCardHoverBackground
+                      : '#ffffff',
+                  border: '1px solid #f1f5f9',
+                  borderRadius: 18,
+                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                  padding: 16,
+                  display: 'grid',
+                  gap: 18,
+                  cursor: 'pointer',
+                  transition: 'background 120ms ease'
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name}</h2>
+                    {isArchivedLead || sourceTagPresentation.label === '-' ? null : (
+                      <span
+                        style={{
+                          marginTop: 8,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: sourceTagPresentation.textColor,
+                          whiteSpace: 'nowrap',
+                          background: `${sourceTagPresentation.textColor}44`,
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1.1,
+                          flexShrink: 0
+                        }}
+                      >
+                        {sourceTagPresentation.icon ? (
+                          <span style={tagIconStyle}>{sourceTagPresentation.icon}</span>
+                        ) : null}
+                        <span style={tagContentStyle}>{sourceTagPresentation.label}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      aria-label={lead.isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
+                      onClick={() => {
+                        void handleToggleFavoriteLead(lead)
+                      }}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: lead.isFavorite ? '1px solid #fde047' : '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: lead.isFavorite ? '#fef9c3' : '#ffffff',
+                        color: lead.isFavorite ? '#facc15' : '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Star size={17} fill={lead.isFavorite ? '#facc15' : 'none'} strokeWidth={2} />
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label={isArchivedLead ? 'Desarquivar lead' : 'Arquivar lead'}
+                      onClick={() => {
+                        setConfirmingDeleteLeadId(null)
+                        if (isArchivedLead) {
+                          void handleUnarchiveLead(lead.id)
+                          return
+                        }
+
+                        setConfirmingArchiveLeadId(lead.id)
+                      }}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: isArchivedLead ? '1px solid #d1d5db' : '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: isArchivedLead ? '#e5e7eb' : '#ffffff',
+                        color: isArchivedLead ? '#6b7280' : '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Archive size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      aria-label="Excluir lead"
+                      onClick={() => {
+                        setConfirmingArchiveLeadId(null)
+                        setConfirmingDeleteLeadId(lead.id)
+                      }}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
+                      <Clock3 size={17} />
+                      <span>Último contato</span>
+                    </div>
+                    <p style={{ margin: '8px 0 0 24px', color: '#64748b', fontSize: 14, lineHeight: 1.35, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {isArchivedLead ? '-' : shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
+                    </p>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
+                      <CalendarDays size={17} />
+                      <span>Próxima agenda</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isArchivedLead || nextAgendaLabel === '-' || !lead.nextFollowUpNegotiationId}
+                      onClick={(event) => {
+                        event.stopPropagation()
+
+                        if (!lead.nextFollowUpNegotiationId) {
+                          return
+                        }
+
+                        navigate(`/leads/${lead.id}${location.search}`, {
+                          state: {
+                            initialLeadTab: 'negocios',
+                            initialBusinessId: lead.nextFollowUpNegotiationId,
+                            initialBusinessTab: 'followups'
+                          }
+                        })
+                      }}
+                      style={{
+                        margin: '8px 0 0 24px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: nextAgendaTagColors.textColor,
+                        padding: 0,
+                        fontSize: 14,
+                        lineHeight: 1.35,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 'calc(100% - 24px)',
+                        cursor: lead.nextFollowUpNegotiationId ? 'pointer' : 'default',
+                        textAlign: 'left'
+                      }}
+                    >
+                      {isArchivedLead ? '-' : nextAgendaLabel}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+
+          {!isLoading && !error && filteredLeads.length === 0 ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead encontrado.</div>
+          ) : null}
+          {isLoading ? (
+            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando leads...</div>
+          ) : null}
+          {error ? (
+            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+          ) : null}
+        </div>
+
+        {leadId === 'new' ? (
+          <>
+            <button
+              type="button"
+              aria-label="Fechar criação de lead"
+              onClick={() => navigate(`/leads${location.search}`)}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                border: 'none',
+                background: 'rgba(15, 23, 42, 0.18)',
+                zIndex: 40,
+                cursor: 'default'
+              }}
+            />
+
+            <aside
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                maxHeight: '86%',
+                zIndex: 45,
+                borderRadius: '22px 22px 0 0',
+                background: '#ffffff',
+                overflowY: 'auto',
+                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
+              }}
+            >
+              <LeadPage onLeadUpdated={handleLeadUpdated} />
+            </aside>
+          </>
+        ) : isLeadSelected ? (
+          <aside
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              overflow: 'hidden'
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        ) : null}
+      </section>
+    )
+  }
 
   return (
     <section
@@ -1695,67 +2241,9 @@ export default function LeadsPage() {
             {filteredLeads.length} lead{filteredLeads.length === 1 ? '' : 's'}
           </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage <= 1) return
-                setCurrentPage((current) => current - 1)
-              }}
-              disabled={safeCurrentPage <= 1}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage <= 1 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'<'}
-            </button>
-
-            {pageNumbers.map((pageNumber) => (
-              <button
-                key={pageNumber}
-                type="button"
-                onClick={() => {
-                  if (pageNumber === safeCurrentPage) return
-                  setCurrentPage(pageNumber)
-                }}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: pageNumber === safeCurrentPage ? '#111827' : '#4b5563',
-                  padding: '0 4px',
-                  cursor: pageNumber === safeCurrentPage ? 'default' : 'pointer',
-                  fontWeight: pageNumber === safeCurrentPage ? 600 : 400
-                }}
-              >
-                {pageNumber}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (safeCurrentPage >= totalPages) return
-                setCurrentPage((current) => current + 1)
-              }}
-              disabled={safeCurrentPage >= totalPages}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#4b5563',
-                padding: '0 4px',
-                cursor: safeCurrentPage >= totalPages ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {'>'}
-            </button>
-          </div>
         </div>
 
-        {isLeadSelected ? (
+        {isLeadSelected && !isMobile ? (
           <button
             type="button"
             aria-label="Fechar lead aberto"
@@ -1783,12 +2271,13 @@ export default function LeadsPage() {
               top: 0,
               right: 0,
               bottom: 0,
-              width: leadPanelWidth,
+              left: isMobile ? 0 : 'auto',
+              width: isMobile ? '100%' : leadPanelWidth,
               zIndex: 30,
-              borderLeft: '2px solid #edf1f5',
+              borderLeft: isMobile ? 'none' : '2px solid #edf1f5',
               background: '#ffffff',
               overflow: 'hidden',
-              boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
+              boxShadow: isMobile ? 'none' : '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
               transform: isLeadPanelEntering ? 'translateX(0)' : 'translateX(100%)',
               transition: `transform ${leadPanelTransitionMs}ms ease`
             }}
