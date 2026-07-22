@@ -1,13 +1,10 @@
 import {
   CalendarClock,
-  CheckCircle2,
-  Clock3,
   ChevronDown,
   ListFilter,
   Plus,
   Trash2
 } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
@@ -30,7 +27,7 @@ type AgendaFollowUpFilter = 'all' | 'none' | 'scheduled' | 'today' | 'overdue'
 
 type AgendaVisualStatus = 'overdue' | 'today' | 'scheduled' | 'completed'
 
-type AgendaSortKey = 'value' | 'lead' | 'negotiation' | 'dateTime' | 'status'
+type AgendaSortKey = 'title' | 'lead' | 'negotiation' | 'dateTime' | 'status'
 type AgendaSortDirection = 'asc' | 'desc'
 type AgendaDateSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
 type AgendaStatusSortFocus = 'overdue' | 'today' | 'scheduled' | 'completed'
@@ -54,31 +51,29 @@ type AgendaRow = {
   negotiationId: string
   leadName: string
   negotiationTitle: string
-  value: string
+  title: string
+  description: string
+  templateName: string
   dueAt: string
-  status: 'pending' | 'done' | 'canceled'
+  status: 'pending' | 'done' | 'canceled' | 'skipped'
   leadIsFavorite: boolean
   leadState: 'active' | 'archived'
   leadCreatedAt: string | Date | null
 }
 
-type TagPresentation = {
-  label: string
-  textColor: string
-  icon?: ReactNode
-}
-
 type AgendaFollowUpDraft = {
   leadId: string
   negotiationId: string
-  value: string
+  title: string
+  description: string
   dueAt: string
 }
 
 const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   leadId: '',
   negotiationId: '',
-  value: '',
+  title: '',
+  description: '',
   dueAt: ''
 }
 
@@ -132,38 +127,6 @@ const getAgendaVisualStatus = (
   return 'scheduled'
 }
 
-const getStatusPresentation = (status: AgendaVisualStatus): TagPresentation => {
-  if (status === 'overdue') {
-    return {
-      label: 'Atrasado',
-      textColor: '#ff2d2d',
-      icon: <Clock3 size={12} color="#ff2d2d" />
-    }
-  }
-
-  if (status === 'today') {
-    return {
-      label: 'Hoje',
-      textColor: '#f59e0b',
-      icon: <CalendarClock size={12} color="#f59e0b" />
-    }
-  }
-
-  if (status === 'completed') {
-    return {
-      label: 'Concluído',
-      textColor: '#16a34a',
-      icon: <CheckCircle2 size={12} color="#16a34a" />
-    }
-  }
-
-  return {
-    label: 'Agendado',
-    textColor: '#2563eb',
-    icon: <CalendarClock size={12} color="#2563eb" />
-  }
-}
-
 const getAgendaDateTagColors = (
   status: AgendaVisualStatus
 ): { textColor: string; background: string } => {
@@ -189,6 +152,40 @@ const getAgendaDateTagColors = (
   }
 
   return {
+    textColor: '#1d4ed8',
+    background: '#dbeafe'
+  }
+}
+
+const getFollowUpLifecycleStatusTag = (
+  status: AgendaRow['status']
+): { label: string; textColor: string; background: string } => {
+  if (status === 'done') {
+    return {
+      label: 'Concluído',
+      textColor: '#166534',
+      background: '#dcfce7'
+    }
+  }
+
+  if (status === 'canceled') {
+    return {
+      label: 'Cancelado',
+      textColor: '#b91c1c',
+      background: '#fee2e2'
+    }
+  }
+
+  if (status === 'skipped') {
+    return {
+      label: 'Ignorado',
+      textColor: '#7c2d12',
+      background: '#ffedd5'
+    }
+  }
+
+  return {
+    label: 'Pendente',
     textColor: '#1d4ed8',
     background: '#dbeafe'
   }
@@ -234,7 +231,7 @@ const toSafeText = (value: unknown): string => {
 const toSafeFollowUpStatus = (
   value: unknown
 ): AgendaRow['status'] => {
-  if (value === 'pending' || value === 'done' || value === 'canceled') {
+  if (value === 'pending' || value === 'done' || value === 'canceled' || value === 'skipped') {
     return value
   }
 
@@ -520,7 +517,7 @@ export default function AgendaPage() {
       return
     }
 
-    if (!agendaFollowUpDraft.value.trim() || !agendaFollowUpDraft.dueAt) {
+    if (!agendaFollowUpDraft.title.trim() || !agendaFollowUpDraft.dueAt) {
       setAgendaFollowUpError('Preencha o nome do follow-up e a data/hora.')
       return
     }
@@ -530,7 +527,8 @@ export default function AgendaPage() {
 
       await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
-        value: agendaFollowUpDraft.value.trim(),
+        title: agendaFollowUpDraft.title.trim(),
+        description: agendaFollowUpDraft.description.trim() || undefined,
         dueAt: agendaFollowUpDraft.dueAt
       })
 
@@ -578,7 +576,9 @@ export default function AgendaPage() {
         negotiationId: negocio.id,
         leadName: leadData.name,
         negotiationTitle: negocio.title?.trim() || 'Negócio sem nome',
-        value: toSafeText(followUp.value),
+        title: toSafeText(followUp.title),
+        description: toSafeText(followUp.description),
+        templateName: toSafeText(followUp.template?.name),
         dueAt: toSafeText(followUp.dueAt),
         status: toSafeFollowUpStatus(followUp.status),
         leadIsFavorite: leadData.isFavorite,
@@ -599,7 +599,8 @@ export default function AgendaPage() {
           ? true
           : toSafeText(row.leadName).toLowerCase().includes(normalizedSearchTerm) ||
             toSafeText(row.negotiationTitle).toLowerCase().includes(normalizedSearchTerm) ||
-            toSafeText(row.value).toLowerCase().includes(normalizedSearchTerm)
+            toSafeText(row.title).toLowerCase().includes(normalizedSearchTerm) ||
+            toSafeText(row.description).toLowerCase().includes(normalizedSearchTerm)
         const matchesFollowUp = matchesFollowUpFilter(row, followUpFilter)
 
         return matchesSearch && matchesFollowUp
@@ -630,8 +631,8 @@ export default function AgendaPage() {
     return [...filteredAgendaRows].sort((firstRow, secondRow) => {
       const directionFactor = sortDirection === 'asc' ? 1 : -1
 
-      if (sortKey === 'value') {
-        return firstRow.value.localeCompare(secondRow.value, 'pt-BR', { sensitivity: 'base' }) * directionFactor
+      if (sortKey === 'title') {
+        return firstRow.title.localeCompare(secondRow.title, 'pt-BR', { sensitivity: 'base' }) * directionFactor
       }
 
       if (sortKey === 'lead') {
@@ -1192,8 +1193,19 @@ export default function AgendaPage() {
                   <input
                     type="text"
                     placeholder="Nome do Follow-up"
-                    value={agendaFollowUpDraft.value}
-                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, value: event.target.value }))}
+                    value={agendaFollowUpDraft.title}
+                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, title: event.target.value }))}
+                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
+                  <input
+                    type="text"
+                    placeholder="Descrição (opcional)"
+                    value={agendaFollowUpDraft.description}
+                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, description: event.target.value }))}
                     style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
                   />
                 </div>
@@ -1248,7 +1260,7 @@ export default function AgendaPage() {
           {paginatedAgendaRows.map((row) => {
             const isHovered = hoveredFollowUpId === row.followUpId
             const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
-            const statusPresentation = getStatusPresentation(visualStatus)
+            const lifecycleStatusTag = getFollowUpLifecycleStatusTag(row.status)
             const dateTagColors = getAgendaDateTagColors(visualStatus)
             const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
 
@@ -1299,7 +1311,8 @@ export default function AgendaPage() {
                     state: {
                       initialLeadTab: 'negocios',
                       initialBusinessId: row.negotiationId,
-                      initialBusinessTab: 'followups'
+                      initialBusinessTab: 'followups',
+                      initialBusinessFollowUpId: row.followUpId
                     }
                   })
                 }}
@@ -1320,8 +1333,13 @@ export default function AgendaPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {row.value || 'Follow-up sem nome'}
+                      {row.title || 'Follow-up sem nome'}
                     </h2>
+                    {row.description ? (
+                      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13, lineHeight: 1.2 }}>
+                        {row.description}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
@@ -1372,9 +1390,8 @@ export default function AgendaPage() {
                     <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formattedDateTime}</span>
                   </span>
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: statusPresentation.textColor, whiteSpace: 'nowrap', background: `${statusPresentation.textColor}33`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1, gap: 4 }}>
-                    {statusPresentation.icon}
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{statusPresentation.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: lifecycleStatusTag.textColor, whiteSpace: 'nowrap', background: lifecycleStatusTag.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
                   </span>
 
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
@@ -1762,11 +1779,34 @@ export default function AgendaPage() {
                   <input
                     type="text"
                     placeholder="Nome do Follow-up"
-                    value={agendaFollowUpDraft.value}
+                    value={agendaFollowUpDraft.title}
                     onChange={(event) =>
                       setAgendaFollowUpDraft((currentDraft) => ({
                         ...currentDraft,
-                        value: event.target.value
+                        title: event.target.value
+                      }))
+                    }
+                    style={{
+                      height: 36,
+                      maxWidth: 360,
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      padding: '0 10px',
+                      color: '#111827',
+                      fontSize: 16,
+                      boxSizing: 'border-box'
+                    }}
+                  />
+
+                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição</span>
+                  <input
+                    type="text"
+                    placeholder="Descrição (opcional)"
+                    value={agendaFollowUpDraft.description}
+                    onChange={(event) =>
+                      setAgendaFollowUpDraft((currentDraft) => ({
+                        ...currentDraft,
+                        description: event.target.value
                       }))
                     }
                     style={{
@@ -1922,11 +1962,13 @@ export default function AgendaPage() {
             }}
           >
             <colgroup>
-              <col style={{ width: '28%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '20%' }} />
               <col style={{ width: '18%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
               <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} />
               <col style={{ width: '10%' }} />
             </colgroup>
             <thead>
@@ -1934,11 +1976,17 @@ export default function AgendaPage() {
                 <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
                     type="button"
-                    onClick={() => handleSortToggle('value')}
-                    style={getHeaderSortButtonStyle('value')}
+                    onClick={() => handleSortToggle('title')}
+                    style={getHeaderSortButtonStyle('title')}
                   >
-                    Follow-up <span style={{ fontSize: 11 }}>{getSortIndicator('value')}</span>
+                    Follow-up <span style={{ fontSize: 11 }}>{getSortIndicator('title')}</span>
                   </button>
+                </th>
+                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                  Descrição
+                </th>
+                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                  Template
                 </th>
                 <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
@@ -1961,19 +2009,19 @@ export default function AgendaPage() {
                 <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
-                    onClick={() => handleSortToggle('dateTime')}
-                    style={getHeaderSortButtonStyle('dateTime')}
+                    onClick={() => handleSortToggle('status')}
+                    style={getHeaderSortButtonStyle('status')}
                   >
-                    Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
+                    Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
                   </button>
                 </th>
                 <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
-                    onClick={() => handleSortToggle('status')}
-                    style={getHeaderSortButtonStyle('status')}
+                    onClick={() => handleSortToggle('dateTime')}
+                    style={getHeaderSortButtonStyle('dateTime')}
                   >
-                    Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
+                    Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
                   </button>
                 </th>
                 <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
@@ -1985,8 +2033,7 @@ export default function AgendaPage() {
             <tbody>
               {paginatedAgendaRows.map((row) => {
                 const isHovered = hoveredFollowUpId === row.followUpId
-                const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
-                const statusPresentation = getStatusPresentation(visualStatus)
+                const lifecycleStatusTag = getFollowUpLifecycleStatusTag(row.status)
 
                 if (confirmingDeleteFollowUpId === row.followUpId) {
                   return (
@@ -2000,7 +2047,7 @@ export default function AgendaPage() {
                       onMouseLeave={() => setHoveredFollowUpId(null)}
                     >
                       <td
-                        colSpan={5}
+                        colSpan={7}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -2086,7 +2133,8 @@ export default function AgendaPage() {
                         state: {
                           initialLeadTab: 'negocios',
                           initialBusinessId: row.negotiationId,
-                          initialBusinessTab: 'followups'
+                          initialBusinessTab: 'followups',
+                          initialBusinessFollowUpId: row.followUpId
                         }
                       })
                     }}
@@ -2102,10 +2150,31 @@ export default function AgendaPage() {
                     onMouseLeave={() => setHoveredFollowUpId(null)}
                   >
                     <td style={{ padding: '14px 16px', color: '#111827' }}>
-                      {row.value || '-'}
+                      {row.title || '-'}
                     </td>
+                    <td style={{ padding: '14px 16px', color: '#64748b' }}>{row.description || '-'}</td>
+                    <td style={{ padding: '14px 16px', color: '#111827' }}>{row.templateName || '-'}</td>
                     <td style={{ padding: '14px 16px', color: '#111827' }}>{row.leadName}</td>
                     <td style={{ padding: '14px 16px', color: '#111827' }}>{row.negotiationTitle}</td>
+                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: lifecycleStatusTag.textColor,
+                          whiteSpace: 'nowrap',
+                          background: lifecycleStatusTag.background,
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1.1
+                        }}
+                      >
+                        {lifecycleStatusTag.label}
+                      </span>
+                    </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {(() => {
                         const dateStatus = getAgendaVisualStatus(row.status, row.dueAt)
@@ -2136,27 +2205,6 @@ export default function AgendaPage() {
                           </span>
                         )
                       })()}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: statusPresentation.textColor,
-                          whiteSpace: 'nowrap',
-                          background: `${statusPresentation.textColor}33`,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1,
-                          gap: 4
-                        }}
-                      >
-                        {statusPresentation.icon}
-                        {statusPresentation.label}
-                      </span>
                     </td>
                     <td
                       style={{

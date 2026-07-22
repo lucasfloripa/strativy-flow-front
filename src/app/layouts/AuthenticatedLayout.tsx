@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -8,6 +8,7 @@ import { useViewportBreakpoint } from '../theme/useViewportBreakpoint'
 import { authUserEmailAtom } from '../../core/state/authUserEmailAtom'
 import { appApiClient } from '../../core/api/appApiClient'
 import { authApiClient } from '../../core/api/authApiClient'
+import { useRealtime } from '../../core/realtime/useRealtime'
 import { AuthService } from '../../features/auth/services/AuthService'
 
 export type AuthenticatedLayoutOutletContext = {
@@ -261,6 +262,7 @@ export function AuthenticatedLayout() {
   const setEmail = useSetAtom(authUserEmailAtom)
   const location = useLocation()
   const navigate = useNavigate()
+  const realtime = useRealtime()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false)
   const [hoveredNavKey, setHoveredNavKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false)
@@ -301,6 +303,18 @@ export function AuthenticatedLayout() {
   const greetingLabel = getGreetingLabel()
   const userFirstName =
     getFirstName(headerUserName) || getFirstName(settingsUserName) || getUserFirstName(authUserEmail)
+
+  useEffect(() => {
+    if (!hasToken) {
+      return
+    }
+
+    realtime.connect()
+
+    return () => {
+      realtime.disconnect()
+    }
+  }, [hasToken, realtime])
 
   useEffect(() => {
     if (!hasToken) {
@@ -355,7 +369,7 @@ export function AuthenticatedLayout() {
     return () => {
       isMounted = false
     }
-  }, [hasToken])
+  }, [hasToken, setEmail])
 
   useEffect(() => {
     if (!isSettingsPanelOpen) {
@@ -1116,6 +1130,24 @@ export function AuthenticatedLayout() {
               >
                 <FileText size={16} />
                 {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Arquivos</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/financeiro"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'financeiro',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('financeiro')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <CircleDollarSign size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Financeiro</span> : null}
               </NavLink>
             </li>
             <li>

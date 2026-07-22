@@ -1,16 +1,28 @@
 export type ChatMessageApi = {
   id: string
-  content: string
+  content: string | null
   direction: string
+  type?: 'text' | 'image' | 'audio' | 'video' | 'document' | null
+  mediaUrl?: string | null
+  mimeType?: string | null
+  mediaSize?: number | null
+  fileName?: string | null
   createdAt?: string
 }
 
 export type ChatMessageDirection = 'inbound' | 'outbound'
 
+export type ChatMessageType = 'text' | 'image' | 'audio' | 'video' | 'document'
+
 export type ChatMessage = {
   id: string
-  content: string
+  content: string | null
   direction: ChatMessageDirection
+  type: ChatMessageType
+  mediaUrl?: string | null
+  mimeType?: string | null
+  mediaSize?: number | null
+  fileName?: string | null
 }
 
 export type LeadRuntimeMode = 'HUMAN' | 'AUTOMATION'
@@ -32,6 +44,7 @@ export type LeadResponse = {
   isFavorite?: boolean | null
   phone?: string | null
   email?: string | null
+  location?: string | null
   state?: 'active' | 'archived' | null
   leadQualification?: 'qualify' | 'not qualify' | null
   leadStage?: LeadStage | null
@@ -53,6 +66,7 @@ export type UpdateLeadPayload = {
   phone?: string
   email?: string
   source?: string
+  location?: string
   socialLinks?: LeadSocialLinks | null
   leadQualification?: 'qualify' | 'not qualify' | null
   initialContext?: string
@@ -65,18 +79,47 @@ export type CreateLeadPayload = {
   phone: string
   email?: string
   source?: string
+  location?: string
   socialLinks?: LeadSocialLinks | null
   leadQualification?: 'qualify' | 'not qualify' | null
 }
 
-export type LeadFollowUpStatus = 'pending' | 'done' | 'canceled'
+export type LeadFollowUpStatus = 'pending' | 'done' | 'canceled' | 'skipped'
 export type FollowUpSortFocus = 'overdue' | 'today' | 'scheduled' | 'completed'
 export type FollowUpDateSortOrder = 'asc' | 'desc'
+
+export type FollowUpTemplateResponse = {
+  id: string
+  name: string
+  description?: string | null
+  variables?: Array<{
+    key: string
+    label: string
+    required: boolean
+  }> | null
+}
+
+export type MessageTemplateResponse = {
+  id: string
+  name: string
+  description?: string | null
+  variables?: Array<{
+    key: string
+    label: string
+    required: boolean
+  }> | null
+  createdAt?: string
+  updatedAt?: string
+}
 
 export type LeadFollowUpResponse = {
   id: string
   leadId: string
-  value: string
+  title: string
+  description?: string | null
+  templateId?: string | null
+  template?: FollowUpTemplateResponse | null
+  templateVariables?: Record<string, unknown> | null
   dueAt: string
   status: LeadFollowUpStatus
   completedAt?: string | null
@@ -143,7 +186,11 @@ export type UpdateNegotiationPayload = {
 export type NegotiationFollowUpResponse = {
   id: string
   negotiationId: string
-  value: string
+  title: string
+  description?: string | null
+  templateId?: string | null
+  template?: FollowUpTemplateResponse | null
+  templateVariables?: Record<string, unknown> | null
   dueAt: string
   status: LeadFollowUpStatus
   completedAt?: string | null
@@ -153,7 +200,10 @@ export type NegotiationFollowUpResponse = {
 
 export type CreateNegotiationFollowUpPayload = {
   negotiationId: string
-  value: string
+  title: string
+  description?: string
+  templateId?: string | null
+  templateVariables?: Record<string, unknown>
   dueAt: string
 }
 

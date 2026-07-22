@@ -2,20 +2,15 @@ import {
   Bell,
   CalendarClock,
   CalendarDays,
-  ChevronDown,
   Clock3,
   Clock4,
-  CircleDollarSign,
   MessageCircle,
   UserPlus,
   X
 } from 'lucide-react'
 import {
-  type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useEffect,
-  useRef,
   useState
 } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
@@ -75,11 +70,6 @@ type HighlightedLead = {
   hasFollowUpScheduled: boolean
 }
 
-type RevenueDateRange = {
-  startDate: string
-  endDate: string
-}
-
 const cardBackground = '#fcfdff'
 const cardBorder = '1px solid #f4f6fa'
 const cardShadow = '0 6px 14px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.016)'
@@ -93,8 +83,7 @@ const INITIAL_DASHBOARD_SUMMARY: DashboardSummary = {
     overdue: 0,
     today: 0,
     scheduled: 0
-  },
-  revenue: 0
+  }
 }
 
 const normalizeNumber = (value: unknown): number => {
@@ -119,42 +108,8 @@ const normalizeDashboardSummary = (payload: unknown): DashboardSummary => {
       overdue: normalizeNumber(source.followUps?.overdue),
       today: normalizeNumber(source.followUps?.today),
       scheduled: normalizeNumber(source.followUps?.scheduled)
-    },
-    revenue: normalizeNumber(source.revenue)
+    }
   }
-}
-
-const formatCurrencyBRL = (value: number): string =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2
-  }).format(value)
-
-const toDateInputValue = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const isSameDate = (first: string, second: string): boolean => first === second
-
-const formatDateRangeLabel = (range: RevenueDateRange): string => {
-  if (isSameDate(range.startDate, range.endDate)) {
-    return 'Hoje'
-  }
-
-  const start = new Date(`${range.startDate}T00:00:00`)
-  const end = new Date(`${range.endDate}T00:00:00`)
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return 'Hoje'
-  }
-
-  const startFormatted = new Intl.DateTimeFormat('pt-BR').format(start)
-  const endFormatted = new Intl.DateTimeFormat('pt-BR').format(end)
-  return `${startFormatted} ate ${endFormatted}`
 }
 
 const initialsPalette = [
@@ -488,7 +443,6 @@ export default function HomePage() {
     setIsMobileHomeNotificationsOpen,
     setMobileHomeNotificationsCount
   } = useOutletContext<AuthenticatedLayoutOutletContext>()
-  const today = toDateInputValue(new Date())
   const [hoveredHighlightedLeadId, setHoveredHighlightedLeadId] = useState<string | null>(null)
   const [hoveredHighlightedNextAgendaLeadId, setHoveredHighlightedNextAgendaLeadId] = useState<string | null>(null)
   const [hoveredNotificationId, setHoveredNotificationId] = useState<string | null>(null)
@@ -501,17 +455,6 @@ export default function HomePage() {
   )
   const [highlightedLeads, setHighlightedLeads] = useState<HighlightedLead[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [revenueValue, setRevenueValue] = useState<number>(0)
-  const [appliedRevenueRange, setAppliedRevenueRange] = useState<RevenueDateRange>({
-    startDate: today,
-    endDate: today
-  })
-  const [revenueDatePickerValue, setRevenueDatePickerValue] = useState<string>(today)
-  const [revenueDatePickerStep, setRevenueDatePickerStep] = useState<'idle' | 'start' | 'end'>(
-    'idle'
-  )
-  const [pendingRevenueStartDate, setPendingRevenueStartDate] = useState<string | null>(null)
-  const revenueDatePickerInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -543,26 +486,12 @@ export default function HomePage() {
       }
     }
 
-    const loadRevenue = async () => {
-      const incomeResult = await HomeService.getDashboardIncome(
-        appliedRevenueRange.startDate,
-        appliedRevenueRange.endDate
-      )
-
-      if (!isActive) {
-        return
-      }
-
-      setRevenueValue(normalizeNumber(incomeResult.income))
-    }
-
     void loadDashboardSummary()
-    void loadRevenue()
 
     return () => {
       isActive = false
     }
-  }, [appliedRevenueRange.endDate, appliedRevenueRange.startDate])
+  }, [])
 
   useEffect(() => {
     setMobileHomeNotificationsCount(notifications.length)
@@ -575,8 +504,6 @@ export default function HomePage() {
   const summaryFollowUps = dashboardSummary.followUps
   const summaryNewToday = dashboardSummary.newToday
   const summaryWithoutConversation24h = dashboardSummary.withoutConversation24h
-  const summaryRevenue = revenueValue
-  const revenueDateLabel = formatDateRangeLabel(appliedRevenueRange)
 
   const handleNotificationClick = async (notification: Notification) => {
     setSelectedNotificationId(notification.id)
@@ -653,93 +580,6 @@ export default function HomePage() {
 
     if (selectedNotificationId === notification.id) {
       setSelectedNotificationId(null)
-    }
-  }
-
-  const revenueDateButtonStyle: CSSProperties = {
-    height: 32,
-    borderRadius: 7,
-    border: 'none',
-    padding: '0 10px',
-    color: '#334155',
-    background: '#f7fcf8',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    cursor: 'pointer',
-    flexShrink: 0
-  }
-
-  const openRevenueDatePicker = () => {
-    const input = revenueDatePickerInputRef.current as
-      | (HTMLInputElement & { showPicker?: () => void })
-      | null
-
-    if (!input) {
-      return
-    }
-
-    input.focus()
-    if (typeof input.showPicker === 'function') {
-      input.showPicker()
-      return
-    }
-
-    input.click()
-  }
-
-  const handleRevenueDateButtonClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    setPendingRevenueStartDate(null)
-    setRevenueDatePickerStep('start')
-    setRevenueDatePickerValue(appliedRevenueRange.startDate)
-
-    setTimeout(() => {
-      openRevenueDatePicker()
-    }, 0)
-  }
-
-  const handleRevenueDatePickerChange = (value: string) => {
-    if (!value) {
-      const fallbackDate = toDateInputValue(new Date())
-
-      setAppliedRevenueRange({
-        startDate: fallbackDate,
-        endDate: fallbackDate
-      })
-      setRevenueDatePickerValue(fallbackDate)
-      setPendingRevenueStartDate(null)
-      setRevenueDatePickerStep('idle')
-      return
-    }
-
-    if (revenueDatePickerStep === 'start') {
-      setPendingRevenueStartDate(value)
-      setAppliedRevenueRange({
-        startDate: value,
-        endDate: value
-      })
-      setRevenueDatePickerStep('end')
-      setRevenueDatePickerValue(value)
-
-      setTimeout(() => {
-        openRevenueDatePicker()
-      }, 0)
-      return
-    }
-
-    if (revenueDatePickerStep === 'end') {
-      const startDateCandidate = pendingRevenueStartDate ?? value
-      const nextStartDate = startDateCandidate <= value ? startDateCandidate : value
-      const nextEndDate = startDateCandidate <= value ? value : startDateCandidate
-
-      setAppliedRevenueRange({
-        startDate: nextStartDate,
-        endDate: nextEndDate
-      })
-      setRevenueDatePickerValue(nextEndDate)
-      setPendingRevenueStartDate(null)
-      setRevenueDatePickerStep('idle')
     }
   }
 
@@ -1135,45 +975,6 @@ export default function HomePage() {
           </div>
         </article>
 
-        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '0 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 92, flexShrink: 0, marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-              <div style={{ height: 52, width: 52, borderRadius: 16, background: '#edf8f0', color: '#0f7a43', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <CircleDollarSign size={26} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Receita</p>
-                <strong style={{ marginTop: 4, display: 'block', color: '#0f7a43', fontSize: 30, lineHeight: 1.1, fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyBRL(summaryRevenue)}</strong>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleRevenueDateButtonClick}
-              style={revenueDateButtonStyle}
-            >
-              <CalendarDays size={14} color="#0f7a43" />
-              <span style={{ fontSize: 14 }}>{revenueDateLabel}</span>
-              <ChevronDown size={14} />
-            </button>
-          </div>
-
-          <input
-            ref={revenueDatePickerInputRef}
-            type="date"
-            value={revenueDatePickerValue}
-            onChange={(event) => handleRevenueDatePickerChange(event.target.value)}
-            style={{
-              position: 'absolute',
-              opacity: 0,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none'
-            }}
-            tabIndex={-1}
-            aria-hidden="true"
-          />
-        </article>
       </section>
     )
   }
@@ -1439,45 +1240,6 @@ export default function HomePage() {
 
           {!isMobile ? renderNotificationsList('Notificações') : null}
 
-          <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '0 6px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 70 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <div style={{ height: 52, width: 52, borderRadius: 16, background: '#edf8f0', color: '#0f7a43', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <CircleDollarSign size={26} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Receita</p>
-                  <strong style={{ marginTop: 4, display: 'block', color: '#0f7a43', fontSize: 30, lineHeight: 1.1, fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrencyBRL(summaryRevenue)}</strong>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRevenueDateButtonClick}
-                style={revenueDateButtonStyle}
-              >
-                <CalendarDays size={14} color="#0f7a43" />
-                <span style={{ fontSize: 14 }}>{revenueDateLabel}</span>
-                <ChevronDown size={14} />
-              </button>
-            </div>
-
-            <input
-              ref={revenueDatePickerInputRef}
-              type="date"
-              value={revenueDatePickerValue}
-              onChange={(event) => handleRevenueDatePickerChange(event.target.value)}
-              style={{
-                position: 'absolute',
-                opacity: 0,
-                width: 1,
-                height: 1,
-                pointerEvents: 'none'
-              }}
-              tabIndex={-1}
-              aria-hidden="true"
-            />
-          </article>
         </div>
       </div>
     </section>

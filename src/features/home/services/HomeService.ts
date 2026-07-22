@@ -1,6 +1,5 @@
 import { appApiClient } from '../../../core/api/appApiClient'
 import type {
-  DashboardIncome,
   DashboardSummary,
   HomeHighlightedLead,
   UserNotification
@@ -52,16 +51,5 @@ export const HomeService = {
         referenceId
       }
     })
-  },
-
-  async getDashboardIncome(startDate: string, endDate: string): Promise<DashboardIncome> {
-    const { data } = await appApiClient.get<DashboardIncome>('/leads/dashboard/income', {
-      params: {
-        startDate,
-        endDate
-      }
-    })
-
-    return data
   }
 }

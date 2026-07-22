@@ -3,14 +3,17 @@ import { useEffect, useRef, useState } from 'react'
 import { SendHorizontal } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
+import { useRealtime } from '../../../core/realtime/useRealtime'
+import { MessageContent } from './MessageContent'
 import { WebhookService } from '../services/WebhookService'
-import type { ChatMessage } from '../types/webhook.types'
+import type { ChatMessage, ChatMessageApi } from '../types/webhook.types'
 
 type LeadChatTabProps = {
   leadId: string
 }
 
 export function LeadChatTab({ leadId }: LeadChatTabProps) {
+  const realtime = useRealtime()
   const [message, setMessage] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -20,6 +23,51 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (!leadId.trim()) {
+      return
+    }
+
+    realtime.joinLeadRoom(leadId)
+
+    return () => {
+      realtime.leaveLeadRoom(leadId)
+    }
+  }, [leadId, realtime])
+
+  useEffect(() => {
+    const handleMessageCreated = (payload: ChatMessageApi & { leadId?: string }) => {
+      const messageLeadId = String(payload?.leadId ?? '').trim()
+
+      if (messageLeadId && messageLeadId !== leadId) {
+        return
+      }
+
+      const nextMessage = WebhookService.mapMessageFromApi(payload)
+
+      console.info('[Realtime] Evento recebido', {
+        event: 'message.created',
+        leadId,
+        messageId: nextMessage.id,
+        timestamp: new Date().toISOString()
+      })
+
+      setMessages((currentMessages) => {
+        if (currentMessages.some((message) => message.id === nextMessage.id)) {
+          return currentMessages
+        }
+
+        return [...currentMessages, nextMessage]
+      })
+    }
+
+    realtime.on('message.created', handleMessageCreated)
+
+    return () => {
+      realtime.off('message.created', handleMessageCreated)
+    }
+  }, [leadId, realtime])
 
   useEffect(() => {
     let isMounted = true
@@ -47,13 +95,8 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
     setIsLoading(true)
     void loadMessages()
 
-    const interval = window.setInterval(() => {
-      void loadMessages()
-    }, 3000)
-
     return () => {
       isMounted = false
-      window.clearInterval(interval)
     }
   }, [leadId])
 
@@ -78,10 +121,12 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
     try {
       setIsSending(true)
       setError(null)
-      await WebhookService.sendMessage(leadId, content)
+      const createdMessage = await WebhookService.sendMessage(leadId, content)
       setMessage('')
-      const updatedMessages = await WebhookService.loadMessages(leadId)
-      setMessages(updatedMessages)
+      setMessages((currentMessages) => [
+        ...currentMessages.filter((item) => item.id !== createdMessage.id),
+        createdMessage
+      ])
     } catch (exception: unknown) {
       const messageText =
         exception instanceof Error ? exception.message : 'Falha ao enviar mensagem.'
@@ -142,7 +187,7 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
                     color: item.direction === 'outbound' ? '#ffffff' : '#111827'
                   }}
                 >
-                  {item.content}
+                  <MessageContent message={item} />
                 </div>
               </div>
             ))

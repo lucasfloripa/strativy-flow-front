@@ -1,5 +1,6 @@
 import { ChevronDown, Download, FileText, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -52,6 +53,7 @@ const formatFileSize = (sizeInBytes: number): string => {
 
 export default function ArquivosPage() {
   const { isMobile } = useViewportBreakpoint()
+  const navigate = useNavigate()
   const { data: leadsData, isLoading: isLeadsLoading, error: leadsError } = useLeadsBootstrap()
   const [isLoadingArquivos, setIsLoadingArquivos] = useState<boolean>(true)
   const [arquivosError, setArquivosError] = useState<string | null>(null)
@@ -287,6 +289,16 @@ export default function ArquivosPage() {
     }
   }
 
+  const handleOpenArquivoLeadBusinessFiles = (arquivo: ArquivoRow) => {
+    navigate(`/leads/${arquivo.leadId}`, {
+      state: {
+        initialLeadTab: 'negocios',
+        initialBusinessId: arquivo.negotiationId,
+        initialBusinessTab: 'arquivos'
+      }
+    })
+  }
+
   const handleCreateArquivo = async () => {
     if (!canCreateArquivo || !arquivoCreateDraft.file) {
       setArquivoCreateError('Selecione lead, negócio e arquivo.')
@@ -464,6 +476,7 @@ export default function ArquivosPage() {
             return (
               <article
                 key={arquivo.id}
+                onClick={() => handleOpenArquivoLeadBusinessFiles(arquivo)}
                 onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
                 onMouseLeave={() => setHoveredArquivoId(null)}
                 style={{
@@ -474,7 +487,8 @@ export default function ArquivosPage() {
                   padding: 16,
                   display: 'grid',
                   gap: 18,
-                  transition: 'background 120ms ease'
+                  transition: 'background 120ms ease',
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
@@ -490,7 +504,10 @@ export default function ArquivosPage() {
                       type="button"
                       aria-label="Baixar arquivo"
                       disabled={downloadingArquivoId === arquivo.id}
-                      onClick={() => void handleDownloadArquivo(arquivo.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void handleDownloadArquivo(arquivo.id)
+                      }}
                       style={{
                         height: 34,
                         width: 34,
@@ -512,7 +529,10 @@ export default function ArquivosPage() {
                     <button
                       type="button"
                       aria-label="Excluir arquivo"
-                      onClick={() => setConfirmingDeleteArquivoId(arquivo.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setConfirmingDeleteArquivoId(arquivo.id)
+                      }}
                       style={{
                         height: 34,
                         width: 34,
@@ -935,7 +955,8 @@ export default function ArquivosPage() {
                 return (
                   <tr
                     key={arquivo.id}
-                    style={{ borderBottom: '1px solid #f0f0f0', background: rowBackground }}
+                    onClick={() => handleOpenArquivoLeadBusinessFiles(arquivo)}
+                    style={{ borderBottom: '1px solid #f0f0f0', background: rowBackground, cursor: 'pointer' }}
                     onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
                     onMouseLeave={() => setHoveredArquivoId(null)}
                   >
@@ -1014,7 +1035,10 @@ export default function ArquivosPage() {
                           type="button"
                           aria-label="Baixar arquivo"
                           disabled={downloadingArquivoId === arquivo.id}
-                          onClick={() => void handleDownloadArquivo(arquivo.id)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handleDownloadArquivo(arquivo.id)
+                          }}
                           onMouseEnter={(event) =>
                             applyActionHoverBackground(true, event.currentTarget)
                           }
@@ -1039,7 +1063,10 @@ export default function ArquivosPage() {
                         <button
                           type="button"
                           aria-label="Excluir arquivo"
-                          onClick={() => setConfirmingDeleteArquivoId(arquivo.id)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setConfirmingDeleteArquivoId(arquivo.id)
+                          }}
                           onMouseEnter={(event) =>
                             applyActionHoverBackground(true, event.currentTarget)
                           }

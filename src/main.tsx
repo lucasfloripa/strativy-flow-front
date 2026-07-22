@@ -10,6 +10,7 @@ import LeadsPage from './pages/LeadsPage'
 import LeadsArquivadosPage from './pages/LeadsArquivadosPage'
 import NegociosPage from './pages/NegociosPage'
 import ArquivosPage from './pages/ArquivosPage'
+import FinanceiroPage from './pages/FinanceiroPage'
 import AgendaPage from './pages/AgendaPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
@@ -95,6 +96,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/negocios/new" element={<NegociosPage />} />
         <Route path="/negocios/:leadId" element={<NegociosPage />} />
         <Route path="/arquivos" element={<ArquivosPage />} />
+        <Route path="/financeiro" element={<FinanceiroPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agenda/:leadId" element={<AgendaPage />} />
         <Route path="/arquivados" element={<LeadsArquivadosPage />} />

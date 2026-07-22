@@ -7,11 +7,6 @@ export type DashboardSummary = {
     today: number
     scheduled: number
   }
-  revenue: number
-}
-
-export type DashboardIncome = {
-  income: number
 }
 
 export type UserNotification = {

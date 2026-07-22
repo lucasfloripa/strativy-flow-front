@@ -12,6 +12,7 @@ import type {
   LeadFollowUpStatus,
   LeadResponse,
   LeadRuntimeMode,
+  MessageTemplateResponse,
   NegotiationAttachmentDownloadUrlResponse,
   NegotiationAttachmentResponse,
   NegotiationFollowUpResponse,
@@ -21,19 +22,34 @@ import type {
 } from '../types/webhook.types'
 
 export const WebhookService = {
-  async loadMessages(leadId: string): Promise<ChatMessage[]> {
-    const { data } = await appApiClient.get<ChatMessageApi[]>(`/leads/${leadId}/messages`)
-
-    return (data ?? []).map((message) => ({
+  mapMessageFromApi(message: ChatMessageApi): ChatMessage {
+    return {
       id: message.id,
-      content: message.content,
+      content: message.content ?? null,
       direction:
         String(message.direction ?? '')
           .trim()
           .toUpperCase() === 'OUTBOUND'
           ? 'outbound'
-          : 'inbound'
-    }))
+          : 'inbound',
+      type:
+        message.type === 'image' ||
+        message.type === 'audio' ||
+        message.type === 'video' ||
+        message.type === 'document'
+          ? message.type
+          : 'text',
+      mediaUrl: message.mediaUrl ?? null,
+      mimeType: message.mimeType ?? null,
+      mediaSize: message.mediaSize ?? null,
+      fileName: message.fileName ?? null
+    }
+  },
+
+  async loadMessages(leadId: string): Promise<ChatMessage[]> {
+    const { data } = await appApiClient.get<ChatMessageApi[]>(`/leads/${leadId}/messages`)
+
+    return (data ?? []).map((message) => this.mapMessageFromApi(message))
   },
 
   async loadLead(leadId: string): Promise<LeadResponse> {
@@ -95,10 +111,10 @@ export const WebhookService = {
     )
   },
 
-  async createLeadFollowUp(leadId: string, value: string, dueAt: string): Promise<LeadFollowUpResponse> {
+  async createLeadFollowUp(leadId: string, title: string, dueAt: string): Promise<LeadFollowUpResponse> {
     const { data } = await appApiClient.post<LeadFollowUpResponse>('/lead-followups', {
       leadId,
-      value,
+      title,
       dueAt
     })
 
@@ -118,11 +134,11 @@ export const WebhookService = {
 
   async updateLeadFollowUp(
     followUpId: string,
-    value: string,
+    title: string,
     dueAt: string
   ): Promise<LeadFollowUpResponse> {
     const { data } = await appApiClient.patch<LeadFollowUpResponse>(`/lead-followups/${followUpId}`, {
-      value,
+      title,
       dueAt
     })
     return data
@@ -138,8 +154,13 @@ export const WebhookService = {
     return data
   },
 
-  async sendMessage(leadId: string, content: string): Promise<void> {
-    await appApiClient.post(`/leads/${leadId}/messages`, { content })
+  async sendMessage(leadId: string, content: string): Promise<ChatMessage> {
+    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
+      `/leads/${leadId}/messages`,
+      { content }
+    )
+
+    return this.mapMessageFromApi(data.message)
   },
 
   async updateLeadRuntimeMode(
@@ -183,6 +204,11 @@ export const WebhookService = {
     return data ?? []
   },
 
+  async loadMessageTemplates(): Promise<MessageTemplateResponse[]> {
+    const { data } = await appApiClient.get<MessageTemplateResponse[]>('/message-templates')
+    return data ?? []
+  },
+
   async createNegotiationFollowUp(
     payload: CreateNegotiationFollowUpPayload
   ): Promise<NegotiationFollowUpResponse> {
@@ -193,7 +219,10 @@ export const WebhookService = {
   async updateNegotiationFollowUp(
     followUpId: string,
     payload: {
-      value?: string
+      title?: string
+      description?: string
+      templateId?: string | null
+      templateVariables?: Record<string, unknown>
       dueAt?: string
       status?: LeadFollowUpStatus
       completedAt?: string | null
