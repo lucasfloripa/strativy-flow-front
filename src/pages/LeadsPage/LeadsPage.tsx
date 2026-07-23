@@ -1466,19 +1466,6 @@ export default function LeadsPage() {
           ) : null}
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            paddingTop: 2
-          }}
-        >
-          <span style={{ color: '#6b7280', fontSize: 13 }}>
-            {filteredLeads.length} lead{filteredLeads.length === 1 ? '' : 's'}
-          </span>
-        </div>
-
         {leadId === 'new' ? (
           <>
             <button
@@ -2358,20 +2345,6 @@ export default function LeadsPage() {
               ) : null}
             </tbody>
           </table>
-        </div>
-
-        <div
-          style={{
-            marginTop: 10,
-            padding: '2px 2px 4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}
-        >
-          <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 8 }}>
-            {filteredLeads.length} lead{filteredLeads.length === 1 ? '' : 's'}
-          </span>
         </div>
 
         {isLeadSelected && !isMobile ? (
