@@ -1380,14 +1380,17 @@ export default function AgendaPage() {
                   transition: 'background 120ms ease'
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
+                <div style={{ position: 'relative', minHeight: 34, paddingRight: 82 }}>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {row.title || 'Follow-up sem nome'}
                     </h2>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                  <div
+                    style={{ position: 'absolute', top: 0, right: 0, display: 'flex', alignItems: 'center', gap: 8 }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <button
                       type="button"
                       aria-label="Excluir follow-up"
