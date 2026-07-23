@@ -276,22 +276,8 @@ const getBusinessTemperatureValue = (value: string | null | undefined): 'hot' | 
 const getFilterOptionStyle = (isSelected: boolean) => ({
   width: '100%',
   border: '1px solid transparent',
-  background: isSelected ? interactionTheme.sidebarItemActiveBackground : 'transparent',
-  color: isSelected ? interactionTheme.sidebarItemActiveColor : '#111827',
-  fontSize: 39 / 3,
-  fontWeight: 700,
-  lineHeight: 1.05,
-  padding: '7px 10px',
-  borderRadius: 8,
-  textAlign: 'left' as const,
-  cursor: 'pointer'
-})
-
-const getFilterGroupButtonStyle = (isSelected: boolean) => ({
-  width: '100%',
-  border: '1px solid transparent',
-  background: isSelected ? interactionTheme.sidebarItemActiveBackground : 'transparent',
-  color: isSelected ? interactionTheme.sidebarItemActiveColor : '#111827',
+  background: isSelected ? '#f3f4f6' : 'transparent',
+  color: '#111827',
   fontSize: 39 / 3,
   fontWeight: 700,
   lineHeight: 1.05,
@@ -299,6 +285,24 @@ const getFilterGroupButtonStyle = (isSelected: boolean) => ({
   borderRadius: 8,
   textAlign: 'left' as const,
   cursor: 'pointer',
+  outline: 'none',
+  WebkitTapHighlightColor: 'transparent'
+})
+
+const getFilterGroupButtonStyle = (isSelected: boolean) => ({
+  width: '100%',
+  border: '1px solid transparent',
+  background: isSelected ? '#f3f4f6' : 'transparent',
+  color: '#111827',
+  fontSize: 39 / 3,
+  fontWeight: 700,
+  lineHeight: 1.05,
+  padding: '7px 10px',
+  borderRadius: 8,
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  outline: 'none',
+  WebkitTapHighlightColor: 'transparent',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -1495,11 +1499,14 @@ export default function NegociosPage() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              color: '#111827',
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent'
             }}
             aria-label="Abrir filtros"
           >
-            <ListFilter size={20} />
+            <ListFilter size={20} color="#111827" />
           </button>
 
           <button
@@ -1971,11 +1978,14 @@ export default function NegociosPage() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              color: '#111827',
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent'
             }}
             aria-label="Abrir filtros"
           >
-            <ListFilter size={16} />
+            <ListFilter size={16} color="#111827" />
           </button>
 
           <button

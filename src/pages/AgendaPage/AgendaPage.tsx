@@ -79,15 +79,17 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
 const getFilterOptionStyle = (isSelected: boolean) => ({
   width: '100%',
   border: '1px solid transparent',
-  background: isSelected ? interactionTheme.sidebarItemActiveBackground : 'transparent',
-  color: isSelected ? interactionTheme.sidebarItemActiveColor : '#111827',
+  background: isSelected ? '#f3f4f6' : 'transparent',
+  color: '#111827',
   fontSize: 13,
   fontWeight: 700,
   lineHeight: 1.05,
   padding: '7px 10px',
   borderRadius: 8,
   textAlign: 'left' as const,
-  cursor: 'pointer'
+  cursor: 'pointer',
+  outline: 'none',
+  WebkitTapHighlightColor: 'transparent'
 })
 
 const formatAgendaDateTimeLabel = (value?: string | null): string => {
@@ -1017,11 +1019,14 @@ export default function AgendaPage() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              color: '#111827',
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent'
             }}
             aria-label="Abrir filtros"
           >
-            <ListFilter size={20} />
+            <ListFilter size={20} color="#111827" />
           </button>
 
           <button
@@ -1575,11 +1580,14 @@ export default function AgendaPage() {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              color: '#111827',
+              outline: 'none',
+              WebkitTapHighlightColor: 'transparent'
             }}
             aria-label="Abrir filtros"
           >
-            <ListFilter size={16} />
+            <ListFilter size={16} color="#111827" />
           </button>
 
           <button
