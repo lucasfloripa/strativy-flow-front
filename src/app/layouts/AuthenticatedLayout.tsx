@@ -496,7 +496,8 @@ export function AuthenticatedLayout() {
   const isHomePage = location.pathname === '/inicio'
   const mobileHomeHeaderHeight = 74
   const mobileBottomNavHeight = 82
-  const mobileBottomNavOffset = `${mobileBottomNavHeight}px`
+  const mobileBottomNavBottomInset = -8
+  const mobileBottomNavOffset = `${mobileBottomNavHeight + mobileBottomNavBottomInset}px`
   const hideMobileNotificationIcons = isMobile && selectedSettingsTab === 'notificacoes'
   const mobileNotificationActionTextStyle = {
     border: 'none',
@@ -2648,7 +2649,7 @@ export function AuthenticatedLayout() {
                 position: 'fixed',
                 left: 0,
                 right: 0,
-                bottom: 0,
+                bottom: mobileBottomNavBottomInset,
                 zIndex: 60,
                 height: mobileBottomNavHeight,
                 background: '#fcfdff',
