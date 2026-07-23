@@ -438,6 +438,32 @@ const getNotificationNavigation = (
 export default function HomePage() {
   const navigate = useNavigate()
   const { isMobile } = useViewportBreakpoint()
+  useEffect(() => {
+    const bodyStyle = document.body.style
+    const htmlStyle = document.documentElement.style
+    const scrollY = window.scrollY
+    const previousBodyOverflow = bodyStyle.overflow
+    const previousBodyPosition = bodyStyle.position
+    const previousBodyTop = bodyStyle.top
+    const previousBodyWidth = bodyStyle.width
+    const previousHtmlOverflow = htmlStyle.overflow
+
+    bodyStyle.overflow = 'hidden'
+    bodyStyle.position = 'fixed'
+    bodyStyle.top = `-${scrollY}px`
+    bodyStyle.width = '100%'
+    htmlStyle.overflow = 'hidden'
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow
+      bodyStyle.position = previousBodyPosition
+      bodyStyle.top = previousBodyTop
+      bodyStyle.width = previousBodyWidth
+      htmlStyle.overflow = previousHtmlOverflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+
   const {
     isMobileHomeNotificationsOpen,
     setIsMobileHomeNotificationsOpen,
