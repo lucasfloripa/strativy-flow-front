@@ -3158,7 +3158,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               aria-label="Fechar criação de follow-up"
               onClick={handleCancelAgendaFollowUpCreation}
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 inset: 0,
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
@@ -3169,17 +3169,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             <aside
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 left: 0,
                 right: 0,
-                bottom: 'calc(82px + env(safe-area-inset-bottom))',
-                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                bottom: 0,
+                maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
                 overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -4144,7 +4142,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               aria-label="Fechar criação de follow-up"
               onClick={handleCancelBusinessFollowUpCreation}
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 inset: 0,
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
@@ -4155,17 +4153,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             <aside
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 left: 0,
                 right: 0,
-                bottom: 'calc(82px + env(safe-area-inset-bottom))',
-                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                bottom: 0,
+                maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
                 overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -6051,9 +6047,34 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 flexDirection: 'column',
                 gap: 12,
                 minHeight: 0,
-                flex: 1
+                flex: 1,
+                position: 'relative'
               }}
             >
+              {isMobile && isCreatingBusinessNote ? (
+                <button
+                  type="button"
+                  aria-label="Fechar criação de nota"
+                  onClick={() => {
+                    const noteToRestore = editingBusinessNoteIndex
+                    setIsCreatingBusinessNote(false)
+                    setViewingBusinessNoteIndex(noteToRestore)
+                    setEditingBusinessNoteIndex(null)
+                    setIsConfirmingBusinessNoteDelete(false)
+                    setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                    setBusinessesError(null)
+                  }}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: 'none',
+                    background: 'rgba(15, 23, 42, 0.18)',
+                    zIndex: 40,
+                    cursor: 'default'
+                  }}
+                />
+              ) : null}
+
               {!isCreatingBusinessNote && !viewedBusinessNote ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -6229,7 +6250,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     flex: 1,
                     minHeight: 0,
                     boxSizing: 'border-box',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    position: isMobile ? 'absolute' : 'relative',
+                    left: isMobile ? 0 : 'auto',
+                    right: isMobile ? 0 : 'auto',
+                    bottom: isMobile ? 0 : 'auto',
+                    maxHeight: isMobile ? '86%' : 'none',
+                    zIndex: isMobile ? 45 : 'auto',
+                    borderRadius: isMobile ? '22px 22px 0 0' : 0,
+                    background: isMobile ? '#ffffff' : 'transparent',
+                    boxShadow: isMobile ? '0 -18px 36px rgba(15, 23, 42, 0.18)' : 'none',
+                    padding: isMobile ? '22px 18px 28px' : 0
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -6276,7 +6307,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       minHeight: 0,
                       overflowY: 'auto',
                       overflowX: 'hidden',
-                      paddingRight: isMobile ? 0 : 6,
+                      paddingRight: isMobile ? 2 : 6,
                       boxSizing: 'border-box'
                     }}
                   >
@@ -7598,7 +7629,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 setBusinessesError(null)
               }}
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 inset: 0,
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
@@ -7609,17 +7640,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             <aside
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 left: 0,
                 right: 0,
-                bottom: 'calc(82px + env(safe-area-inset-bottom))',
-                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                bottom: 0,
+                maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
                 overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -8182,7 +8211,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               aria-label="Fechar criação de nota"
               onClick={handleCloseLeadTabCreateNote}
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 inset: 0,
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
@@ -8193,17 +8222,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             <aside
               style={{
-                position: 'fixed',
+                position: 'absolute',
                 left: 0,
                 right: 0,
-                bottom: 'calc(82px + env(safe-area-inset-bottom))',
-                maxHeight: 'calc(100% - 82px - env(safe-area-inset-bottom))',
+                bottom: 0,
+                maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
                 overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                overscrollBehavior: 'contain',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
