@@ -1429,7 +1429,7 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: dateTagColors.textColor, whiteSpace: 'nowrap', background: dateTagColors.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                     <CalendarClock size={12} />
                     <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formattedDateTime}</span>
@@ -1439,12 +1439,12 @@ export default function AgendaPage() {
                     <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
                   </span>
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%' }}>
-                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>Lead: {row.leadName}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%', width: 'max-content', boxSizing: 'border-box', overflow: 'hidden', flex: '0 1 auto' }}>
+                    <span style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Lead: {row.leadName}</span>
                   </span>
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%' }}>
-                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>Negócio: {row.negotiationTitle}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%', width: 'max-content', boxSizing: 'border-box', overflow: 'hidden', flex: '0 1 auto' }}>
+                    <span style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Negócio: {row.negotiationTitle}</span>
                   </span>
                 </div>
               </article>
