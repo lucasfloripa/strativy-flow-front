@@ -824,6 +824,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       : location.pathname.startsWith('/arquivados')
         ? '/arquivados'
       : '/leads'
+  const isManagingBusinessFollowUp =
+    isCreatingBusinessFollowUp || editingBusinessFollowUpId !== null || viewingBusinessFollowUpId !== null
+  const shouldLockMobileFormBackground =
+    isMobile &&
+    (isCreatingAgendaFollowUp ||
+      isManagingBusinessFollowUp ||
+      isCreatingBusiness ||
+      isCreatingLeadTabNote ||
+      isCreatingBusinessNote)
   const getCurrentMonthStart = () => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -1776,28 +1785,34 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }, [activeBusinessTab])
 
   useEffect(() => {
-    const shouldLockBackgroundScroll = isMobile && activeBusinessTab === 'notas' && isCreatingBusinessNote
-
-    if (!shouldLockBackgroundScroll) {
+    if (!shouldLockMobileFormBackground) {
       return
     }
 
     const bodyStyle = document.body.style
     const htmlStyle = document.documentElement.style
+    const scrollY = window.scrollY
     const previousBodyOverflow = bodyStyle.overflow
-    const previousBodyTouchAction = bodyStyle.touchAction
+    const previousBodyPosition = bodyStyle.position
+    const previousBodyTop = bodyStyle.top
+    const previousBodyWidth = bodyStyle.width
     const previousHtmlOverflow = htmlStyle.overflow
 
     bodyStyle.overflow = 'hidden'
-    bodyStyle.touchAction = 'none'
+    bodyStyle.position = 'fixed'
+    bodyStyle.top = `-${scrollY}px`
+    bodyStyle.width = '100%'
     htmlStyle.overflow = 'hidden'
 
     return () => {
       bodyStyle.overflow = previousBodyOverflow
-      bodyStyle.touchAction = previousBodyTouchAction
+      bodyStyle.position = previousBodyPosition
+      bodyStyle.top = previousBodyTop
+      bodyStyle.width = previousBodyWidth
       htmlStyle.overflow = previousHtmlOverflow
+      window.scrollTo(0, scrollY)
     }
-  }, [activeBusinessTab, isCreatingBusinessNote, isMobile])
+  }, [shouldLockMobileFormBackground])
 
   useEffect(() => {
     if (!isBusinessActionsOpen) {
