@@ -6330,7 +6330,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     display: 'grid',
                     alignContent: 'start',
                     gap: 16,
-                    height: '100%',
+                    height: isMobile ? 'auto' : '100%',
                     minHeight: 0,
                     overflowY: 'auto',
                     overflowX: 'hidden',
