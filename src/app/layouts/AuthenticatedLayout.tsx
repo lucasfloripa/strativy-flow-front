@@ -495,6 +495,8 @@ export function AuthenticatedLayout() {
   const notificacoesTabIsActive = selectedSettingsTab === 'notificacoes'
   const isHomePage = location.pathname === '/inicio'
   const mobileHomeHeaderHeight = 74
+  const mobileBottomNavHeight = 82
+  const mobileBottomNavOffset = `${mobileBottomNavHeight}px`
   const hideMobileNotificationIcons = isMobile && selectedSettingsTab === 'notificacoes'
   const mobileNotificationActionTextStyle = {
     border: 'none',
@@ -1243,25 +1245,24 @@ export function AuthenticatedLayout() {
         style={{
           flex: 1,
           minWidth: 0,
-          height: '100%',
+          height: isMobile ? `calc(100% - ${mobileBottomNavOffset})` : '100%',
+          maxHeight: isMobile ? `calc(100% - ${mobileBottomNavOffset})` : '100%',
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
-          paddingTop: isMobile && isHomePage ? mobileHomeHeaderHeight : 0,
+          paddingTop: 0,
           paddingBottom: 0
         }}
       >
         {isMobile && isHomePage ? (
           <header
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
+              position: 'relative',
               zIndex: 10,
               height: mobileHomeHeaderHeight,
+              flexShrink: 0,
               padding: '10px 20px',
               background: '#fcfdff',
               borderBottom: sidebarBorder,
@@ -2541,7 +2542,7 @@ export function AuthenticatedLayout() {
                 position: 'fixed',
                 left: 0,
                 right: 0,
-                bottom: 82,
+                bottom: mobileBottomNavOffset,
                 zIndex: 50,
                 background: '#fcfdff',
                 borderTopLeftRadius: 20,
@@ -2644,14 +2645,16 @@ export function AuthenticatedLayout() {
             <nav
               aria-label="Navegação principal móvel"
               style={{
-                position: 'relative',
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 0,
                 zIndex: 60,
-                height: 82,
-                flexShrink: 0,
+                height: mobileBottomNavHeight,
                 background: '#fcfdff',
                 borderTop: sidebarBorder,
                 boxShadow: '0 -10px 18px -12px rgba(148, 163, 184, 0.36)',
-                padding: '8px 12px calc(8px + env(safe-area-inset-bottom))'
+                padding: '8px 12px'
               }}
             >
               <ul
