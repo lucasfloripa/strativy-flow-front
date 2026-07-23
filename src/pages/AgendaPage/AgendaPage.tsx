@@ -1380,17 +1380,14 @@ export default function AgendaPage() {
                   transition: 'background 120ms ease'
                 }}
               >
-                <div style={{ position: 'relative', minHeight: 34, paddingRight: 82 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {row.title || 'Follow-up sem nome'}
                     </h2>
                   </div>
 
-                  <div
-                    style={{ position: 'absolute', top: 0, right: 0, display: 'flex', alignItems: 'center', gap: 8 }}
-                    onClick={(event) => event.stopPropagation()}
-                  >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
                     <button
                       type="button"
                       aria-label="Excluir follow-up"
@@ -1442,12 +1439,12 @@ export default function AgendaPage() {
                     <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
                   </span>
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>Lead: {row.leadName}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%' }}>
+                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>Lead: {row.leadName}</span>
                   </span>
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>Negócio: {row.negotiationTitle}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%' }}>
+                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>Negócio: {row.negotiationTitle}</span>
                   </span>
                 </div>
               </article>
