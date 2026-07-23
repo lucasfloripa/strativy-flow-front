@@ -1486,6 +1486,7 @@ export function AuthenticatedLayout() {
               style={{
                 padding: isMobile ? '0 16px calc(24px + env(safe-area-inset-bottom))' : '0 24px 24px 24px',
                 overflowY: 'auto',
+                overflowX: 'hidden',
                 minHeight: 0,
                 flex: 1
               }}
@@ -1499,7 +1500,10 @@ export function AuthenticatedLayout() {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 22,
-                    minHeight: '100%'
+                    minHeight: '100%',
+                    minWidth: 0,
+                    overflowX: 'hidden',
+                    boxSizing: 'border-box'
                   }}
                 >
                   <div style={{ display: 'grid', justifyItems: 'center', gap: 10 }}>
@@ -1528,7 +1532,18 @@ export function AuthenticatedLayout() {
                       )}
                     </div>
 
-                    <h3 style={{ margin: 0, color: '#111827', fontSize: 42 / 1.3, fontWeight: 800 }}>
+                    <h3
+                      style={{
+                        margin: 0,
+                        color: '#111827',
+                        fontSize: 42 / 1.3,
+                        fontWeight: 800,
+                        width: '100%',
+                        textAlign: 'center',
+                        lineHeight: 1.2,
+                        overflowWrap: 'anywhere'
+                      }}
+                    >
                       {settingsUserName || userFirstName || 'Usuário'}
                     </h3>
                   </div>
@@ -1540,7 +1555,9 @@ export function AuthenticatedLayout() {
                           style={{
                             minHeight: 60,
                             display: 'grid',
-                            gridTemplateColumns: '22px 112px minmax(0, 1fr)',
+                            gridTemplateColumns: isMobile
+                              ? '20px 88px minmax(0, 1fr)'
+                              : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
                             columnGap: 12,
                             borderBottom: '1px solid #e5e7eb'
@@ -1548,7 +1565,7 @@ export function AuthenticatedLayout() {
                         >
                           <Phone size={16} color="#64748b" />
                           <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>Telefone</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right' }}>
+                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {formatPhoneNumber(settingsUserPhoneNumber)}
                           </span>
                         </div>
@@ -1557,7 +1574,9 @@ export function AuthenticatedLayout() {
                           style={{
                             minHeight: 60,
                             display: 'grid',
-                            gridTemplateColumns: '22px 112px minmax(0, 1fr)',
+                            gridTemplateColumns: isMobile
+                              ? '20px 88px minmax(0, 1fr)'
+                              : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
                             columnGap: 12,
                             borderBottom: '1px solid #e5e7eb'
@@ -1565,7 +1584,7 @@ export function AuthenticatedLayout() {
                         >
                           <Mail size={16} color="#64748b" />
                           <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>E-mail</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right' }}>
+                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {settingsUserEmail || authUserEmail || '-'}
                           </span>
                         </div>
@@ -1574,14 +1593,16 @@ export function AuthenticatedLayout() {
                           style={{
                             minHeight: 60,
                             display: 'grid',
-                            gridTemplateColumns: '22px 112px minmax(0, 1fr)',
+                            gridTemplateColumns: isMobile
+                              ? '20px 88px minmax(0, 1fr)'
+                              : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
                             columnGap: 12
                           }}
                         >
                           <Briefcase size={16} color="#64748b" />
                           <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>Função</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right' }}>
+                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {settingsUserRole}
                           </span>
                         </div>
@@ -1591,7 +1612,7 @@ export function AuthenticatedLayout() {
                         type="button"
                         onClick={handleOpenChangePasswordForm}
                         style={{
-                          marginTop: 'auto',
+                          marginTop: isMobile ? 8 : 12,
                           minHeight: 46,
                           border: 'none',
                           borderRadius: 10,
