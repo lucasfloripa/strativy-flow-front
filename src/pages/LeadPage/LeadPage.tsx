@@ -6327,13 +6327,19 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               {isCreatingBusinessNote ? (
                 <section
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
+                    display: 'grid',
+                    alignContent: 'start',
                     gap: 16,
-                    flex: 1,
+                    height: '100%',
                     minHeight: 0,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    paddingRight: isMobile ? 2 : 6,
                     boxSizing: 'border-box',
-                    overflow: 'hidden',
+                    padding: isMobile ? '22px 18px 28px' : 0,
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-y',
                     position: isMobile ? 'absolute' : 'relative',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
@@ -6344,59 +6350,98 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     borderRadius: isMobile ? '22px 22px 0 0' : 0,
                     background: isMobile ? '#ffffff' : 'transparent',
                     boxShadow: isMobile ? '0 -18px 36px rgba(15, 23, 42, 0.18)' : 'none',
-                    padding: isMobile ? '22px 18px calc(28px + env(safe-area-inset-bottom))' : 0,
                     width: isMobile ? '100%' : 'auto'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
-                      {editingBusinessNoteIndex === null ? 'Nova nota' : 'Editar Nota'}
-                    </h2>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const noteToRestore = editingBusinessNoteIndex
-                        setIsCreatingBusinessNote(false)
-                        setViewingBusinessNoteIndex(noteToRestore)
-                        setEditingBusinessNoteIndex(null)
-                        setIsConfirmingBusinessNoteDelete(false)
-                        setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
-                        setBusinessesError(null)
-                      }}
+                  {isMobile ? (
+                    <div
                       style={{
-                        height: 28,
-                        minWidth: 28,
-                        border: 'none',
-                        borderRadius: 6,
-                        background: 'transparent',
-                        color: '#6b7280',
-                        padding: '0 8px',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        lineHeight: 1
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        background: '#ffffff',
+                        paddingBottom: 6
                       }}
-                      aria-label="Fechar criação de nota"
                     >
-                      X
-                    </button>
-                  </div>
+                      <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
+                        {editingBusinessNoteIndex === null ? 'Nova nota' : 'Editar nota'}
+                      </h3>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const noteToRestore = editingBusinessNoteIndex
+                          setIsCreatingBusinessNote(false)
+                          setViewingBusinessNoteIndex(noteToRestore)
+                          setEditingBusinessNoteIndex(null)
+                          setIsConfirmingBusinessNoteDelete(false)
+                          setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                          setBusinessesError(null)
+                        }}
+                        style={{
+                          height: 28,
+                          minWidth: 28,
+                          border: 'none',
+                          borderRadius: 6,
+                          background: 'transparent',
+                          color: '#6b7280',
+                          padding: '0 8px',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          lineHeight: 1
+                        }}
+                        aria-label="Fechar criação de nota"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+                        {editingBusinessNoteIndex === null ? 'Nova nota' : 'Editar Nota'}
+                      </h2>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const noteToRestore = editingBusinessNoteIndex
+                          setIsCreatingBusinessNote(false)
+                          setViewingBusinessNoteIndex(noteToRestore)
+                          setEditingBusinessNoteIndex(null)
+                          setIsConfirmingBusinessNoteDelete(false)
+                          setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                          setBusinessesError(null)
+                        }}
+                        style={{
+                          height: 28,
+                          minWidth: 28,
+                          border: 'none',
+                          borderRadius: 6,
+                          background: 'transparent',
+                          color: '#6b7280',
+                          padding: '0 8px',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          lineHeight: 1
+                        }}
+                        aria-label="Fechar criação de nota"
+                      >
+                        X
+                      </button>
+                    </div>
+                  )}
 
                   <div
                     style={{
                       display: 'grid',
                       alignContent: 'start',
-                      gap: 16,
-                      flex: 1,
-                      minHeight: 0,
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      paddingBottom: isMobile ? 'calc(88px + env(safe-area-inset-bottom))' : 10,
-                      paddingRight: isMobile ? 2 : 6,
-                      overscrollBehavior: 'contain',
-                      WebkitOverflowScrolling: 'touch',
-                      boxSizing: 'border-box'
+                      gap: 16
                     }}
                   >
                     <div style={{ display: 'grid', gap: 8 }}>
@@ -6435,12 +6480,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                           }))
                         }
                         style={{
-                          height: 42,
+                          height: isMobile ? 46 : 42,
                           border: '1px solid #d7dce4',
                           borderRadius: 10,
                           padding: '0 14px',
                           color: '#111827',
-                          fontSize: 14,
+                          fontSize: isMobile ? 17 / 1.2 : 14,
                           boxSizing: 'border-box'
                         }}
                       />
@@ -6464,7 +6509,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                           borderRadius: 10,
                           padding: '12px 14px',
                           color: '#111827',
-                          fontSize: 14,
+                          fontSize: isMobile ? 17 / 1.2 : 14,
                           resize: 'vertical',
                           boxSizing: 'border-box'
                         }}
