@@ -6142,7 +6142,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     setBusinessesError(null)
                   }}
                   style={{
-                    position: 'absolute',
+                    position: 'fixed',
                     inset: 0,
                     border: 'none',
                     background: 'rgba(15, 23, 42, 0.18)',
@@ -6340,12 +6340,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     overscrollBehavior: 'contain',
                     WebkitOverflowScrolling: 'touch',
                     touchAction: 'pan-y',
-                    position: isMobile ? 'absolute' : 'relative',
+                    position: isMobile ? 'fixed' : 'relative',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     bottom: isMobile ? 0 : 'auto',
                     top: isMobile ? 'auto' : 'auto',
-                    maxHeight: isMobile ? '86%' : 'none',
+                    maxHeight: isMobile ? '86vh' : 'none',
                     zIndex: isMobile ? 45 : 'auto',
                     borderRadius: isMobile ? '22px 22px 0 0' : 0,
                     background: isMobile ? '#ffffff' : 'transparent',
