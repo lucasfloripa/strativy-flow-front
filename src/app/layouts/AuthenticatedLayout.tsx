@@ -2529,7 +2529,7 @@ export function AuthenticatedLayout() {
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  zIndex: 40,
+                  zIndex: 70,
                   border: 'none',
                   padding: 0,
                   margin: 0,
@@ -2545,7 +2545,7 @@ export function AuthenticatedLayout() {
                 left: 0,
                 right: 0,
                 bottom: mobileBottomNavOffset,
-                zIndex: 50,
+                zIndex: 80,
                 background: '#fcfdff',
                 borderTopLeftRadius: 20,
                 borderTopRightRadius: 20,
@@ -2605,6 +2605,25 @@ export function AuthenticatedLayout() {
                   <span style={{ marginLeft: 10 }}>Leads Arquivados</span>
                 </NavLink>
 
+                <NavLink
+                  to="/financeiro"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false)
+                    setIsSettingsPanelOpen(false)
+                  }}
+                  style={({ isActive }) => ({
+                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'financeiro-mobile', false),
+                    justifyContent: 'flex-start',
+                    minHeight: 48,
+                    padding: '12px 14px'
+                  })}
+                  onMouseEnter={() => setHoveredNavKey('financeiro-mobile')}
+                  onMouseLeave={() => setHoveredNavKey(null)}
+                >
+                  <CircleDollarSign size={18} />
+                  <span style={{ marginLeft: 10 }}>Financeiro</span>
+                </NavLink>
+
                 <button
                   type="button"
                   style={{
@@ -2651,7 +2670,7 @@ export function AuthenticatedLayout() {
                 left: 0,
                 right: 0,
                 bottom: mobileBottomNavBottomInset,
-                zIndex: 60,
+                zIndex: 90,
                 height: mobileBottomNavHeight,
                 background: '#fcfdff',
                 borderTop: sidebarBorder,
