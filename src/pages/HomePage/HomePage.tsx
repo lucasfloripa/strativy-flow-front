@@ -867,7 +867,7 @@ export default function HomePage() {
           </header>
 
           <div style={{ padding: '0 14px 14px', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
-            <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2 }}>
+            <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
               {highlightedLeads.map((highlightedLead) => {
                 const isArchivedLead = highlightedLead.status === 'Arquivado'
                 const shouldShowNewTag = isNewLead(highlightedLead.createdAt)
@@ -1089,7 +1089,7 @@ export default function HomePage() {
             </header>
 
             <div style={{ padding: '0 14px', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
-              <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%' }}>
+              <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.9fr) minmax(120px, 1fr) minmax(220px, 1.8fr)', color: '#64748b', fontSize: 14, fontWeight: 600, padding: '10px 0 12px', borderBottom: '1px solid #eef2f7', width: '100%' }}>
                     <span>Lead</span>
