@@ -163,6 +163,40 @@ export const WebhookService = {
     return this.mapMessageFromApi(data.message)
   },
 
+  async sendMediaMessage(
+    leadId: string,
+    payload: {
+      file: File
+      type: 'audio' | 'image' | 'video' | 'document'
+      caption?: string
+      metadata?: Record<string, unknown>
+    }
+  ): Promise<ChatMessage> {
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    formData.append('type', payload.type)
+
+    if (payload.caption?.trim()) {
+      formData.append('caption', payload.caption.trim())
+    }
+
+    if (payload.metadata) {
+      formData.append('metadata', JSON.stringify(payload.metadata))
+    }
+
+    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
+      `/leads/${leadId}/messages/media`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    return this.mapMessageFromApi(data.message)
+  },
+
   async updateLeadRuntimeMode(
     leadId: string,
     runtimeMode: LeadRuntimeMode

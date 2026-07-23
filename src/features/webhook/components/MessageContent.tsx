@@ -1,5 +1,6 @@
 import { FileText } from 'lucide-react'
 
+import { AudioMessagePlayer } from './AudioMessagePlayer'
 import type { ChatMessage } from '../types/webhook.types'
 
 type MessageContentProps = {
@@ -52,38 +53,12 @@ export function MessageContent({ message }: MessageContentProps) {
       ) : renderUnavailableMedia()
     case 'audio':
       return message.mediaUrl ? (
-        <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
-          <audio
-            controls
-            preload="metadata"
-            src={message.mediaUrl}
-            style={{ display: 'block', width: 'min(280px, 100%)', maxWidth: '100%' }}
-          >
-            <source src={message.mediaUrl} type={message.mimeType ?? undefined} />
-            Seu navegador nao suporta audio.
-          </audio>
-          <a
-            href={message.mediaUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 34,
-              padding: '0 12px',
-              borderRadius: 8,
-              border: '1px solid currentColor',
-              color: 'inherit',
-              textDecoration: 'none',
-              fontSize: 13,
-              fontWeight: 700,
-              width: 'fit-content'
-            }}
-          >
-            Abrir audio
-          </a>
-        </div>
+        <AudioMessagePlayer
+          messageId={message.id}
+          mediaUrl={message.mediaUrl}
+          mimeType={message.mimeType ?? null}
+          isOutbound={message.direction === 'outbound'}
+        />
       ) : renderUnavailableMedia()
     case 'video':
       return message.mediaUrl ? (
