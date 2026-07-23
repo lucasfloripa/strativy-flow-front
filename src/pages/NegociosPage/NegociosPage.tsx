@@ -583,10 +583,6 @@ export default function NegociosPage() {
   }, [isBusinessPanelOpen, shouldRefreshOnLeadClose])
 
   useEffect(() => {
-    if (!isCreateBusinessMode) {
-      return
-    }
-
     const bodyStyle = document.body.style
     const htmlStyle = document.documentElement.style
     const scrollY = window.scrollY
@@ -610,7 +606,7 @@ export default function NegociosPage() {
       htmlStyle.overflow = previousHtmlOverflow
       window.scrollTo(0, scrollY)
     }
-  }, [isCreateBusinessMode])
+  }, [])
 
   const negociosByUser = useMemo(
     () => negocios.filter((negocio) => userLeadIdSet.has(negocio.leadId)),

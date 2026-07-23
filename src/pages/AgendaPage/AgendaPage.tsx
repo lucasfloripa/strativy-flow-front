@@ -512,10 +512,6 @@ export default function AgendaPage() {
   }, [isCreatingAgendaFollowUp, leadPanelTransitionMs])
 
   useEffect(() => {
-    if (!isCreatingAgendaFollowUp) {
-      return
-    }
-
     const bodyStyle = document.body.style
     const htmlStyle = document.documentElement.style
     const scrollY = window.scrollY
@@ -539,7 +535,7 @@ export default function AgendaPage() {
       htmlStyle.overflow = previousHtmlOverflow
       window.scrollTo(0, scrollY)
     }
-  }, [isCreatingAgendaFollowUp])
+  }, [])
 
   const handleCreateAgendaFollowUp = async () => {
     if (!agendaFollowUpDraft.leadId || !agendaFollowUpDraft.negotiationId) {

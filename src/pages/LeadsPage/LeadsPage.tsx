@@ -507,10 +507,6 @@ export default function LeadsPage() {
   }, [isLeadSelected, reload, shouldRefreshOnLeadClose])
 
   useEffect(() => {
-    if (!isCreateLeadFormOpen) {
-      return
-    }
-
     const bodyStyle = document.body.style
     const htmlStyle = document.documentElement.style
     const scrollY = window.scrollY
@@ -534,7 +530,7 @@ export default function LeadsPage() {
       htmlStyle.overflow = previousHtmlOverflow
       window.scrollTo(0, scrollY)
     }
-  }, [isCreateLeadFormOpen])
+  }, [])
 
   const leads: LeadsTableRow[] = (data.leads ?? [])
     .map((lead, index) => ({
