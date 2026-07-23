@@ -6127,11 +6127,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     setBusinessesError(null)
                   }}
                   style={{
-                    position: 'fixed',
+                    position: 'absolute',
                     inset: 0,
                     border: 'none',
                     background: 'rgba(15, 23, 42, 0.18)',
-                    zIndex: 140,
+                    zIndex: 40,
                     cursor: 'default'
                   }}
                 />
@@ -6181,7 +6181,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       gap: 8,
                       minHeight: 0,
                       flex: 1,
-                      overflowY: isMobile ? 'visible' : 'auto'
+                      overflowY: isMobile
+                        ? isCreatingBusinessNote
+                          ? 'hidden'
+                          : 'visible'
+                        : 'auto'
                     }}
                   >
                     {selectedBusinessNotes.length === 0 ? (
@@ -6315,18 +6319,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     minHeight: 0,
                     boxSizing: 'border-box',
                     overflow: 'hidden',
-                    position: isMobile ? 'fixed' : 'relative',
+                    position: isMobile ? 'absolute' : 'relative',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     bottom: isMobile ? 0 : 'auto',
                     top: isMobile ? 'auto' : 'auto',
                     maxHeight: isMobile ? '86%' : 'none',
-                    zIndex: isMobile ? 145 : 'auto',
+                    zIndex: isMobile ? 45 : 'auto',
                     borderRadius: isMobile ? '22px 22px 0 0' : 0,
                     background: isMobile ? '#ffffff' : 'transparent',
                     boxShadow: isMobile ? '0 -18px 36px rgba(15, 23, 42, 0.18)' : 'none',
                     padding: isMobile ? '22px 18px calc(28px + env(safe-area-inset-bottom))' : 0,
-                    touchAction: isMobile ? 'pan-y' : 'auto',
                     width: isMobile ? '100%' : 'auto'
                   }}
                 >

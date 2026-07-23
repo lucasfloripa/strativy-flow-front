@@ -511,6 +511,25 @@ export default function AgendaPage() {
     }
   }, [isCreatingAgendaFollowUp, leadPanelTransitionMs])
 
+  useEffect(() => {
+    if (!isCreatingAgendaFollowUp) {
+      return
+    }
+
+    const bodyStyle = document.body.style
+    const htmlStyle = document.documentElement.style
+    const previousBodyOverflow = bodyStyle.overflow
+    const previousHtmlOverflow = htmlStyle.overflow
+
+    bodyStyle.overflow = 'hidden'
+    htmlStyle.overflow = 'hidden'
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow
+      htmlStyle.overflow = previousHtmlOverflow
+    }
+  }, [isCreatingAgendaFollowUp])
+
   const handleCreateAgendaFollowUp = async () => {
     if (!agendaFollowUpDraft.leadId || !agendaFollowUpDraft.negotiationId) {
       setAgendaFollowUpError('Selecione o lead e o negócio.')
@@ -1318,7 +1337,7 @@ export default function AgendaPage() {
           </aside>
         ) : null}
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreatingAgendaFollowUp ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedAgendaRows.map((row) => {
             const isHovered = hoveredFollowUpId === row.followUpId
             const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)

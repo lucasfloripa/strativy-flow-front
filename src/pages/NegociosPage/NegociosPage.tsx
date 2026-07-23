@@ -582,6 +582,25 @@ export default function NegociosPage() {
     previousIsBusinessPanelOpenRef.current = isBusinessPanelOpen
   }, [isBusinessPanelOpen, shouldRefreshOnLeadClose])
 
+  useEffect(() => {
+    if (!isCreateBusinessMode) {
+      return
+    }
+
+    const bodyStyle = document.body.style
+    const htmlStyle = document.documentElement.style
+    const previousBodyOverflow = bodyStyle.overflow
+    const previousHtmlOverflow = htmlStyle.overflow
+
+    bodyStyle.overflow = 'hidden'
+    htmlStyle.overflow = 'hidden'
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow
+      htmlStyle.overflow = previousHtmlOverflow
+    }
+  }, [isCreateBusinessMode])
+
   const negociosByUser = useMemo(
     () => negocios.filter((negocio) => userLeadIdSet.has(negocio.leadId)),
     [negocios, userLeadIdSet]
@@ -1693,7 +1712,7 @@ export default function NegociosPage() {
           </div>
         ) : null}
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateBusinessMode ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedNegocios.map((negocio) => {
             const isHovered = hoveredNegocioId === negocio.id
             const isSelected = selectedBusinessId === negocio.id

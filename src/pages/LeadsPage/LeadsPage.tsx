@@ -418,6 +418,7 @@ export default function LeadsPage() {
     Record<string, boolean>
   >({})
   const isLeadSelected = Boolean(leadId)
+  const isCreateLeadFormOpen = leadId === 'new'
   const previousIsLeadSelectedRef = useRef<boolean>(isLeadSelected)
   const leadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
@@ -504,6 +505,25 @@ export default function LeadsPage() {
 
     previousIsLeadSelectedRef.current = isLeadSelected
   }, [isLeadSelected, reload, shouldRefreshOnLeadClose])
+
+  useEffect(() => {
+    if (!isCreateLeadFormOpen) {
+      return
+    }
+
+    const bodyStyle = document.body.style
+    const htmlStyle = document.documentElement.style
+    const previousBodyOverflow = bodyStyle.overflow
+    const previousHtmlOverflow = htmlStyle.overflow
+
+    bodyStyle.overflow = 'hidden'
+    htmlStyle.overflow = 'hidden'
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow
+      htmlStyle.overflow = previousHtmlOverflow
+    }
+  }, [isCreateLeadFormOpen])
 
   const leads: LeadsTableRow[] = (data.leads ?? [])
     .map((lead, index) => ({
@@ -1181,7 +1201,7 @@ export default function LeadsPage() {
           </div>
         ) : null}
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateLeadFormOpen ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedLeads.map((lead) => {
             const isArchivedLead = lead.state === 'archived'
             const shouldShowNewTag = isNewLead(lead.createdAt)
