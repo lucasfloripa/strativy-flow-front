@@ -3038,14 +3038,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               height: 42,
               border: 'none',
               borderRadius: 8,
-              background: canCreateAgendaFollowUp ? '#1f7a4d' : '#9ca3af',
+              background: '#1f7a4d',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 700,
               cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed'
             }}
           >
-            Confirmar
+            Salvar
           </button>
         </div>
       </section>
@@ -3819,14 +3819,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               height: 42,
               border: 'none',
               borderRadius: 8,
-              background: canCreateBusinessFollowUp ? '#1f7a4d' : '#9ca3af',
+              background: '#1f7a4d',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 700,
               cursor: canCreateBusinessFollowUp ? 'pointer' : 'not-allowed'
             }}
           >
-            {editingBusinessFollowUp ? 'Salvar' : 'Confirmar'}
+            Salvar
           </button>
         </div>
       </section>
@@ -6397,11 +6397,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         }}
                         style={{
                           minWidth: 120,
-                          height: 44,
-                          border: '1px solid #9ac6ae',
-                          borderRadius: 10,
+                          height: 42,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
                           background: '#ffffff',
-                          color: '#1f7a4d',
+                          color: '#0f172a',
                           fontSize: 14,
                           fontWeight: 700,
                           cursor: 'pointer'
@@ -6468,21 +6468,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         disabled={!newBusinessNoteDraft.title.trim() || !newBusinessNoteDraft.description.trim()}
                         style={{
                           minWidth: 120,
-                          height: 44,
+                          height: 42,
                           border: 'none',
-                          borderRadius: 10,
-                          background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
+                          borderRadius: 8,
+                          background: '#1f7a4d',
                           color: '#ffffff',
                           fontSize: 14,
                           fontWeight: 700,
                           cursor:
                             newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
                               ? 'pointer'
-                              : 'not-allowed',
-                          opacity:
-                            newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
-                              ? 1
-                              : 0.6
+                              : 'not-allowed'
                         }}
                       >
                         Salvar
@@ -7893,14 +7889,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               height: 42,
               border: 'none',
               borderRadius: 8,
-              background: canCreateLeadTabNote ? '#1f7a4d' : '#9ca3af',
+              background: '#1f7a4d',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 700,
               cursor: canCreateLeadTabNote ? 'pointer' : 'not-allowed'
             }}
           >
-            Confirmar
+            Salvar
           </button>
         </div>
       </section>
@@ -8573,10 +8569,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '160px minmax(0, 1fr)',
-              rowGap: 10,
-              columnGap: 16,
-              alignItems: 'center'
+              gridTemplateColumns: 'minmax(0, 1fr)',
+              gap: 10,
+              alignContent: 'start'
             }}
           >
             <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
@@ -8586,8 +8581,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               onChange={(event) => setInfoDraft((current) => ({ ...current, name: event.target.value }))}
               autoComplete="new-password"
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 360,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8606,8 +8601,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               maxLength={14}
               inputMode="numeric"
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 360,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8624,8 +8619,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               onChange={(event) => setInfoDraft((current) => ({ ...current, email: event.target.value }))}
               autoComplete="new-password"
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 360,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8642,8 +8637,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               onChange={(event) => setInfoDraft((current) => ({ ...current, location: event.target.value }))}
               autoComplete="new-password"
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 360,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8658,8 +8653,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               value={infoDraft.source.toLowerCase()}
               onChange={(event) => setInfoDraft((current) => ({ ...current, source: event.target.value }))}
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 240,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8684,8 +8679,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 }))
               }
               style={{
+                width: '100%',
                 height: 36,
-                maxWidth: 240,
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 padding: '0 10px',
@@ -8797,8 +8792,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   }
                   placeholder="@usuario ou link"
                   style={{
+                    width: '100%',
                     height: 36,
-                    maxWidth: 360,
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
                     padding: '0 10px',
@@ -8827,8 +8822,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   }
                   placeholder="https://"
                   style={{
+                    width: '100%',
                     height: 36,
-                    maxWidth: 360,
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
                     padding: '0 10px',
@@ -8871,14 +8866,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 height: 42,
                 border: 'none',
                 borderRadius: 8,
-                background: canCreateLead ? '#1f7a4d' : '#9ca3af',
+                background: '#1f7a4d',
                 color: '#ffffff',
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: canCreateLead ? 'pointer' : 'not-allowed'
               }}
             >
-              Confirmar
+              Salvar
             </button>
           </div>
         </article>

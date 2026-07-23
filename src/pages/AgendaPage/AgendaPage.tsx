@@ -1274,7 +1274,7 @@ export default function AgendaPage() {
                   <button
                     type="button"
                     onClick={closeAgendaFollowUpPanel}
-                    style={{ height: 50, border: '1px solid #9ac6ae', borderRadius: 12, background: '#ffffff', color: '#1f7a4d', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ height: 42, border: '1px solid #d1d5db', borderRadius: 8, background: '#ffffff', color: '#0f172a', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
                   >
                     Cancelar
                   </button>
@@ -1282,9 +1282,9 @@ export default function AgendaPage() {
                     type="button"
                     onClick={() => void handleCreateAgendaFollowUp()}
                     disabled={!canConfirmAgendaFollowUp}
-                    style={{ height: 50, border: 'none', borderRadius: 12, background: canConfirmAgendaFollowUp ? interactionTheme.primaryButtonBackground : '#9ca3af', color: '#ffffff', fontSize: 15, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
+                    style={{ height: 42, border: 'none', borderRadius: 8, background: '#1f7a4d', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
                   >
-                    Confirmar
+                    Salvar
                   </button>
                 </div>
               </div>
@@ -1893,16 +1893,14 @@ export default function AgendaPage() {
                       height: 42,
                       border: 'none',
                       borderRadius: 8,
-                      background: canConfirmAgendaFollowUp
-                        ? '#1f7a4d'
-                        : '#9ca3af',
+                      background: '#1f7a4d',
                       color: '#ffffff',
                       fontSize: 14,
                       fontWeight: 700,
                       cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed'
                     }}
                   >
-                    Confirmar
+                    Salvar
                   </button>
                 </div>
               </article>

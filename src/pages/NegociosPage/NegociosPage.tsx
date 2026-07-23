@@ -1372,14 +1372,14 @@ export default function NegociosPage() {
                 height: 42,
                 border: 'none',
                 borderRadius: 8,
-                background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
+                background: '#1f7a4d',
                 color: '#ffffff',
                 fontSize: 14,
                 fontWeight: 700,
                 cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
               }}
             >
-              Confirmar
+              Salvar
             </button>
           </div>
         </div>
@@ -2893,14 +2893,14 @@ export default function NegociosPage() {
                         height: 42,
                         border: 'none',
                         borderRadius: 8,
-                        background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
+                        background: '#1f7a4d',
                         color: '#ffffff',
                         fontSize: 14,
                         fontWeight: 700,
                         cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
                       }}
                     >
-                      Confirmar
+                      Salvar
                     </button>
                   </div>
                 </article>
