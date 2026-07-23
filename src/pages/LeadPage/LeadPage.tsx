@@ -1776,6 +1776,30 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }, [activeBusinessTab])
 
   useEffect(() => {
+    const shouldLockBackgroundScroll = isMobile && activeBusinessTab === 'notas' && isCreatingBusinessNote
+
+    if (!shouldLockBackgroundScroll) {
+      return
+    }
+
+    const bodyStyle = document.body.style
+    const htmlStyle = document.documentElement.style
+    const previousBodyOverflow = bodyStyle.overflow
+    const previousBodyTouchAction = bodyStyle.touchAction
+    const previousHtmlOverflow = htmlStyle.overflow
+
+    bodyStyle.overflow = 'hidden'
+    bodyStyle.touchAction = 'none'
+    htmlStyle.overflow = 'hidden'
+
+    return () => {
+      bodyStyle.overflow = previousBodyOverflow
+      bodyStyle.touchAction = previousBodyTouchAction
+      htmlStyle.overflow = previousHtmlOverflow
+    }
+  }, [activeBusinessTab, isCreatingBusinessNote, isMobile])
+
+  useEffect(() => {
     if (!isBusinessActionsOpen) {
       return
     }
@@ -6302,6 +6326,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     background: isMobile ? '#ffffff' : 'transparent',
                     boxShadow: isMobile ? '0 -18px 36px rgba(15, 23, 42, 0.18)' : 'none',
                     padding: isMobile ? '22px 18px calc(28px + env(safe-area-inset-bottom))' : 0,
+                    touchAction: isMobile ? 'pan-y' : 'auto',
                     width: isMobile ? '100%' : 'auto'
                   }}
                 >
@@ -6351,6 +6376,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       overflowX: 'hidden',
                       paddingBottom: isMobile ? 'calc(88px + env(safe-area-inset-bottom))' : 10,
                       paddingRight: isMobile ? 2 : 6,
+                      overscrollBehavior: 'contain',
+                      WebkitOverflowScrolling: 'touch',
                       boxSizing: 'border-box'
                     }}
                   >
