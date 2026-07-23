@@ -6331,7 +6331,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     alignContent: 'start',
                     gap: 16,
                     height: isMobile ? 'auto' : '100%',
-                    minHeight: 0,
+                    minHeight: isMobile ? '72vh' : 0,
                     overflowY: 'auto',
                     overflowX: 'hidden',
                     paddingRight: isMobile ? 2 : 6,
