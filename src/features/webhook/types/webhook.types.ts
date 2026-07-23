@@ -116,7 +116,6 @@ export type LeadFollowUpResponse = {
   id: string
   leadId: string
   title: string
-  description?: string | null
   templateId?: string | null
   template?: FollowUpTemplateResponse | null
   templateVariables?: Record<string, unknown> | null
@@ -187,7 +186,6 @@ export type NegotiationFollowUpResponse = {
   id: string
   negotiationId: string
   title: string
-  description?: string | null
   templateId?: string | null
   template?: FollowUpTemplateResponse | null
   templateVariables?: Record<string, unknown> | null
@@ -201,7 +199,6 @@ export type NegotiationFollowUpResponse = {
 export type CreateNegotiationFollowUpPayload = {
   negotiationId: string
   title: string
-  description?: string
   templateId?: string | null
   templateVariables?: Record<string, unknown>
   dueAt: string

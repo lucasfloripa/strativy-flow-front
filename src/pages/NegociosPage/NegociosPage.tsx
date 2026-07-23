@@ -58,6 +58,8 @@ type BusinessTypeFilterValue = 'service' | 'product' | 'none'
 type BusinessStatusFilterValue = 'open' | 'won' | 'lost'
 type BusinessTemperatureFilterValue = 'hot' | 'warm' | 'cold' | 'none'
 
+const NEGOCIOS_TABLE_ROW_HEIGHT_PX = 60
+
 const leadStageLabelMap: Record<LeadStage, string> = {
   NEW: 'Novo',
   CONTACTED: 'Contatado',
@@ -450,10 +452,12 @@ export default function NegociosPage() {
   const [temperatureSortFocus, setTemperatureSortFocus] = useState<BusinessTemperatureSortFocus>(null)
   const [hoveredNegocioId, setHoveredNegocioId] = useState<string | null>(null)
   const [confirmingDeleteNegocioId, setConfirmingDeleteNegocioId] = useState<string | null>(null)
+  const [wrappedBusinessLeadNames, setWrappedBusinessLeadNames] = useState<Record<string, boolean>>({})
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
   const [negociosReloadVersion, setNegociosReloadVersion] = useState<number>(0)
   const previousIsBusinessPanelOpenRef = useRef<boolean>(false)
+  const businessLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
   const [businessCreateDraft, setBusinessCreateDraft] = useState<BusinessCreateDraft>(
     initialBusinessCreateDraft
   )
@@ -772,6 +776,67 @@ export default function NegociosPage() {
 
   const paginatedNegocios = sortedNegocios
 
+  const setBusinessLeadNameRef = (negocioId: string, element: HTMLSpanElement | null) => {
+    businessLeadNameRefs.current[negocioId] = element
+  }
+
+  useEffect(() => {
+    if (isMobile) {
+      return
+    }
+
+    const recalculateWrappedBusinessLeadNames = () => {
+      const nextWrappedBusinessLeadNames: Record<string, boolean> = {}
+
+      paginatedNegocios.forEach((negocio) => {
+        const businessLeadNameElement = businessLeadNameRefs.current[negocio.id]
+
+        if (!businessLeadNameElement) {
+          nextWrappedBusinessLeadNames[negocio.id] = false
+          return
+        }
+
+        const computedStyle = window.getComputedStyle(businessLeadNameElement)
+        const lineHeight = Number.parseFloat(computedStyle.lineHeight)
+
+        if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+          nextWrappedBusinessLeadNames[negocio.id] = false
+          return
+        }
+
+        const lineCount = Math.round(
+          businessLeadNameElement.getBoundingClientRect().height / lineHeight
+        )
+
+        nextWrappedBusinessLeadNames[negocio.id] = lineCount > 1
+      })
+
+      setWrappedBusinessLeadNames((currentWrappedBusinessLeadNames) => {
+        const currentKeys = Object.keys(currentWrappedBusinessLeadNames)
+        const nextKeys = Object.keys(nextWrappedBusinessLeadNames)
+
+        if (currentKeys.length !== nextKeys.length) {
+          return nextWrappedBusinessLeadNames
+        }
+
+        const hasDifference = nextKeys.some(
+          (key) => currentWrappedBusinessLeadNames[key] !== nextWrappedBusinessLeadNames[key]
+        )
+
+        return hasDifference
+          ? nextWrappedBusinessLeadNames
+          : currentWrappedBusinessLeadNames
+      })
+    }
+
+    recalculateWrappedBusinessLeadNames()
+    window.addEventListener('resize', recalculateWrappedBusinessLeadNames)
+
+    return () => {
+      window.removeEventListener('resize', recalculateWrappedBusinessLeadNames)
+    }
+  }, [isMobile, paginatedNegocios])
+
   useEffect(() => {
     if (!isBusinessPanelOpen) {
       setIsLeadPanelEntering(false)
@@ -989,7 +1054,8 @@ export default function NegociosPage() {
       const createdBusiness = await WebhookService.createNegotiation(payload)
 
       setBusinessCreateDraft(initialBusinessCreateDraft)
-      setShouldRefreshOnLeadClose(true)
+      setNegociosReloadVersion((current) => current + 1)
+      setShouldRefreshOnLeadClose(false)
       navigate(`/negocios/${createdBusiness.leadId}${location.search}`, {
         state: {
           initialLeadTab: 'negocios',
@@ -1612,7 +1678,7 @@ export default function NegociosPage() {
           </div>
         ) : null}
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedNegocios.map((negocio) => {
             const isHovered = hoveredNegocioId === negocio.id
             const isSelected = selectedBusinessId === negocio.id
@@ -2040,7 +2106,14 @@ export default function NegociosPage() {
         </>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         {activeFilterTags.length > 0 ? (
           <div
             style={{
@@ -2099,7 +2172,9 @@ export default function NegociosPage() {
             background: '#ffffff',
             border: '1px solid #e5e7eb',
             borderRadius: 12,
-            overflow: 'hidden',
+            overflowY: 'auto',
+            maxHeight: '100%',
+            minHeight: 0,
             boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
           }}
         >
@@ -2123,42 +2198,42 @@ export default function NegociosPage() {
             </colgroup>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button type="button" onClick={() => handleSortToggle('title')} style={getHeaderSortButtonStyle('title')}>
                     Negócio <span>{getSortIndicator('title')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button type="button" onClick={() => handleSortToggle('lead')} style={getHeaderSortButtonStyle('lead')}>
                     Lead <span>{getSortIndicator('lead')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('type')} style={getHeaderSortButtonStyle('type', 'center')}>
                     Tipo <span>{getSortIndicator('type')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('stage')} style={getHeaderSortButtonStyle('stage', 'center')}>
                     Etapa <span>{getSortIndicator('stage')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('status')} style={getHeaderSortButtonStyle('status', 'center')}>
                     Status <span>{getSortIndicator('status')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('temperature')} style={getHeaderSortButtonStyle('temperature', 'center')}>
                     Temperatura <span>{getSortIndicator('temperature')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('value')} style={getHeaderSortButtonStyle('value', 'center')}>
                     Valor <span>{getSortIndicator('value')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   Ações
                 </th>
               </tr>
@@ -2286,6 +2361,7 @@ export default function NegociosPage() {
                       })
                     }}
                     style={{
+                      height: NEGOCIOS_TABLE_ROW_HEIGHT_PX,
                       borderBottom: '1px solid #f3f4f6',
                       background:
                         isHovered || isSelected
@@ -2299,7 +2375,29 @@ export default function NegociosPage() {
                     <td style={{ padding: '14px 16px', color: '#111827' }}>
                       {negocio.title ?? 'Negócio sem nome'}
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{leadName}</td>
+                    <td
+                      style={{
+                        padding: wrappedBusinessLeadNames[negocio.id]
+                          ? '6px 16px'
+                          : '14px 16px',
+                        color: '#111827'
+                      }}
+                    >
+                      <span
+                        ref={(element) => {
+                          setBusinessLeadNameRef(negocio.id, element)
+                        }}
+                        style={{
+                          display: 'inline-block',
+                          maxWidth: '100%',
+                          lineHeight: 1.25,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {leadName}
+                      </span>
+                    </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {businessTypeLabel === '-' ? (
                         <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>

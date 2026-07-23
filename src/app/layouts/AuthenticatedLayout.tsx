@@ -1247,8 +1247,10 @@ export function AuthenticatedLayout() {
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
           paddingTop: isMobile && isHomePage ? mobileHomeHeaderHeight : 0,
-          paddingBottom: isMobile ? 82 : 0
+          paddingBottom: 0
         }}
       >
         {isMobile && isHomePage ? (
@@ -1354,13 +1356,15 @@ export function AuthenticatedLayout() {
           </header>
         ) : null}
 
-        <Outlet
-          context={{
-            isMobileHomeNotificationsOpen,
-            setIsMobileHomeNotificationsOpen,
-            setMobileHomeNotificationsCount
-          } satisfies AuthenticatedLayoutOutletContext}
-        />
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Outlet
+            context={{
+              isMobileHomeNotificationsOpen,
+              setIsMobileHomeNotificationsOpen,
+              setMobileHomeNotificationsCount
+            } satisfies AuthenticatedLayoutOutletContext}
+          />
+        </div>
 
         {isSettingsPanelOpen && !isMobile ? (
           <button
@@ -2640,12 +2644,10 @@ export function AuthenticatedLayout() {
             <nav
               aria-label="Navegação principal móvel"
               style={{
-                position: 'fixed',
-                left: 0,
-                right: 0,
-                bottom: 0,
+                position: 'relative',
                 zIndex: 60,
                 height: 82,
+                flexShrink: 0,
                 background: '#fcfdff',
                 borderTop: sidebarBorder,
                 boxShadow: '0 -10px 18px -12px rgba(148, 163, 184, 0.36)',

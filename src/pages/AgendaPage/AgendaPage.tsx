@@ -32,6 +32,8 @@ type AgendaSortDirection = 'asc' | 'desc'
 type AgendaDateSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
 type AgendaStatusSortFocus = 'overdue' | 'today' | 'scheduled' | 'completed'
 
+const AGENDA_TABLE_ROW_HEIGHT_PX = 60
+
 const rotateValues = <T,>(values: T[], startValue: T | null): T[] => {
   if (!values.length || startValue === null) {
     return values
@@ -52,7 +54,6 @@ type AgendaRow = {
   leadName: string
   negotiationTitle: string
   title: string
-  description: string
   templateName: string
   dueAt: string
   status: 'pending' | 'done' | 'canceled' | 'skipped'
@@ -65,7 +66,6 @@ type AgendaFollowUpDraft = {
   leadId: string
   negotiationId: string
   title: string
-  description: string
   dueAt: string
 }
 
@@ -73,7 +73,6 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   leadId: '',
   negotiationId: '',
   title: '',
-  description: '',
   dueAt: ''
 }
 
@@ -306,9 +305,9 @@ export default function AgendaPage() {
     initialAgendaFollowUpDraft
   )
 
-  const [, setCurrentPage] = useState<number>(1)
   const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(null)
   const [confirmingDeleteFollowUpId, setConfirmingDeleteFollowUpId] = useState<string | null>(null)
+  const [wrappedAgendaLeadNames, setWrappedAgendaLeadNames] = useState<Record<string, boolean>>({})
   const [sortKey, setSortKey] = useState<AgendaSortKey>('status')
   const [sortDirection, setSortDirection] = useState<AgendaSortDirection>('asc')
   const [dateSortFocus, setDateSortFocus] = useState<AgendaDateSortFocus>('oldestFirst')
@@ -318,6 +317,7 @@ export default function AgendaPage() {
   const [agendaReloadVersion, setAgendaReloadVersion] = useState<number>(0)
   const previousIsAgendaFollowUpPanelOpenRef = useRef<boolean>(false)
   const previousIsLeadSelectedRef = useRef<boolean>(false)
+  const agendaLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
 
   const activeLeads = useMemo(
     () =>
@@ -525,15 +525,23 @@ export default function AgendaPage() {
     try {
       setAgendaFollowUpError(null)
 
-      await WebhookService.createNegotiationFollowUp({
+      const createdFollowUp = await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
-        description: agendaFollowUpDraft.description.trim() || undefined,
         dueAt: agendaFollowUpDraft.dueAt
       })
 
-      setShouldRefreshOnAgendaClose(true)
+      setAgendaReloadVersion((current) => current + 1)
       closeAgendaFollowUpPanel()
+      navigate(`/agenda/${agendaFollowUpDraft.leadId}${location.search}`, {
+        replace: true,
+        state: {
+          initialLeadTab: 'negocios',
+          initialBusinessId: createdFollowUp.negotiationId,
+          initialBusinessTab: 'followups',
+          initialBusinessFollowUpId: createdFollowUp.id
+        }
+      })
     } catch (exception: unknown) {
       const message = exception instanceof Error ? exception.message : 'Falha ao criar follow-up.'
       setAgendaFollowUpError(message)
@@ -577,7 +585,6 @@ export default function AgendaPage() {
         leadName: leadData.name,
         negotiationTitle: negocio.title?.trim() || 'Negócio sem nome',
         title: toSafeText(followUp.title),
-        description: toSafeText(followUp.description),
         templateName: toSafeText(followUp.template?.name),
         dueAt: toSafeText(followUp.dueAt),
         status: toSafeFollowUpStatus(followUp.status),
@@ -599,8 +606,7 @@ export default function AgendaPage() {
           ? true
           : toSafeText(row.leadName).toLowerCase().includes(normalizedSearchTerm) ||
             toSafeText(row.negotiationTitle).toLowerCase().includes(normalizedSearchTerm) ||
-            toSafeText(row.title).toLowerCase().includes(normalizedSearchTerm) ||
-            toSafeText(row.description).toLowerCase().includes(normalizedSearchTerm)
+            toSafeText(row.title).toLowerCase().includes(normalizedSearchTerm)
         const matchesFollowUp = matchesFollowUpFilter(row, followUpFilter)
 
         return matchesSearch && matchesFollowUp
@@ -698,9 +704,64 @@ export default function AgendaPage() {
 
   const paginatedAgendaRows = sortedFilteredAgendaRows
 
+  const setAgendaLeadNameRef = (followUpId: string, element: HTMLSpanElement | null) => {
+    agendaLeadNameRefs.current[followUpId] = element
+  }
+
   useEffect(() => {
-    setCurrentPage(1)
-  }, [dateSortFocus, followUpFilter, searchTerm, sortDirection, sortKey, statusSortFocus])
+    if (isMobile) {
+      return
+    }
+
+    const recalculateWrappedAgendaLeadNames = () => {
+      const nextWrappedAgendaLeadNames: Record<string, boolean> = {}
+
+      paginatedAgendaRows.forEach((row) => {
+        const agendaLeadNameElement = agendaLeadNameRefs.current[row.followUpId]
+
+        if (!agendaLeadNameElement) {
+          nextWrappedAgendaLeadNames[row.followUpId] = false
+          return
+        }
+
+        const computedStyle = window.getComputedStyle(agendaLeadNameElement)
+        const lineHeight = Number.parseFloat(computedStyle.lineHeight)
+
+        if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+          nextWrappedAgendaLeadNames[row.followUpId] = false
+          return
+        }
+
+        const lineCount = Math.round(
+          agendaLeadNameElement.getBoundingClientRect().height / lineHeight
+        )
+
+        nextWrappedAgendaLeadNames[row.followUpId] = lineCount > 1
+      })
+
+      setWrappedAgendaLeadNames((currentWrappedAgendaLeadNames) => {
+        const currentKeys = Object.keys(currentWrappedAgendaLeadNames)
+        const nextKeys = Object.keys(nextWrappedAgendaLeadNames)
+
+        if (currentKeys.length !== nextKeys.length) {
+          return nextWrappedAgendaLeadNames
+        }
+
+        const hasDifference = nextKeys.some(
+          (key) => currentWrappedAgendaLeadNames[key] !== nextWrappedAgendaLeadNames[key]
+        )
+
+        return hasDifference ? nextWrappedAgendaLeadNames : currentWrappedAgendaLeadNames
+      })
+    }
+
+    recalculateWrappedAgendaLeadNames()
+    window.addEventListener('resize', recalculateWrappedAgendaLeadNames)
+
+    return () => {
+      window.removeEventListener('resize', recalculateWrappedAgendaLeadNames)
+    }
+  }, [isMobile, paginatedAgendaRows])
 
   useEffect(() => {
     if (!isLeadSelected) {
@@ -1200,17 +1261,6 @@ export default function AgendaPage() {
                 </div>
 
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
-                  <input
-                    type="text"
-                    placeholder="Descrição (opcional)"
-                    value={agendaFollowUpDraft.description}
-                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, description: event.target.value }))}
-                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gap: 8 }}>
                   <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
                   <input
                     type="datetime-local"
@@ -1256,7 +1306,7 @@ export default function AgendaPage() {
           </aside>
         ) : null}
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedAgendaRows.map((row) => {
             const isHovered = hoveredFollowUpId === row.followUpId
             const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
@@ -1335,11 +1385,6 @@ export default function AgendaPage() {
                     <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {row.title || 'Follow-up sem nome'}
                     </h2>
-                    {row.description ? (
-                      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13, lineHeight: 1.2 }}>
-                        {row.description}
-                      </p>
-                    ) : null}
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
@@ -1798,29 +1843,6 @@ export default function AgendaPage() {
                     }}
                   />
 
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição</span>
-                  <input
-                    type="text"
-                    placeholder="Descrição (opcional)"
-                    value={agendaFollowUpDraft.description}
-                    onChange={(event) =>
-                      setAgendaFollowUpDraft((currentDraft) => ({
-                        ...currentDraft,
-                        description: event.target.value
-                      }))
-                    }
-                    style={{
-                      height: 36,
-                      maxWidth: 360,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 10px',
-                      color: '#111827',
-                      fontSize: 16,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-
                   <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
                   <input
                     type="datetime-local"
@@ -1889,7 +1911,14 @@ export default function AgendaPage() {
         </>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         {activeFilterTags.length > 0 ? (
           <div
             style={{
@@ -1949,7 +1978,9 @@ export default function AgendaPage() {
             background: '#ffffff',
             border: '1px solid #e5e7eb',
             borderRadius: 12,
-            overflow: 'hidden',
+            overflowY: 'auto',
+            maxHeight: '100%',
+            minHeight: 0,
             boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
           }}
         >
@@ -1962,18 +1993,17 @@ export default function AgendaPage() {
             }}
           >
             <colgroup>
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '14%' }} />
               <col style={{ width: '14%' }} />
               <col style={{ width: '14%' }} />
               <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
             </colgroup>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('title')}
@@ -1982,13 +2012,10 @@ export default function AgendaPage() {
                     Follow-up <span style={{ fontSize: 11 }}>{getSortIndicator('title')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
-                  Descrição
-                </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   Template
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('lead')}
@@ -1997,7 +2024,7 @@ export default function AgendaPage() {
                     Lead <span style={{ fontSize: 11 }}>{getSortIndicator('lead')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('negotiation')}
@@ -2006,7 +2033,7 @@ export default function AgendaPage() {
                     Negócio <span style={{ fontSize: 11 }}>{getSortIndicator('negotiation')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('status')}
@@ -2015,7 +2042,7 @@ export default function AgendaPage() {
                     Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('dateTime')}
@@ -2024,7 +2051,7 @@ export default function AgendaPage() {
                     Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   Ações
                 </th>
               </tr>
@@ -2047,7 +2074,7 @@ export default function AgendaPage() {
                       onMouseLeave={() => setHoveredFollowUpId(null)}
                     >
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -2139,6 +2166,7 @@ export default function AgendaPage() {
                       })
                     }}
                     style={{
+                      height: AGENDA_TABLE_ROW_HEIGHT_PX,
                       borderBottom: '1px solid #f3f4f6',
                       background:
                         isHovered
@@ -2152,9 +2180,30 @@ export default function AgendaPage() {
                     <td style={{ padding: '14px 16px', color: '#111827' }}>
                       {row.title || '-'}
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#64748b' }}>{row.description || '-'}</td>
                     <td style={{ padding: '14px 16px', color: '#111827' }}>{row.templateName || '-'}</td>
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{row.leadName}</td>
+                    <td
+                      style={{
+                        padding: wrappedAgendaLeadNames[row.followUpId]
+                          ? '6px 16px'
+                          : '14px 16px',
+                        color: '#111827'
+                      }}
+                    >
+                      <span
+                        ref={(element) => {
+                          setAgendaLeadNameRef(row.followUpId, element)
+                        }}
+                        style={{
+                          display: 'inline-block',
+                          maxWidth: '100%',
+                          lineHeight: 1.25,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {row.leadName}
+                      </span>
+                    </td>
                     <td style={{ padding: '14px 16px', color: '#111827' }}>{row.negotiationTitle}</td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       <span

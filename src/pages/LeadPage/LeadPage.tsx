@@ -77,6 +77,7 @@ type TagPresentation = {
 
 type LeadPageProps = {
   onLeadUpdated?: () => void
+  onLeadCreated?: () => void
 }
 
 type LeadPageLocationState = {
@@ -140,7 +141,6 @@ type NewLeadTabNoteDraft = {
 
 type NewBusinessFollowUpDraft = {
   title: string
-  description: string
   templateId: string
   templateVariables: Record<string, string>
   dueAt: string
@@ -150,7 +150,6 @@ type NewBusinessFollowUpDraft = {
 type AgendaFollowUpDraft = {
   negotiationId: string
   title: string
-  description: string
   templateId: string
   templateVariables: Record<string, string>
   dueAt: string
@@ -180,7 +179,6 @@ const initialNewLeadTabNoteDraft: NewLeadTabNoteDraft = {
 
 const initialNewBusinessFollowUpDraft: NewBusinessFollowUpDraft = {
   title: '',
-  description: '',
   templateId: '',
   templateVariables: {},
   dueAt: '',
@@ -190,7 +188,6 @@ const initialNewBusinessFollowUpDraft: NewBusinessFollowUpDraft = {
 const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   negotiationId: '',
   title: '',
-  description: '',
   templateId: '',
   templateVariables: {},
   dueAt: ''
@@ -255,6 +252,27 @@ const hasMissingRequiredTemplateVariables = (
   return template.variables.some(
     (variable) => variable.required && !String(variables[variable.key] ?? '').trim()
   )
+}
+
+const interpolateTemplateDescription = (
+  description: string | null | undefined,
+  variables?: Record<string, unknown> | null
+): string => {
+  if (!description) {
+    return ''
+  }
+
+  return description.replace(/{{\s*([^{}]+?)\s*}}/g, (_match, rawKey: string) => {
+    const key = rawKey.trim()
+    const value = variables?.[key]
+
+    if (value === null || value === undefined) {
+      return `{{${key}}}`
+    }
+
+    const text = String(value).trim()
+    return text || `{{${key}}}`
+  })
 }
 
 const tagIconStyle = {
@@ -695,7 +713,7 @@ const getLeadStageLabel = (stage?: string | null): string => {
   return leadStageLabelMap[stage as LeadStage] ?? stage
 }
 
-export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
+export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps) {
   const { isMobile } = useViewportBreakpoint()
   const { leadId } = useParams<{ leadId: string }>()
   const location = useLocation()
@@ -738,6 +756,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   const [isCreatingBusinessNote, setIsCreatingBusinessNote] = useState<boolean>(false)
   const [viewingBusinessNoteIndex, setViewingBusinessNoteIndex] = useState<number | null>(null)
   const [editingBusinessNoteIndex, setEditingBusinessNoteIndex] = useState<number | null>(null)
+  const [isConfirmingBusinessNoteDelete, setIsConfirmingBusinessNoteDelete] = useState<boolean>(false)
   const [newBusinessNoteDraft, setNewBusinessNoteDraft] = useState<NewBusinessNoteDraft>(
     initialNewBusinessNoteDraft
   )
@@ -764,6 +783,8 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
   )
   const [viewingBusinessFollowUpId, setViewingBusinessFollowUpId] = useState<string | null>(null)
   const [editingBusinessFollowUpId, setEditingBusinessFollowUpId] = useState<string | null>(null)
+  const [isConfirmingViewedBusinessFollowUpDelete, setIsConfirmingViewedBusinessFollowUpDelete] =
+    useState<boolean>(false)
   const [hoveredBusinessNoteIndex, setHoveredBusinessNoteIndex] = useState<number | null>(null)
   const [confirmingDeleteBusinessFollowUpId, setConfirmingDeleteBusinessFollowUpId] = useState<string | null>(null)
   const [hoveredBusinessFollowUpId, setHoveredBusinessFollowUpId] = useState<string | null>(null)
@@ -902,7 +923,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     negotiationId: string,
     title: string,
     dueAt: string,
-    description?: string,
     templateId?: string,
     templateVariables?: Record<string, string>
   ) => {
@@ -914,7 +934,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     await WebhookService.createNegotiationFollowUp({
       negotiationId,
       title,
-      description: description?.trim() || undefined,
       templateId: templateId?.trim() || null,
       templateVariables:
         templateId?.trim() && templateVariables
@@ -952,7 +971,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
-        description: agendaFollowUpDraft.description.trim() || undefined,
         templateId: agendaFollowUpDraft.templateId.trim() || null,
         templateVariables: agendaFollowUpDraft.templateId.trim()
           ? Object.fromEntries(
@@ -968,7 +986,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       setAgendaFollowUpDraft((currentDraft) => ({
         ...currentDraft,
         title: '',
-        description: '',
         templateId: '',
         templateVariables: {},
         dueAt: ''
@@ -990,7 +1007,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     followUpId: string,
     title: string,
     dueAt: string,
-    description?: string,
     templateId?: string,
     templateVariables?: Record<string, string>,
     status?: LeadFollowUpResponse['status']
@@ -1003,7 +1019,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       setBusinessesError(null)
       await WebhookService.updateNegotiationFollowUp(followUpId, {
         title,
-        description,
         templateId: templateId?.trim() || null,
         templateVariables:
           templateId?.trim() && templateVariables
@@ -1037,6 +1052,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       if (confirmingDeleteBusinessFollowUpId === followUpId) {
         setConfirmingDeleteBusinessFollowUpId(null)
       }
+      setIsConfirmingViewedBusinessFollowUpDelete(false)
       await refreshLeadNegotiations(leadId)
       onLeadUpdated?.()
     } catch (exception: unknown) {
@@ -1311,7 +1327,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     }
 
     try {
-      await WebhookService.createLead({
+      const createdLead = await WebhookService.createLead({
         name: trimmedName,
         phone: persistedPhone,
         ...(trimmedEmail ? { email: trimmedEmail } : {}),
@@ -1322,8 +1338,9 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       })
 
       setError(null)
+      onLeadCreated?.()
       onLeadUpdated?.()
-      navigate(`${closeLeadPath}${location.search}`, { replace: true })
+      navigate(`/leads/${createdLead.id}${location.search}`, { replace: true })
     } catch (exception: unknown) {
       const message = exception instanceof Error ? exception.message : 'Falha ao criar lead.'
       setError(message)
@@ -1593,6 +1610,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       setNewBusinessFollowUpDraft(initialNewBusinessFollowUpDraft)
       setViewingBusinessNoteIndex(null)
       setEditingBusinessNoteIndex(null)
+      setIsConfirmingBusinessNoteDelete(false)
       setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
       setIsEditingBusiness(false)
       setHoveredBusinessNoteIndex(null)
@@ -1658,11 +1676,14 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
 
       if (hasRequestedBusinessNote) {
         setViewingBusinessNoteIndex(requestedBusinessNoteIndexRef.current)
+        setIsConfirmingBusinessNoteDelete(false)
       } else if (hasRequestedBusinessFollowUp) {
         setViewingBusinessNoteIndex(null)
+        setIsConfirmingBusinessNoteDelete(false)
         setViewingBusinessFollowUpId(requestedBusinessFollowUpIdRef.current)
       } else {
         setViewingBusinessNoteIndex(null)
+        setIsConfirmingBusinessNoteDelete(false)
         setViewingBusinessFollowUpId(null)
       }
 
@@ -1676,6 +1697,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     setIsCreatingBusinessFollowUp(false)
     setNewBusinessFollowUpDraft(initialNewBusinessFollowUpDraft)
     setEditingBusinessNoteIndex(null)
+    setIsConfirmingBusinessNoteDelete(false)
     setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
     setIsEditingBusiness(false)
     setHoveredBusinessNoteIndex(null)
@@ -1719,6 +1741,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     setIsCreatingBusinessNote(false)
     setViewingBusinessNoteIndex(null)
     setEditingBusinessNoteIndex(null)
+    setIsConfirmingBusinessNoteDelete(false)
     setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
     setHoveredBusinessNoteIndex(null)
     requestedBusinessNoteIndexRef.current = null
@@ -2341,7 +2364,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     onChange={(event) =>
                       setInfoDraft((current) => ({ ...current, location: event.target.value }))
                     }
-                    placeholder="Onde fala"
                     autoComplete="new-password"
                     style={{
                       width: '100%',
@@ -2893,31 +2915,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         </div>
 
         <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Descrição</label>
-          <textarea
-            placeholder="Descrição (opcional)"
-            value={agendaFollowUpDraft.description}
-            onChange={(event) =>
-              setAgendaFollowUpDraft((currentDraft) => ({
-                ...currentDraft,
-                description: event.target.value
-              }))
-            }
-            style={{
-              width: '100%',
-              minHeight: 98,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '10px 14px',
-              color: '#111827',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              resize: 'vertical',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
           <select
             value={agendaFollowUpDraft.templateId}
@@ -2954,11 +2951,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               </option>
             ))}
           </select>
-          {selectedAgendaTemplate?.description ? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: isMobile ? 14 : 12 }}>
-              {selectedAgendaTemplate.description}
-            </p>
-          ) : null}
         </div>
 
         {selectedAgendaTemplate?.variables?.length ? (
@@ -3496,9 +3488,12 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       })
 
     const handleCancelBusinessFollowUpCreation = () => {
+      const editedFollowUpId = editingBusinessFollowUp?.id ?? null
+
       setIsCreatingBusinessFollowUp(false)
-      setViewingBusinessFollowUpId(null)
       setEditingBusinessFollowUpId(null)
+      setIsConfirmingViewedBusinessFollowUpDelete(false)
+      setViewingBusinessFollowUpId(editedFollowUpId)
       setNewBusinessFollowUpDraft(initialNewBusinessFollowUpDraft)
       setBusinessesError(null)
     }
@@ -3509,9 +3504,9 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
       }
 
       setIsCreatingBusinessFollowUp(false)
+      setIsConfirmingViewedBusinessFollowUpDelete(false)
       setNewBusinessFollowUpDraft({
         title: viewedBusinessFollowUp.title ?? '',
-        description: viewedBusinessFollowUp.description ?? '',
         templateId: viewedBusinessFollowUp.templateId ?? '',
         templateVariables: normalizeTemplateVariableDraft(viewedBusinessFollowUp.templateVariables),
         dueAt: viewedBusinessFollowUp.dueAt ?? '',
@@ -3534,7 +3529,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             editingBusinessFollowUp.id,
             newBusinessFollowUpDraft.title.trim(),
             newBusinessFollowUpDraft.dueAt,
-            newBusinessFollowUpDraft.description,
             newBusinessFollowUpDraft.templateId,
             newBusinessFollowUpDraft.templateVariables,
             newBusinessFollowUpDraft.status
@@ -3544,7 +3538,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             businessId,
             newBusinessFollowUpDraft.title.trim(),
             newBusinessFollowUpDraft.dueAt,
-            newBusinessFollowUpDraft.description,
             newBusinessFollowUpDraft.templateId,
             newBusinessFollowUpDraft.templateVariables
           )
@@ -3675,31 +3668,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         </div>
 
         <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Descrição</label>
-          <textarea
-            placeholder="Descrição (opcional)"
-            value={newBusinessFollowUpDraft.description}
-            onChange={(event) =>
-              setNewBusinessFollowUpDraft((current) => ({
-                ...current,
-                description: event.target.value
-              }))
-            }
-            style={{
-              width: '100%',
-              minHeight: 98,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '10px 14px',
-              color: '#111827',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              resize: 'vertical',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
-
-        <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
           <input
             type="datetime-local"
@@ -3759,11 +3727,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               </option>
             ))}
           </select>
-          {selectedBusinessTemplate?.description ? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: isMobile ? 14 : 12 }}>
-              {selectedBusinessTemplate.description}
-            </p>
-          ) : null}
         </div>
 
         {selectedBusinessTemplate?.variables?.length ? (
@@ -3798,6 +3761,36 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 />
               </div>
             ))}
+          </div>
+        ) : null}
+
+        {selectedBusinessTemplate ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+              Descrição do template
+            </label>
+            <textarea
+              value={interpolateTemplateDescription(
+                selectedBusinessTemplate.description,
+                newBusinessFollowUpDraft.templateVariables
+              )}
+              readOnly
+              disabled
+              style={{
+                width: '100%',
+                minHeight: isMobile ? 96 : 86,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '10px 14px',
+                color: '#64748b',
+                fontSize: isMobile ? 17 / 1.2 : 14,
+                boxSizing: 'border-box',
+                background: '#f8fafc',
+                cursor: 'not-allowed',
+                resize: 'vertical',
+                lineHeight: 1.4
+              }}
+            />
           </div>
         ) : null}
 
@@ -3860,49 +3853,150 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           padding: isMobile ? '22px 18px 28px' : 0
         }}
       >
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Negócio</label>
-          <input type="text" value={selectedFollowUpBusinessTitle} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-        </div>
+        {isConfirmingViewedBusinessFollowUpDelete ? (
+          <article
+            style={{
+              border: '1px solid #fecaca',
+              borderRadius: 16,
+              padding: 24,
+              background: '#fff7f7',
+              display: 'grid',
+              gap: 18,
+              marginTop: 2
+            }}
+          >
+            <h3 style={{ margin: 0, color: '#b91c1c', fontSize: 15, fontWeight: 800 }}>
+              Deseja deletar esse follow-up?
+            </h3>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Título</label>
-          <input type="text" value={viewedBusinessFollowUp.title ?? ''} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-        </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingViewedBusinessFollowUpDelete(false)}
+                style={{
+                  minWidth: 96,
+                  height: 34,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Descrição</label>
-          <textarea value={viewedBusinessFollowUp.description ?? ''} readOnly disabled style={{ width: '100%', minHeight: 98, border: '1px solid #d7dce4', borderRadius: 10, padding: '10px 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, resize: 'vertical', boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-        </div>
+              <button
+                type="button"
+                onClick={() => void handleDeleteNegotiationFollowUp(viewedBusinessFollowUp.id)}
+                style={{
+                  minWidth: 96,
+                  height: 34,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Deletar
+              </button>
+            </div>
+          </article>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Negócio</label>
+              <input type="text" value={selectedFollowUpBusinessTitle} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
-          <input type="text" value={formatFollowUpDate(viewedBusinessFollowUp.dueAt)} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-        </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Título</label>
+              <input type="text" value={viewedBusinessFollowUp.title ?? ''} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
-          <input type="text" value={viewedBusinessTemplate?.name ?? 'Sem template'} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-          {viewedBusinessTemplate?.description ? <p style={{ margin: 0, color: '#64748b', fontSize: isMobile ? 14 : 12 }}>{viewedBusinessTemplate.description}</p> : null}
-        </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
+              <input type="text" value={formatFollowUpDate(viewedBusinessFollowUp.dueAt)} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            </div>
 
-        {viewedBusinessTemplate?.variables?.length ? (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {viewedBusinessTemplate.variables.map((variable) => (
-              <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                  {variable.label}{variable.required ? ' *' : ''}
-                </label>
-                <input type="text" value={String(viewedBusinessFollowUp.templateVariables?.[variable.key] ?? '')} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
+              <input type="text" value={viewedBusinessTemplate?.name ?? 'Sem template'} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            </div>
+
+            {viewedBusinessTemplate?.variables?.length ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {viewedBusinessTemplate.variables.map((variable) => (
+                  <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
+                    <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+                      {variable.label}{variable.required ? ' *' : ''}
+                    </label>
+                    <input type="text" value={String(viewedBusinessFollowUp.templateVariables?.[variable.key] ?? '')} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : null}
+            ) : null}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-          <button type="button" onClick={handleCancelBusinessFollowUpCreation} style={{ minWidth: 120, height: 42, border: '1px solid #d1d5db', borderRadius: 8, background: '#ffffff', color: '#0f172a', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-          <button type="button" onClick={handleStartEditingViewedBusinessFollowUp} style={{ minWidth: 120, height: 42, border: 'none', borderRadius: 8, background: '#1f7a4d', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Editar</button>
-        </div>
+            {viewedBusinessTemplate ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+                  Descrição do template
+                </label>
+                <textarea
+                  value={interpolateTemplateDescription(
+                    viewedBusinessTemplate.description,
+                    viewedBusinessFollowUp.templateVariables
+                  )}
+                  readOnly
+                  disabled
+                  style={{
+                    width: '100%',
+                    minHeight: isMobile ? 96 : 86,
+                    border: '1px solid #d7dce4',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    color: '#64748b',
+                    fontSize: isMobile ? 17 / 1.2 : 14,
+                    boxSizing: 'border-box',
+                    background: '#f8fafc',
+                    cursor: 'not-allowed',
+                    resize: 'vertical',
+                    lineHeight: 1.4
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmingViewedBusinessFollowUpDelete(true)
+                  setBusinessesError(null)
+                }}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Excluir
+              </button>
+              <button type="button" onClick={handleStartEditingViewedBusinessFollowUp} style={{ minWidth: 120, height: 42, border: 'none', borderRadius: 8, background: '#1f7a4d', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Editar</button>
+            </div>
+          </>
+        )}
       </section>
     ) : null
 
@@ -3958,7 +4052,16 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         ) : null}
 
         {!isMobile && isManagingBusinessFollowUp ? (
-          <>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden'
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               {viewedBusinessFollowUp ? (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
@@ -4020,12 +4123,18 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 background: 'transparent',
                 display: 'grid',
                 gap: 18,
-                maxWidth: 760
+                maxWidth: 760,
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                paddingRight: 6,
+                boxSizing: 'border-box'
               }}
             >
               {viewedBusinessFollowUp ? businessFollowUpViewContent : businessFollowUpCreateForm}
             </article>
-          </>
+          </div>
         ) : null}
 
         {isMobile && isManagingBusinessFollowUp ? (
@@ -4130,6 +4239,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     onClick={() => {
                       setConfirmingDeleteBusinessFollowUpId(null)
                       setEditingBusinessFollowUpId(null)
+                      setIsConfirmingViewedBusinessFollowUpDelete(false)
                       setViewingBusinessFollowUpId(followUp.id)
                     }}
                     onMouseEnter={() => setHoveredBusinessFollowUpId(followUp.id)}
@@ -4163,7 +4273,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                             setViewingBusinessFollowUpId(null)
                             setNewBusinessFollowUpDraft({
                               title: followUp.title ?? '',
-                              description: followUp.description ?? '',
                               templateId: followUp.templateId ?? '',
                               templateVariables: normalizeTemplateVariableDraft(followUp.templateVariables),
                               dueAt: followUp.dueAt ?? '',
@@ -4229,7 +4338,9 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             borderRadius: 8,
             overflow: 'hidden',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0
           }}
         >
           <div
@@ -4250,7 +4361,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Ações</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
             {businessFollowUps.length === 0 ? (
               <div style={{ padding: '8px 10px' }}>
                 <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Nenhum follow-up cadastrado.</p>
@@ -4347,6 +4458,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     onClick={() => {
                       setConfirmingDeleteBusinessFollowUpId(null)
                       setEditingBusinessFollowUpId(null)
+                      setIsConfirmingViewedBusinessFollowUpDelete(false)
                       setViewingBusinessFollowUpId(followUp.id)
                     }}
                     style={{
@@ -4428,7 +4540,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                           setViewingBusinessFollowUpId(null)
                           setNewBusinessFollowUpDraft({
                             title: followUp.title ?? '',
-                            description: followUp.description ?? '',
                             templateId: followUp.templateId ?? '',
                             templateVariables: normalizeTemplateVariableDraft(followUp.templateVariables),
                             dueAt: followUp.dueAt ?? '',
@@ -4713,7 +4824,9 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             borderRadius: 8,
             overflow: 'hidden',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0
           }}
         >
           <div
@@ -4735,7 +4848,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Ações</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
             {isBusinessAttachmentsLoading ? (
               <div style={{ padding: '10px 12px' }}>
                 <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Carregando arquivos...</p>
@@ -4998,7 +5111,13 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
             gap: 8,
             height: '100%',
             minHeight: 0,
-            overflowY: 'auto',
+            overflowY:
+              !isMobile &&
+              (activeBusinessTab === 'followups' ||
+                activeBusinessTab === 'arquivos' ||
+                activeBusinessTab === 'notas')
+                ? 'hidden'
+                : 'auto',
             overflowX: 'hidden',
             paddingRight: isMobile ? 0 : 4,
             boxSizing: 'border-box'
@@ -5117,7 +5236,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           </div>
           ) : null}
 
-          <div style={{ display: 'grid', width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, boxSizing: 'border-box' }}>
             {!isMobile ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               {activeBusinessTab === 'informacoes' ? (
@@ -5928,8 +6047,11 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                 borderRadius: 0,
                 padding: 0,
                 background: 'transparent',
-                display: 'grid',
-                gap: 12
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                minHeight: 0,
+                flex: 1
               }}
             >
               {!isCreatingBusinessNote && !viewedBusinessNote ? (
@@ -5940,6 +6062,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                       onClick={() => {
                         setIsCreatingBusinessNote(true)
                         setViewingBusinessNoteIndex(null)
+                        setIsConfirmingBusinessNoteDelete(false)
                         setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
                         setBusinessesError(null)
                       }}
@@ -5968,7 +6091,16 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     </span>
                   </div>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      minHeight: 0,
+                      flex: 1,
+                      overflowY: isMobile ? 'visible' : 'auto'
+                    }}
+                  >
                     {selectedBusinessNotes.length === 0 ? (
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Nenhuma nota cadastrada.</p>
                     ) : (
@@ -5977,6 +6109,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                           key={`${selectedBusiness.id}-note-${noteIndex}`}
                           onClick={() => {
                                 setViewingBusinessNoteIndex(originalIndex)
+                            setIsConfirmingBusinessNoteDelete(false)
                             setBusinessesError(null)
                           }}
                           onMouseEnter={() => setHoveredBusinessNoteIndex(originalIndex)}
@@ -6090,11 +6223,13 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               ) : isCreatingBusinessNote ? (
                 <section
                   style={{
-                    display: 'grid',
-                    alignContent: 'start',
+                    display: 'flex',
+                    flexDirection: 'column',
                     gap: 16,
+                    flex: 1,
                     minHeight: 0,
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    overflow: 'hidden'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -6109,6 +6244,7 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                         setIsCreatingBusinessNote(false)
                         setViewingBusinessNoteIndex(noteToRestore)
                         setEditingBusinessNoteIndex(null)
+                        setIsConfirmingBusinessNoteDelete(false)
                         setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
                         setBusinessesError(null)
                       }}
@@ -6131,180 +6267,196 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
-                    <input
-                      type="text"
-                      value={selectedBusiness.title?.trim() || 'Negócio sem nome'}
-                      readOnly
-                      disabled
-                      style={{
-                        height: 42,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 14px',
-                        color: '#64748b',
-                        fontSize: 14,
-                        boxSizing: 'border-box',
-                        background: '#f8fafc',
-                        cursor: 'not-allowed'
-                      }}
-                    />
-                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      alignContent: 'start',
+                      gap: 16,
+                      flex: 1,
+                      minHeight: 0,
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      paddingRight: isMobile ? 0 : 6,
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                      <input
+                        type="text"
+                        value={selectedBusiness.title?.trim() || 'Negócio sem nome'}
+                        readOnly
+                        disabled
+                        style={{
+                          height: 42,
+                          border: '1px solid #d7dce4',
+                          borderRadius: 10,
+                          padding: '0 14px',
+                          color: '#64748b',
+                          fontSize: 14,
+                          boxSizing: 'border-box',
+                          background: '#f8fafc',
+                          cursor: 'not-allowed'
+                        }}
+                      />
+                    </div>
 
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Título</label>
-                    <input
-                      type="text"
-                      placeholder="Título da nota"
-                      autoComplete="off"
-                      name="business-note-title"
-                      value={newBusinessNoteDraft.title}
-                      onChange={(event) =>
-                        setNewBusinessNoteDraft((current) => ({
-                          ...current,
-                          title: event.target.value
-                        }))
-                      }
-                      style={{
-                        height: 42,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 14px',
-                        color: '#111827',
-                        fontSize: 14,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
-                    <textarea
-                      placeholder="Escreva a descrição da nota..."
-                      value={newBusinessNoteDraft.description}
-                      onChange={(event) =>
-                        setNewBusinessNoteDraft((current) => ({
-                          ...current,
-                          description: event.target.value
-                        }))
-                      }
-                      style={{
-                        width: '100%',
-                        minHeight: 132,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '12px 14px',
-                        color: '#111827',
-                        fontSize: 14,
-                        resize: 'vertical',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const noteToRestore = editingBusinessNoteIndex
-                        setIsCreatingBusinessNote(false)
-                        setViewingBusinessNoteIndex(noteToRestore)
-                        setEditingBusinessNoteIndex(null)
-                        setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
-                        setBusinessesError(null)
-                      }}
-                      style={{
-                        minWidth: 120,
-                        height: 44,
-                        border: '1px solid #9ac6ae',
-                        borderRadius: 10,
-                        background: '#ffffff',
-                        color: '#1f7a4d',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const trimmedTitle = newBusinessNoteDraft.title.trim()
-                        const trimmedDescription = newBusinessNoteDraft.description.trim()
-
-                        if (!selectedBusinessId || !trimmedTitle || !trimmedDescription) {
-                          return
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Título</label>
+                      <input
+                        type="text"
+                        placeholder="Título da nota"
+                        autoComplete="off"
+                        name="business-note-title"
+                        value={newBusinessNoteDraft.title}
+                        onChange={(event) =>
+                          setNewBusinessNoteDraft((current) => ({
+                            ...current,
+                            title: event.target.value
+                          }))
                         }
+                        style={{
+                          height: 42,
+                          border: '1px solid #d7dce4',
+                          borderRadius: 10,
+                          padding: '0 14px',
+                          color: '#111827',
+                          fontSize: 14,
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
 
-                        const currentNotes = selectedBusiness.notes ?? []
-                        const isEditingExistingNote = editingBusinessNoteIndex !== null
-                        const payload: UpdateNegotiationPayload = {
-                          notes: isEditingExistingNote
-                            ? currentNotes.map((note, index) =>
-                                index === editingBusinessNoteIndex
-                                  ? {
-                                      title: trimmedTitle,
-                                      description: trimmedDescription,
-                                      createdAt: note.createdAt ?? new Date().toISOString()
-                                    }
-                                  : note
-                              )
-                            : [
-                                ...currentNotes,
-                                {
-                                  title: trimmedTitle,
-                                  description: trimmedDescription,
-                                  createdAt: new Date().toISOString()
-                                }
-                              ]
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
+                      <textarea
+                        placeholder="Escreva a descrição da nota..."
+                        value={newBusinessNoteDraft.description}
+                        onChange={(event) =>
+                          setNewBusinessNoteDraft((current) => ({
+                            ...current,
+                            description: event.target.value
+                          }))
                         }
+                        style={{
+                          width: '100%',
+                          minHeight: 132,
+                          border: '1px solid #d7dce4',
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          color: '#111827',
+                          fontSize: 14,
+                          resize: 'vertical',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
 
-                        void (async () => {
-                          try {
-                            await WebhookService.updateNegotiation(selectedBusinessId, payload)
-                            await refreshLeadNegotiations(leadId ?? '')
-                            onLeadUpdated?.()
-                            const noteToRestore = editingBusinessNoteIndex
-                            setIsCreatingBusinessNote(false)
-                            setViewingBusinessNoteIndex(noteToRestore)
-                            setEditingBusinessNoteIndex(null)
-                            setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
-                            setBusinessesError(null)
-                          } catch (exception: unknown) {
-                            const message =
-                              exception instanceof Error
-                                ? exception.message
-                                : isEditingExistingNote
-                                  ? 'Falha ao editar nota.'
-                                  : 'Falha ao criar nota.'
-                            setBusinessesError(message)
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const noteToRestore = editingBusinessNoteIndex
+                          setIsCreatingBusinessNote(false)
+                          setViewingBusinessNoteIndex(noteToRestore)
+                          setEditingBusinessNoteIndex(null)
+                          setIsConfirmingBusinessNoteDelete(false)
+                          setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                          setBusinessesError(null)
+                        }}
+                        style={{
+                          minWidth: 120,
+                          height: 44,
+                          border: '1px solid #9ac6ae',
+                          borderRadius: 10,
+                          background: '#ffffff',
+                          color: '#1f7a4d',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const trimmedTitle = newBusinessNoteDraft.title.trim()
+                          const trimmedDescription = newBusinessNoteDraft.description.trim()
+
+                          if (!selectedBusinessId || !trimmedTitle || !trimmedDescription) {
+                            return
                           }
-                        })()
-                      }}
-                      disabled={!newBusinessNoteDraft.title.trim() || !newBusinessNoteDraft.description.trim()}
-                      style={{
-                        minWidth: 120,
-                        height: 44,
-                        border: 'none',
-                        borderRadius: 10,
-                        background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
-                        color: '#ffffff',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor:
-                          newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
-                            ? 'pointer'
-                            : 'not-allowed',
-                        opacity:
-                          newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
-                            ? 1
-                            : 0.6
-                      }}
-                    >
-                      {editingBusinessNoteIndex === null ? 'Salvar' : 'Editar'}
-                    </button>
+
+                          const currentNotes = selectedBusiness.notes ?? []
+                          const isEditingExistingNote = editingBusinessNoteIndex !== null
+                          const payload: UpdateNegotiationPayload = {
+                            notes: isEditingExistingNote
+                              ? currentNotes.map((note, index) =>
+                                  index === editingBusinessNoteIndex
+                                    ? {
+                                        title: trimmedTitle,
+                                        description: trimmedDescription,
+                                        createdAt: note.createdAt ?? new Date().toISOString()
+                                      }
+                                    : note
+                                )
+                              : [
+                                  ...currentNotes,
+                                  {
+                                    title: trimmedTitle,
+                                    description: trimmedDescription,
+                                    createdAt: new Date().toISOString()
+                                  }
+                                ]
+                          }
+
+                          void (async () => {
+                            try {
+                              await WebhookService.updateNegotiation(selectedBusinessId, payload)
+                              await refreshLeadNegotiations(leadId ?? '')
+                              onLeadUpdated?.()
+                              const noteToRestore = editingBusinessNoteIndex
+                              setIsCreatingBusinessNote(false)
+                              setViewingBusinessNoteIndex(noteToRestore)
+                              setEditingBusinessNoteIndex(null)
+                              setIsConfirmingBusinessNoteDelete(false)
+                              setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                              setBusinessesError(null)
+                            } catch (exception: unknown) {
+                              const message =
+                                exception instanceof Error
+                                  ? exception.message
+                                  : isEditingExistingNote
+                                    ? 'Falha ao editar nota.'
+                                    : 'Falha ao criar nota.'
+                              setBusinessesError(message)
+                            }
+                          })()
+                        }}
+                        disabled={!newBusinessNoteDraft.title.trim() || !newBusinessNoteDraft.description.trim()}
+                        style={{
+                          minWidth: 120,
+                          height: 44,
+                          border: 'none',
+                          borderRadius: 10,
+                          background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
+                          color: '#ffffff',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor:
+                            newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
+                              ? 'pointer'
+                              : 'not-allowed',
+                          opacity:
+                            newBusinessNoteDraft.title.trim() && newBusinessNoteDraft.description.trim()
+                              ? 1
+                              : 0.6
+                        }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
                   </div>
                 </section>
               ) : null}
@@ -6312,110 +6464,260 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               {!isCreatingBusinessNote && viewedBusinessNote ? (
                 <section
                   style={{
-                    display: 'grid',
-                    alignContent: 'start',
+                    display: 'flex',
+                    flexDirection: 'column',
                     gap: 16,
+                    flex: 1,
                     minHeight: 0,
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    overflow: 'hidden'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <h3 style={{ margin: 0, color: '#0f172a', fontSize: 20, fontWeight: 700 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
                       Nota
-                    </h3>
-                  </div>
-
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Título</label>
-                    <div
-                      style={{
-                        minHeight: 42,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '10px 14px',
-                        background: '#f8fafc',
-                        color: '#111827',
-                        fontSize: 14,
-                        lineHeight: 1.4,
-                        display: 'flex',
-                        alignItems: 'center',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      {viewedBusinessNote.title?.trim() || '-'}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
-                    <div
-                      style={{
-                        width: '100%',
-                        minHeight: 132,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '12px 14px',
-                        background: '#f8fafc',
-                        color: '#111827',
-                        fontSize: 14,
-                        lineHeight: 1.5,
-                        whiteSpace: 'pre-line',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      {viewedBusinessNote.description?.trim() || '-'}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-                    <button
-                      type="button"
-                      onClick={() => setViewingBusinessNoteIndex(null)}
-                      style={{
-                        minWidth: 120,
-                        height: 44,
-                        border: '1px solid #9ac6ae',
-                        borderRadius: 10,
-                        background: '#ffffff',
-                        color: '#1f7a4d',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancelar
-                    </button>
+                    </h2>
 
                     <button
                       type="button"
                       onClick={() => {
-                        if (viewingBusinessNoteIndex === null) {
-                          return
-                        }
-
-                        setEditingBusinessNoteIndex(viewingBusinessNoteIndex)
-                        setNewBusinessNoteDraft({
-                          title: viewedBusinessNote.title ?? '',
-                          description: viewedBusinessNote.description ?? ''
-                        })
                         setViewingBusinessNoteIndex(null)
-                        setIsCreatingBusinessNote(true)
-                        setBusinessesError(null)
+                        setIsConfirmingBusinessNoteDelete(false)
                       }}
                       style={{
-                        minWidth: 120,
-                        height: 44,
+                        height: 28,
+                        minWidth: 28,
                         border: 'none',
-                        borderRadius: 10,
-                        background: 'linear-gradient(135deg, #1f7a4d 0%, #155f3c 100%)',
-                        color: '#ffffff',
+                        borderRadius: 6,
+                        background: 'transparent',
+                        color: '#6b7280',
+                        padding: '0 8px',
+                        cursor: 'pointer',
                         fontSize: 14,
-                        fontWeight: 700,
-                        cursor: 'pointer'
+                        fontWeight: 600,
+                        lineHeight: 1
                       }}
+                      aria-label="Fechar visualização da nota"
                     >
-                      Editar
+                      X
                     </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      alignContent: 'start',
+                      gap: 16,
+                      flex: 1,
+                      minHeight: 0,
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      paddingRight: isMobile ? 0 : 6,
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {isConfirmingBusinessNoteDelete ? (
+                      <article
+                        style={{
+                          border: '1px solid #fecaca',
+                          borderRadius: 16,
+                          padding: 24,
+                          background: '#fff7f7',
+                          display: 'grid',
+                          gap: 18,
+                          marginTop: 2
+                        }}
+                      >
+                        <h3 style={{ margin: 0, color: '#b91c1c', fontSize: 15, fontWeight: 800 }}>
+                          Deseja deletar essa nota?
+                        </h3>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                          <button
+                            type="button"
+                            onClick={() => setIsConfirmingBusinessNoteDelete(false)}
+                            style={{
+                              minWidth: 96,
+                              height: 34,
+                              border: '1px solid #d1d5db',
+                              borderRadius: 8,
+                              background: '#ffffff',
+                              color: '#0f172a',
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancelar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (viewingBusinessNoteIndex === null || !selectedBusinessId) {
+                                return
+                              }
+
+                              const currentNotes = selectedBusiness.notes ?? []
+                              const payload: UpdateNegotiationPayload = {
+                                notes: currentNotes.filter((_, index) => index !== viewingBusinessNoteIndex)
+                              }
+
+                              void (async () => {
+                                try {
+                                  await WebhookService.updateNegotiation(selectedBusinessId, payload)
+                                  await refreshLeadNegotiations(leadId ?? '')
+                                  onLeadUpdated?.()
+                                  setViewingBusinessNoteIndex(null)
+                                  setEditingBusinessNoteIndex(null)
+                                  setIsCreatingBusinessNote(false)
+                                  setNewBusinessNoteDraft(initialNewBusinessNoteDraft)
+                                  setIsConfirmingBusinessNoteDelete(false)
+                                  setBusinessesError(null)
+                                } catch (exception: unknown) {
+                                  const message =
+                                    exception instanceof Error ? exception.message : 'Falha ao deletar nota.'
+                                  setBusinessesError(message)
+                                }
+                              })()
+                            }}
+                            style={{
+                              minWidth: 96,
+                              height: 34,
+                              border: 'none',
+                              borderRadius: 8,
+                              background: '#dc2626',
+                              color: '#ffffff',
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Deletar
+                          </button>
+                        </div>
+                      </article>
+                    ) : (
+                      <>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                          <input
+                            type="text"
+                            value={selectedBusiness.title?.trim() || 'Negócio sem nome'}
+                            readOnly
+                            disabled
+                            style={{
+                              height: 42,
+                              border: '1px solid #d7dce4',
+                              borderRadius: 10,
+                              padding: '0 14px',
+                              color: '#64748b',
+                              fontSize: 14,
+                              boxSizing: 'border-box',
+                              background: '#f8fafc',
+                              cursor: 'not-allowed'
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Título</label>
+                          <div
+                            style={{
+                              minHeight: 42,
+                              border: '1px solid #d7dce4',
+                              borderRadius: 10,
+                              padding: '10px 14px',
+                              background: '#f8fafc',
+                              color: '#111827',
+                              fontSize: 14,
+                              lineHeight: 1.4,
+                              display: 'flex',
+                              alignItems: 'center',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            {viewedBusinessNote.title?.trim() || '-'}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição</label>
+                          <div
+                            style={{
+                              width: '100%',
+                              minHeight: 132,
+                              border: '1px solid #d7dce4',
+                              borderRadius: 10,
+                              padding: '12px 14px',
+                              background: '#f8fafc',
+                              color: '#111827',
+                              fontSize: 14,
+                              lineHeight: 1.5,
+                              whiteSpace: 'pre-line',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            {viewedBusinessNote.description?.trim() || '-'}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsConfirmingBusinessNoteDelete(true)
+                              setBusinessesError(null)
+                            }}
+                            style={{
+                              minWidth: 120,
+                              height: 42,
+                              border: 'none',
+                              borderRadius: 8,
+                              background: '#dc2626',
+                              color: '#ffffff',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Excluir
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (viewingBusinessNoteIndex === null) {
+                                return
+                              }
+
+                              setEditingBusinessNoteIndex(viewingBusinessNoteIndex)
+                              setNewBusinessNoteDraft({
+                                title: viewedBusinessNote.title ?? '',
+                                description: viewedBusinessNote.description ?? ''
+                              })
+                              setViewingBusinessNoteIndex(null)
+                              setIsCreatingBusinessNote(true)
+                              setIsConfirmingBusinessNoteDelete(false)
+                              setBusinessesError(null)
+                            }}
+                            style={{
+                              minWidth: 120,
+                              height: 42,
+                              border: 'none',
+                              borderRadius: 8,
+                              background: '#1f7a4d',
+                              color: '#ffffff',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </section>
               ) : null}
@@ -6923,7 +7225,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
           {businesses.length === 0 ? (
             <div
               style={{
-                border: '1px solid #e5e7eb',
                 borderRadius: 12,
                 padding: '14px 16px',
                 background: '#ffffff',
@@ -7579,7 +7880,18 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
     const shouldShowDesktopCreateOnly = !isMobile && isCreatingLeadTabNote
 
     return (
-      <section style={{ display: 'grid', alignContent: 'start', gap: 16 }}>
+      <section
+        style={{
+          display: 'grid',
+          alignContent: 'start',
+          gap: 16,
+          height: '100%',
+          minHeight: 0,
+          overflowY: isMobile ? 'auto' : 'hidden',
+          paddingRight: isMobile ? 0 : 4,
+          boxSizing: 'border-box'
+        }}
+      >
         {!shouldShowDesktopCreateOnly ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -7719,7 +8031,16 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
         ) : null}
 
         {!shouldShowDesktopCreateOnly ? (
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              minHeight: 0,
+              flex: 1,
+              overflowY: isMobile ? 'visible' : 'auto'
+            }}
+          >
             {!selectedNotesBusiness ? (
               <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
                 Nenhum negócio cadastrado para este lead.
@@ -8287,6 +8608,24 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               }}
             />
 
+            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Localização</span>
+            <input
+              type="text"
+              value={infoDraft.location}
+              onChange={(event) => setInfoDraft((current) => ({ ...current, location: event.target.value }))}
+              autoComplete="new-password"
+              style={{
+                height: 36,
+                maxWidth: 360,
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                padding: '0 10px',
+                fontSize: 16,
+                color: '#111827',
+                boxSizing: 'border-box'
+              }}
+            />
+
             <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Origem</span>
             <select
               value={infoDraft.source.toLowerCase()}
@@ -8307,25 +8646,6 @@ export default function LeadPage({ onLeadUpdated }: LeadPageProps) {
               <option value="metaads">MetaAds</option>
               <option value="indicacao">Indicação</option>
             </select>
-
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Localização</span>
-            <input
-              type="text"
-              value={infoDraft.location}
-              onChange={(event) => setInfoDraft((current) => ({ ...current, location: event.target.value }))}
-              placeholder="Onde fala"
-              autoComplete="new-password"
-              style={{
-                height: 36,
-                maxWidth: 360,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 16,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
-            />
 
             <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Qualificação</span>
             <select

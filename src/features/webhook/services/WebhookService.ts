@@ -220,7 +220,6 @@ export const WebhookService = {
     followUpId: string,
     payload: {
       title?: string
-      description?: string
       templateId?: string | null
       templateVariables?: Record<string, unknown>
       dueAt?: string

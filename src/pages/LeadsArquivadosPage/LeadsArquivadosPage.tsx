@@ -16,6 +16,8 @@ type ArchivedLeadRow = {
 
 type NameSortDirection = 'asc' | 'desc'
 
+const ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX = 60
+
 export default function LeadsArquivadosPage() {
   const leadPanelWidth = 'min(48vw, 760px)'
   const leadPanelTransitionMs = 120
@@ -26,14 +28,15 @@ export default function LeadsArquivadosPage() {
   const { data, isLoading, error, reload } = useLeadsBootstrap()
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
-  const [, setCurrentPage] = useState<number>(1)
   const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null)
   const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<string | null>(null)
   const [nameSortDirection, setNameSortDirection] = useState<NameSortDirection>('asc')
+  const [wrappedArchivedLeadNames, setWrappedArchivedLeadNames] = useState<Record<string, boolean>>({})
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
   const isLeadSelected = Boolean(leadId)
   const previousIsLeadSelectedRef = useRef<boolean>(isLeadSelected)
+  const archivedLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
 
   const archivedLeads = useMemo<ArchivedLeadRow[]>(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase()
@@ -64,6 +67,10 @@ export default function LeadsArquivadosPage() {
   }, [archivedLeads, nameSortDirection])
 
   const paginatedLeads = sortedArchivedLeads
+
+  const setArchivedLeadNameRef = (leadIdValue: string, element: HTMLSpanElement | null) => {
+    archivedLeadNameRefs.current[leadIdValue] = element
+  }
 
   const getHeaderSortButtonStyle = () => ({
     border: 'none',
@@ -132,8 +139,59 @@ export default function LeadsArquivadosPage() {
   }, [isLeadSelected, leadPanelTransitionMs])
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [nameSortDirection])
+    if (isMobile) {
+      return
+    }
+
+    const recalculateWrappedArchivedLeadNames = () => {
+      const nextWrappedArchivedLeadNames: Record<string, boolean> = {}
+
+      paginatedLeads.forEach((lead) => {
+        const archivedLeadNameElement = archivedLeadNameRefs.current[lead.id]
+
+        if (!archivedLeadNameElement) {
+          nextWrappedArchivedLeadNames[lead.id] = false
+          return
+        }
+
+        const computedStyle = window.getComputedStyle(archivedLeadNameElement)
+        const lineHeight = Number.parseFloat(computedStyle.lineHeight)
+
+        if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+          nextWrappedArchivedLeadNames[lead.id] = false
+          return
+        }
+
+        const lineCount = Math.round(
+          archivedLeadNameElement.getBoundingClientRect().height / lineHeight
+        )
+
+        nextWrappedArchivedLeadNames[lead.id] = lineCount > 1
+      })
+
+      setWrappedArchivedLeadNames((currentWrappedArchivedLeadNames) => {
+        const currentKeys = Object.keys(currentWrappedArchivedLeadNames)
+        const nextKeys = Object.keys(nextWrappedArchivedLeadNames)
+
+        if (currentKeys.length !== nextKeys.length) {
+          return nextWrappedArchivedLeadNames
+        }
+
+        const hasDifference = nextKeys.some(
+          (key) => currentWrappedArchivedLeadNames[key] !== nextWrappedArchivedLeadNames[key]
+        )
+
+        return hasDifference ? nextWrappedArchivedLeadNames : currentWrappedArchivedLeadNames
+      })
+    }
+
+    recalculateWrappedArchivedLeadNames()
+    window.addEventListener('resize', recalculateWrappedArchivedLeadNames)
+
+    return () => {
+      window.removeEventListener('resize', recalculateWrappedArchivedLeadNames)
+    }
+  }, [isMobile, paginatedLeads])
 
   if (isMobile) {
     return (
@@ -159,7 +217,6 @@ export default function LeadsArquivadosPage() {
           value={searchTerm}
           onChange={(event) => {
             setSearchTerm(event.target.value)
-            setCurrentPage(1)
           }}
           onFocus={() => setIsSearchInputFocused(true)}
           onBlur={() => setIsSearchInputFocused(false)}
@@ -185,7 +242,7 @@ export default function LeadsArquivadosPage() {
           }}
         />
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedLeads.map((lead) => {
             const isHovered = hoveredLeadId === lead.id
 
@@ -382,7 +439,6 @@ export default function LeadsArquivadosPage() {
           value={searchTerm}
           onChange={(event) => {
             setSearchTerm(event.target.value)
-            setCurrentPage(1)
           }}
           onFocus={() => setIsSearchInputFocused(true)}
           onBlur={() => setIsSearchInputFocused(false)}
@@ -407,14 +463,23 @@ export default function LeadsArquivadosPage() {
         />
       </header>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
         <div
           style={{
             width: '100%',
             background: '#ffffff',
             border: '1px solid #e5e7eb',
             borderRadius: 12,
-            overflow: 'hidden',
+            overflowY: 'auto',
+            maxHeight: '100%',
+            minHeight: 0,
             boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
           }}
         >
@@ -441,6 +506,10 @@ export default function LeadsArquivadosPage() {
               >
                 <th
                   style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
                     padding: '10px 12px',
                     color: '#4b5563',
                     fontSize: 13,
@@ -459,6 +528,10 @@ export default function LeadsArquivadosPage() {
                 </th>
                 <th
                   style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
                     padding: '10px 12px',
                     color: '#4b5563',
                     fontSize: 13,
@@ -470,6 +543,10 @@ export default function LeadsArquivadosPage() {
                 </th>
                 <th
                   style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
                     padding: '10px 12px',
                     color: '#4b5563',
                     fontSize: 13,
@@ -493,7 +570,7 @@ export default function LeadsArquivadosPage() {
                       }}
                     >
                       <td
-                        colSpan={3}
+                        colSpan={2}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -501,62 +578,54 @@ export default function LeadsArquivadosPage() {
                           fontWeight: 600
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '72% 28%',
-                            alignItems: 'center',
-                            columnGap: 12
-                          }}
-                        >
-                          <span>Deletar lead arquivado?</span>
-                          <div
+                        Deletar lead arquivado?
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingDeleteLeadId(null)
+                            }}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifySelf: 'start'
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer'
                             }}
                           >
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setConfirmingDeleteLeadId(null)
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              X
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void handleDeleteLead(lead.id)
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          </div>
+                            X
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleDeleteLead(lead.id)
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✓
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -568,6 +637,7 @@ export default function LeadsArquivadosPage() {
                     key={lead.id}
                     onClick={() => navigate(`/arquivados/${lead.id}${location.search}`)}
                     style={{
+                      height: ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX,
                       borderBottom: '1px solid #f3f4f6',
                       background:
                         hoveredLeadId === lead.id || leadId === lead.id
@@ -578,7 +648,31 @@ export default function LeadsArquivadosPage() {
                     onMouseEnter={() => setHoveredLeadId(lead.id)}
                     onMouseLeave={() => setHoveredLeadId(null)}
                   >
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{lead.name}</td>
+                    <td
+                      style={{
+                        padding: wrappedArchivedLeadNames[lead.id]
+                          ? '6px 16px'
+                          : '14px 16px',
+                        color: '#111827'
+                      }}
+                    >
+                      <span
+                        ref={(element) => {
+                          setArchivedLeadNameRef(lead.id, element)
+                        }}
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'normal',
+                          lineHeight: '18px'
+                        }}
+                      >
+                        {lead.name}
+                      </span>
+                    </td>
                     <td style={{ padding: '14px 16px', textAlign: 'center' }}>
                       <span
                         style={{
@@ -687,7 +781,7 @@ export default function LeadsArquivadosPage() {
 
         <div
           style={{
-            marginTop: 'auto',
+            marginTop: 10,
             padding: '2px 2px 4px',
             display: 'flex',
             alignItems: 'center',

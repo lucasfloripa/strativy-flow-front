@@ -13,6 +13,7 @@ import {
 } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
+import { WebhookService } from '../../features/webhook/services/WebhookService'
 import LeadPage from '../LeadPage'
 
 type LeadsTableRow = {
@@ -26,6 +27,7 @@ type LeadsTableRow = {
   createdAt: string | Date | null
   lastMessageAt: string | Date | null
   nextFollowUpDueAt: string | Date | null
+  nextFollowUpId: string | null
   nextFollowUpNegotiationId: string | null
   topFollowUpStatus: 'overdue' | 'today' | 'scheduled' | 'completed' | null
   hasFollowUpOverdue: boolean
@@ -45,6 +47,7 @@ type LeadSortDirection = 'asc' | 'desc'
 type QualificationSortFocus = 'qualify' | 'notQualify' | 'unqualified'
 type NextAgendaSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
 type SourceSortFocus = 'whatsappFirst' | 'metaAdsFirst' | 'indicacaoFirst'
+
 
 const getSourceTagPresentation = (source: string): TagPresentation => {
   const normalizedSource = source
@@ -392,7 +395,6 @@ export default function LeadsPage() {
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(false)
   const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(null)
   const [isAddLeadButtonHovered, setIsAddLeadButtonHovered] = useState<boolean>(false)
-  const [, setCurrentPage] = useState<number>(1)
   const [sortKey, setSortKey] = useState<LeadSortKey>('nextAgenda')
   const [sortDirection, setSortDirection] = useState<LeadSortDirection>('desc')
   const [qualificationSortFocus, setQualificationSortFocus] = useState<QualificationSortFocus>('qualify')
@@ -412,8 +414,12 @@ export default function LeadsPage() {
   const [showOnlyNotQualified, setShowOnlyNotQualified] = useState<boolean>(false)
   const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<string | null>(null)
   const [confirmingArchiveLeadId, setConfirmingArchiveLeadId] = useState<string | null>(null)
+  const [wrappedLeadNames, setWrappedLeadNames] = useState<
+    Record<string, boolean>
+  >({})
   const isLeadSelected = Boolean(leadId)
   const previousIsLeadSelectedRef = useRef<boolean>(isLeadSelected)
+  const leadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
   const quickView = searchParams.get('view')
@@ -484,6 +490,10 @@ export default function LeadsPage() {
     setShouldRefreshOnLeadClose(true)
   }
 
+  const handleLeadCreated = () => {
+    void reload()
+  }
+
   useEffect(() => {
     const wasLeadSelected = previousIsLeadSelectedRef.current
 
@@ -497,6 +507,8 @@ export default function LeadsPage() {
 
   const leads: LeadsTableRow[] = (data.leads ?? [])
     .map((lead, index) => ({
+      // Backward-compatible extraction in case API already returns this field.
+      nextFollowUpId: ((lead as { nextFollowUpId?: string | null }).nextFollowUpId ?? null),
       id: lead.id,
       name: lead.name ?? `Lead ${index + 1}`,
       phone: lead.phone ?? '-',
@@ -516,6 +528,65 @@ export default function LeadsPage() {
       hasFollowUpScheduled: lead.hasFollowUpScheduled ?? false,
       hasAnyFollowUp: lead.hasAnyFollowUp ?? false
     }))
+
+  const openLeadNextAgendaFollowUp = async (lead: LeadsTableRow) => {
+    if (!lead.nextFollowUpNegotiationId) {
+      return
+    }
+
+    const baseState = {
+      initialLeadTab: 'negocios' as const,
+      initialBusinessId: lead.nextFollowUpNegotiationId,
+      initialBusinessTab: 'followups' as const
+    }
+
+    if (lead.nextFollowUpId) {
+      navigate(`/leads/${lead.id}${location.search}`, {
+        state: {
+          ...baseState,
+          initialBusinessFollowUpId: lead.nextFollowUpId
+        }
+      })
+      return
+    }
+
+    try {
+      const allFollowUps = await WebhookService.loadNegotiationFollowUps()
+      const businessFollowUps = allFollowUps.filter(
+        (followUp) => followUp.negotiationId === lead.nextFollowUpNegotiationId
+      )
+
+      let targetFollowUpId: string | null = null
+      const targetDueTimestamp = lead.nextFollowUpDueAt
+        ? getApiDateTimestamp(lead.nextFollowUpDueAt)
+        : Number.NaN
+
+      if (Number.isFinite(targetDueTimestamp) && businessFollowUps.length > 0) {
+        const pendingFollowUps = businessFollowUps.filter((followUp) => followUp.status === 'pending')
+        const candidates = pendingFollowUps.length > 0 ? pendingFollowUps : businessFollowUps
+        const sortedCandidates = [...candidates].sort((first, second) => {
+          const firstDiff = Math.abs(getApiDateTimestamp(first.dueAt) - targetDueTimestamp)
+          const secondDiff = Math.abs(getApiDateTimestamp(second.dueAt) - targetDueTimestamp)
+          return firstDiff - secondDiff
+        })
+
+        targetFollowUpId = sortedCandidates[0]?.id ?? null
+      }
+
+      navigate(`/leads/${lead.id}${location.search}`, {
+        state: targetFollowUpId
+          ? {
+              ...baseState,
+              initialBusinessFollowUpId: targetFollowUpId
+            }
+          : baseState
+      })
+    } catch {
+      navigate(`/leads/${lead.id}${location.search}`, {
+        state: baseState
+      })
+    }
+  }
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
   const normalizedSearchDigits = normalizePhoneDigits(searchTerm)
@@ -653,18 +724,64 @@ export default function LeadsPage() {
 
   const paginatedLeads = sortedFilteredLeads
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [
-    searchTerm,
-    showOnlyFavorites,
-    showOnlyNewLeads,
-    showOnlyWithoutConversation24h,
-    showOnlyQualified,
-    showOnlyNotQualified,
-    quickView
-  ])
+  const setLeadNameRef = (leadId: string, element: HTMLSpanElement | null) => {
+    leadNameRefs.current[leadId] = element
+  }
 
+  useEffect(() => {
+    if (isMobile) {
+      return
+    }
+
+    const recalculateWrappedNames = () => {
+      const nextWrappedNames: Record<string, boolean> = {}
+
+      paginatedLeads.forEach((lead) => {
+        const leadNameElement = leadNameRefs.current[lead.id]
+
+        if (!leadNameElement) {
+          nextWrappedNames[lead.id] = false
+          return
+        }
+
+        const computedStyle = window.getComputedStyle(leadNameElement)
+        const lineHeight = Number.parseFloat(computedStyle.lineHeight)
+
+        if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+          nextWrappedNames[lead.id] = false
+          return
+        }
+
+        const lineCount = Math.round(
+          leadNameElement.getBoundingClientRect().height / lineHeight
+        )
+
+        nextWrappedNames[lead.id] = lineCount > 1
+      })
+
+      setWrappedLeadNames((currentWrappedNames) => {
+        const currentKeys = Object.keys(currentWrappedNames)
+        const nextKeys = Object.keys(nextWrappedNames)
+
+        if (currentKeys.length !== nextKeys.length) {
+          return nextWrappedNames
+        }
+
+        const hasDifference = nextKeys.some(
+          (key) => currentWrappedNames[key] !== nextWrappedNames[key]
+        )
+
+        return hasDifference ? nextWrappedNames : currentWrappedNames
+      })
+    }
+
+    recalculateWrappedNames()
+    window.addEventListener('resize', recalculateWrappedNames)
+
+    return () => {
+      window.removeEventListener('resize', recalculateWrappedNames)
+    }
+  }, [isMobile, paginatedLeads])
   useEffect(() => {
     if (!isLeadSelected) {
       setIsLeadPanelEntering(false)
@@ -1064,7 +1181,7 @@ export default function LeadsPage() {
           </div>
         ) : null}
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedLeads.map((lead) => {
             const isArchivedLead = lead.state === 'archived'
             const shouldShowNewTag = isNewLead(lead.createdAt)
@@ -1312,13 +1429,7 @@ export default function LeadsPage() {
                           return
                         }
 
-                        navigate(`/leads/${lead.id}${location.search}`, {
-                          state: {
-                            initialLeadTab: 'negocios',
-                            initialBusinessId: lead.nextFollowUpNegotiationId,
-                            initialBusinessTab: 'followups'
-                          }
-                        })
+                        void openLeadNextAgendaFollowUp(lead)
                       }}
                       style={{
                         margin: '8px 0 0 24px',
@@ -1355,6 +1466,19 @@ export default function LeadsPage() {
           ) : null}
         </div>
 
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            paddingTop: 2
+          }}
+        >
+          <span style={{ color: '#6b7280', fontSize: 13 }}>
+            {filteredLeads.length} lead{filteredLeads.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
         {leadId === 'new' ? (
           <>
             <button
@@ -1385,7 +1509,7 @@ export default function LeadsPage() {
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
-              <LeadPage onLeadUpdated={handleLeadUpdated} />
+              <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
             </aside>
           </>
         ) : isLeadSelected ? (
@@ -1398,7 +1522,7 @@ export default function LeadsPage() {
               overflow: 'hidden'
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} />
+            <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
           </aside>
         ) : null}
       </section>
@@ -1589,7 +1713,9 @@ export default function LeadsPage() {
       <div
         style={{
           flex: 1,
-          minHeight: 0
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         {activeFilterTags.length > 0 ? (
@@ -1651,7 +1777,9 @@ export default function LeadsPage() {
             background: '#ffffff',
             border: '1px solid #e5e7eb',
             borderRadius: 12,
-            overflow: 'hidden',
+            overflowY: 'auto',
+            maxHeight: '100%',
+            minHeight: 0,
             boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
           }}
         >
@@ -1673,7 +1801,7 @@ export default function LeadsPage() {
             </colgroup>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('name')}
@@ -1682,7 +1810,7 @@ export default function LeadsPage() {
                     Nome <span style={{ fontSize: 11 }}>{getSortIndicator('name')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('qualification')}
@@ -1691,7 +1819,7 @@ export default function LeadsPage() {
                     Qualificação <span style={{ fontSize: 11 }}>{getSortIndicator('qualification')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('nextAgenda')}
@@ -1700,7 +1828,7 @@ export default function LeadsPage() {
                     Próxima agenda <span style={{ fontSize: 11 }}>{getSortIndicator('nextAgenda')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('lastContact')}
@@ -1709,7 +1837,7 @@ export default function LeadsPage() {
                     Último contato <span style={{ fontSize: 11 }}>{getSortIndicator('lastContact')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button
                     type="button"
                     onClick={() => handleSortToggle('source')}
@@ -1718,7 +1846,7 @@ export default function LeadsPage() {
                     Origem <span style={{ fontSize: 11 }}>{getSortIndicator('source')}</span>
                   </button>
                 </th>
-                <th style={{ padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
                   Ações
                 </th>
               </tr>
@@ -1749,89 +1877,78 @@ export default function LeadsPage() {
                       onMouseLeave={() => setHoveredLeadId(null)}
                     >
                       <td
-                        colSpan={6}
+                        colSpan={5}
                         style={{
-                          padding: '14px 12px',
+                          padding: '14px 16px',
                           color: '#2f2f2f',
                           fontSize: 13,
                           fontWeight: 600
                         }}
                       >
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '24% 14% 18% 16% 18% 10%',
-                            alignItems: 'center',
-                            columnGap: 12
-                          }}
-                        >
-                          <span style={{ gridColumn: '1 / 6' }}>Arquivar Lead?</span>
-                          <div
+                        Arquivar Lead?
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            aria-label="Cancelar arquivamento de lead"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingArchiveLeadId(null)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifySelf: 'start',
-                              gridColumn: '6 / 7',
-                              paddingLeft: 16,
-                              boxSizing: 'border-box'
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
                             }}
                           >
-                            <button
-                              type="button"
-                              aria-label="Cancelar arquivamento de lead"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setConfirmingArchiveLeadId(null)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              X
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Confirmar arquivamento de lead"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void handleArchiveLead(lead.id)
-                              }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
-                              style={{
-                                height: 24,
-                                width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
-                                color: '#4b5563',
-                                padding: 0,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                              }}
-                            >
-                              ✓
-                            </button>
-                          </div>
+                            X
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Confirmar arquivamento de lead"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleArchiveLead(lead.id)
+                            }}
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.background = '#ffffff'
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: '1px solid #e5e7eb',
+                              borderRadius: 4,
+                              background: '#ffffff',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s'
+                            }}
+                          >
+                            ✓
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1946,7 +2063,29 @@ export default function LeadsPage() {
                       setHoveredNextAgendaValueLeadId(null)
                     }}
                   >
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{lead.name}</td>
+                    <td
+                      style={{
+                        padding: wrappedLeadNames[lead.id]
+                          ? '6px 16px'
+                          : '14px 16px',
+                        color: '#111827'
+                      }}
+                    >
+                      <span
+                        ref={(element) => setLeadNameRef(lead.id, element)}
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'normal',
+                          lineHeight: '18px'
+                        }}
+                      >
+                        {lead.name}
+                      </span>
+                    </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {leadQualificationLabel === '-' ? (
                         <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
@@ -1994,13 +2133,7 @@ export default function LeadsPage() {
                               return
                             }
 
-                            navigate(`/leads/${lead.id}${location.search}`, {
-                              state: {
-                                initialLeadTab: 'negocios',
-                                initialBusinessId: lead.nextFollowUpNegotiationId,
-                                initialBusinessTab: 'followups'
-                              }
-                            })
+                            void openLeadNextAgendaFollowUp(lead)
                           }}
                           style={{
                             fontSize: 12,
@@ -2229,18 +2362,16 @@ export default function LeadsPage() {
 
         <div
           style={{
-            marginTop: 'auto',
+            marginTop: 10,
             padding: '2px 2px 4px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
             gap: 8
           }}
         >
           <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 8 }}>
             {filteredLeads.length} lead{filteredLeads.length === 1 ? '' : 's'}
           </span>
-
         </div>
 
         {isLeadSelected && !isMobile ? (
@@ -2282,7 +2413,7 @@ export default function LeadsPage() {
               transition: `transform ${leadPanelTransitionMs}ms ease`
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} />
+            <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
           </aside>
         ) : null}
       </div>
