@@ -6082,9 +6082,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 12,
+                height: '100%',
                 minHeight: 0,
                 flex: 1,
-                position: 'relative'
+                position: 'relative',
+                overflow: 'hidden'
               }}
             >
               {isMobile && isCreatingBusinessNote ? (
@@ -6101,17 +6103,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     setBusinessesError(null)
                   }}
                   style={{
-                    position: 'absolute',
+                    position: 'fixed',
                     inset: 0,
                     border: 'none',
                     background: 'rgba(15, 23, 42, 0.18)',
-                    zIndex: 40,
+                    zIndex: 140,
                     cursor: 'default'
                   }}
                 />
               ) : null}
 
-              {!isCreatingBusinessNote && !viewedBusinessNote ? (
+              {!viewedBusinessNote ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                     <button
@@ -6277,7 +6279,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     )}
                   </div>
                 </>
-              ) : isCreatingBusinessNote ? (
+              ) : null}
+
+              {isCreatingBusinessNote ? (
                 <section
                   style={{
                     display: 'flex',
@@ -6287,16 +6291,18 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     minHeight: 0,
                     boxSizing: 'border-box',
                     overflow: 'hidden',
-                    position: isMobile ? 'absolute' : 'relative',
+                    position: isMobile ? 'fixed' : 'relative',
                     left: isMobile ? 0 : 'auto',
                     right: isMobile ? 0 : 'auto',
                     bottom: isMobile ? 0 : 'auto',
+                    top: isMobile ? 'auto' : 'auto',
                     maxHeight: isMobile ? '86%' : 'none',
-                    zIndex: isMobile ? 45 : 'auto',
+                    zIndex: isMobile ? 145 : 'auto',
                     borderRadius: isMobile ? '22px 22px 0 0' : 0,
                     background: isMobile ? '#ffffff' : 'transparent',
                     boxShadow: isMobile ? '0 -18px 36px rgba(15, 23, 42, 0.18)' : 'none',
-                    padding: isMobile ? '22px 18px 28px' : 0
+                    padding: isMobile ? '22px 18px calc(28px + env(safe-area-inset-bottom))' : 0,
+                    width: isMobile ? '100%' : 'auto'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -6343,6 +6349,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       minHeight: 0,
                       overflowY: 'auto',
                       overflowX: 'hidden',
+                      paddingBottom: isMobile ? 'calc(88px + env(safe-area-inset-bottom))' : 10,
                       paddingRight: isMobile ? 2 : 6,
                       boxSizing: 'border-box'
                     }}

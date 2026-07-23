@@ -1492,7 +1492,9 @@ export default function LeadsPage() {
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
