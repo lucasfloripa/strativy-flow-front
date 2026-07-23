@@ -2824,13 +2824,29 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
+          height: '100%',
           minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '22px 18px 28px' : 0
         }}
       >
         {isMobile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: '#ffffff',
+              paddingBottom: 6
+            }}
+          >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
               Novo follow-up
             </h3>
@@ -3177,7 +3193,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -3554,13 +3572,29 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
+          height: '100%',
           minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '22px 18px 28px' : 0
         }}
       >
         {isMobile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: '#ffffff',
+              paddingBottom: 6
+            }}
+          >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
               {editingBusinessFollowUp ? 'Editar follow-up' : 'Novo follow-up'}
             </h3>
@@ -4161,7 +4195,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -6758,12 +6794,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const businessCreateContent = (
         <section
           style={{
-            display: 'grid',
-            alignContent: 'start',
+            display: 'flex',
+            flexDirection: 'column',
             gap: 16,
             height: isMobile ? 'auto' : '100%',
             minHeight: isMobile ? 'auto' : 0,
-            overflowY: isMobile ? 'visible' : 'auto',
+            overflow: 'hidden',
             padding: isMobile ? '22px 18px 28px' : 0,
             boxSizing: 'border-box'
           }}
@@ -6811,7 +6847,13 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               background: 'transparent',
               display: 'grid',
               gap: 18,
-              maxWidth: isMobile ? 'none' : 760
+              maxWidth: isMobile ? 'none' : 760,
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              paddingRight: isMobile ? 2 : 6,
+              boxSizing: 'border-box'
             }}
           >
             {isMobile ? (
@@ -7644,7 +7686,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -7734,13 +7778,29 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
+          height: '100%',
           minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '22px 18px 28px' : 0
         }}
       >
         {isMobile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: '#ffffff',
+              paddingBottom: 6
+            }}
+          >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
               Nova nota
             </h3>
@@ -8226,7 +8286,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
@@ -8521,7 +8583,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
-          gap: 16
+          gap: 16,
+          overflow: 'hidden'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -8563,7 +8626,13 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             background: isMobile ? 'transparent' : '#ffffff',
             display: 'grid',
             gap: 18,
-            maxWidth: isMobile ? 'none' : 760
+            maxWidth: isMobile ? 'none' : 760,
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: isMobile ? 2 : 6,
+            boxSizing: 'border-box'
           }}
         >
           <div

@@ -1099,13 +1099,17 @@ export default function NegociosPage() {
           zIndex: 45,
           borderRadius: '22px 22px 0 0',
           background: '#ffffff',
-          overflowY: 'auto',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
         }}
       >
         <section
           style={{
             height: '100%',
+            minHeight: 0,
+            overflow: 'hidden',
             padding: '22px 18px 28px',
             display: 'flex',
             flexDirection: 'column',
@@ -1147,7 +1151,18 @@ export default function NegociosPage() {
           <p style={{ margin: 0, color: '#b91c1c' }}>{businessCreateError}</p>
         ) : null}
 
-        <div style={{ display: 'grid', gap: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 14,
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: 2,
+            boxSizing: 'border-box'
+          }}
+        >
           <div style={{ display: 'grid', gap: 8 }}>
             <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Lead</label>
             <select

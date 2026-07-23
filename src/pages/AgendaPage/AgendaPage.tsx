@@ -1167,11 +1167,12 @@ export default function AgendaPage() {
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
-                overflowY: 'auto',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)',
                 padding: '22px 18px 28px',
                 boxSizing: 'border-box',
-                display: 'grid',
                 gap: 18
               }}
             >
@@ -1204,7 +1205,18 @@ export default function AgendaPage() {
 
               {agendaFollowUpError ? <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p> : null}
 
-              <div style={{ display: 'grid', gap: 14 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gap: 14,
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  paddingRight: 2,
+                  boxSizing: 'border-box'
+                }}
+              >
                 <div style={{ display: 'grid', gap: 8 }}>
                   <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
                   <div style={{ position: 'relative' }}>
