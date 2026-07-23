@@ -498,6 +498,7 @@ export function AuthenticatedLayout() {
   const mobileBottomNavHeight = 82
   const mobileBottomNavBottomInset = -8
   const mobileBottomNavOffset = `${mobileBottomNavHeight + mobileBottomNavBottomInset}px`
+  const mobileBodyExtraTrim = 40
   const hideMobileNotificationIcons = isMobile && selectedSettingsTab === 'notificacoes'
   const mobileNotificationActionTextStyle = {
     border: 'none',
@@ -1246,8 +1247,8 @@ export function AuthenticatedLayout() {
         style={{
           flex: 1,
           minWidth: 0,
-          height: isMobile ? `calc(100% - ${mobileBottomNavOffset})` : '100%',
-          maxHeight: isMobile ? `calc(100% - ${mobileBottomNavOffset})` : '100%',
+          height: isMobile ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)` : '100%',
+          maxHeight: isMobile ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)` : '100%',
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
