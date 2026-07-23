@@ -6152,7 +6152,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 />
               ) : null}
 
-              {!viewedBusinessNote ? (
+              {!isCreatingBusinessNote && !viewedBusinessNote ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                     <button
