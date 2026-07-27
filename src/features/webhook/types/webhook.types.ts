@@ -23,6 +23,7 @@ export type ChatMessage = {
   mimeType?: string | null
   mediaSize?: number | null
   fileName?: string | null
+  createdAt?: string
 }
 
 export type LeadRuntimeMode = 'HUMAN' | 'AUTOMATION'

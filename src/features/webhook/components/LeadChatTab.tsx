@@ -35,6 +35,22 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
     (mediaUploader.uploadingType === 'image' || mediaUploader.uploadingType === 'video')
   const isAnyUploadActive = mediaUploader.isUploading
 
+  const lastInboundMessage = messages
+    .filter((msg) => msg.direction === 'inbound')
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return bTime - aTime
+    })[0]
+
+  const shouldShowReopenButton = (() => {
+    if (!lastInboundMessage?.createdAt) return false
+    const lastInboundTime = new Date(lastInboundMessage.createdAt).getTime()
+    const now = Date.now()
+    const hoursSinceLastInbound = (now - lastInboundTime) / (1000 * 60 * 60)
+    return hoursSinceLastInbound > 24
+  })()
+
   useEffect(() => {
     if (!leadId.trim()) {
       return
@@ -245,6 +261,42 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
             ))
           )}
         </div>
+
+        {shouldShowReopenButton && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              padding: '12px 16px',
+              borderTop: '1px solid #e5e7eb',
+              backgroundColor: '#f9fafb'
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Reabrir conversa"
+              style={{
+                padding: '10px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: interactionTheme.primaryButtonBackground,
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 120ms ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = interactionTheme.primaryButtonHoverBackground
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = interactionTheme.primaryButtonBackground
+              }}
+            >
+              Reabrir conversa
+            </button>
+          </div>
+        )}
 
         <form
           onSubmit={handleSendSubmit}
