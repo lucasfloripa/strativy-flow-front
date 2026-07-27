@@ -1292,12 +1292,10 @@ export default function AgendaPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)',
-                padding: '22px 18px 28px',
-                boxSizing: 'border-box',
-                gap: 18
+                boxSizing: 'border-box'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '22px 18px 12px', flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Novo follow-up</h2>
                 </div>
@@ -1324,8 +1322,6 @@ export default function AgendaPage() {
                 </button>
               </div>
 
-              {agendaFollowUpError ? <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p> : null}
-
               <div
                 style={{
                   display: 'grid',
@@ -1334,10 +1330,12 @@ export default function AgendaPage() {
                   minHeight: 0,
                   overflowY: 'auto',
                   overflowX: 'hidden',
-                  paddingRight: 2,
+                  padding: '18px 18px 28px',
                   boxSizing: 'border-box'
                 }}
               >
+                {agendaFollowUpError ? <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p> : null}
+
                 <div style={{ display: 'grid', gap: 8 }}>
                   <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
                   <div style={{ position: 'relative' }}>
@@ -1900,14 +1898,12 @@ export default function AgendaPage() {
               style={{
                 height: '100%',
                 minHeight: 0,
-                padding: '24px',
                 boxSizing: 'border-box',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 16
+                flexDirection: 'column'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '24px 24px 12px', flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
                     Novo follow-up
@@ -1936,24 +1932,22 @@ export default function AgendaPage() {
                 </button>
               </div>
 
-              {agendaFollowUpError ? (
-                <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p>
-              ) : null}
-
               <article
                 style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 16,
-                  padding: 24,
-                  background: '#ffffff',
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  padding: '12px 24px 24px',
+                  boxSizing: 'border-box',
                   display: 'grid',
                   gap: 18,
-                  maxWidth: 760,
-                  overflowY: 'auto',
-                  flex: 1,
-                  minHeight: 0
+                  maxWidth: 760
                 }}
               >
+                {agendaFollowUpError ? (
+                  <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p>
+                ) : null}
+
                 <div
                   style={{
                     display: 'grid',
