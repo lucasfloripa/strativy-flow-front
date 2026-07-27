@@ -412,6 +412,30 @@ export function LeadChatTab({
               </div>
             ) : null}
 
+            {selectedTemplate ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>
+                  Descrição
+                </label>
+                <textarea
+                  readOnly
+                  value={selectedTemplate.description ?? ''}
+                  style={{
+                    minHeight: 80,
+                    border: '1px solid #d7dce4',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    color: '#111827',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    boxSizing: 'border-box',
+                    backgroundColor: '#f9fafb',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            ) : null}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
               <button
                 type="button"
@@ -454,7 +478,7 @@ export function LeadChatTab({
                 }}
               >
                 {isSending ? <Loader2 size={16} /> : null}
-                {isSending ? 'Reabrindo...' : 'Reabrir'}
+                {isSending ? 'Enviando...' : 'Enviar'}
               </button>
             </div>
           </div>
