@@ -2919,8 +2919,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
-            paddingLeft: isMobile ? 18 : 0,
-            paddingRight: isMobile ? 18 : 0,
+            paddingLeft: 18,
+            paddingRight: 18,
+            paddingTop: isMobile ? 0 : 12,
             paddingBottom: 28,
             boxSizing: 'border-box'
           }}
@@ -3246,7 +3247,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 background: 'transparent',
                 display: 'grid',
                 gap: 18,
-                maxWidth: 760
+                maxWidth: '100%',
+                flex: 1,
+                minHeight: 0
               }}
             >
               {agendaFollowUpCreateForm}
