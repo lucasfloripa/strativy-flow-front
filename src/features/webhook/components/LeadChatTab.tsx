@@ -219,7 +219,7 @@ export function LeadChatTab({
         })
       }
 
-      await WebhookService.sendMessage(leadId, messageContent)
+      await WebhookService.sendMessage(leadId, messageContent, 'template')
       setIsReopeningConversation(false)
       setSelectedTemplateId('')
       setTemplateVariables({})

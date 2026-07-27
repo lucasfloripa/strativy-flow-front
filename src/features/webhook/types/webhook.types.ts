@@ -7,12 +7,15 @@ export type ChatMessageApi = {
   mimeType?: string | null
   mediaSize?: number | null
   fileName?: string | null
+  source?: 'normal' | 'template'
   createdAt?: string
 }
 
 export type ChatMessageDirection = 'inbound' | 'outbound'
 
 export type ChatMessageType = 'text' | 'image' | 'audio' | 'video' | 'document'
+
+export type ChatMessageSource = 'normal' | 'template'
 
 export type ChatMessage = {
   id: string
@@ -23,6 +26,7 @@ export type ChatMessage = {
   mimeType?: string | null
   mediaSize?: number | null
   fileName?: string | null
+  source: ChatMessageSource
   createdAt?: string
 }
 

@@ -43,6 +43,7 @@ export const WebhookService = {
       mimeType: message.mimeType ?? null,
       mediaSize: message.mediaSize ?? null,
       fileName: message.fileName ?? null,
+      source: message.source ?? 'normal',
       createdAt: message.createdAt
     }
   },
@@ -155,10 +156,10 @@ export const WebhookService = {
     return data
   },
 
-  async sendMessage(leadId: string, content: string): Promise<ChatMessage> {
+  async sendMessage(leadId: string, content: string, source?: 'normal' | 'template'): Promise<ChatMessage> {
     const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
       `/leads/${leadId}/messages`,
-      { content }
+      { content, source }
     )
 
     return this.mapMessageFromApi(data.message)
