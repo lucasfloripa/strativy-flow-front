@@ -2858,16 +2858,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const agendaFollowUpCreateForm = (
       <section
         style={{
-          display: 'grid',
-          alignContent: 'start',
-          gap: 16,
+          display: 'flex',
+          flexDirection: 'column',
           height: '100%',
           minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          paddingRight: isMobile ? 2 : 6,
-          boxSizing: 'border-box',
-          padding: isMobile ? '0 18px 28px' : 0
+          background: '#ffffff'
         }}
       >
         {isMobile ? (
@@ -2875,14 +2870,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             style={{
               position: 'sticky',
               top: 0,
-              zIndex: 1,
+              zIndex: 10,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 12,
               background: '#ffffff',
               paddingTop: 22,
-              paddingBottom: 6
+              paddingBottom: 6,
+              paddingLeft: 18,
+              paddingRight: 18,
+              borderBottom: '1px solid #e5e7eb'
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
@@ -2912,39 +2910,54 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Negócio</label>
-          <select
-            value={agendaFollowUpDraft.negotiationId}
-            onChange={(event) =>
-              setAgendaFollowUpDraft((currentDraft) => ({
-                ...currentDraft,
-                negotiationId: event.target.value
-              }))
-            }
-            style={{
-              width: '100%',
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              fontWeight: 600,
-              boxSizing: 'border-box',
-              background: '#ffffff'
-            }}
-          >
-            <option value="">Selecione</option>
-            {leadNegotiations.map((business) => (
-              <option key={business.id} value={business.id}>
-                {business.title ?? 'Negócio sem nome'}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div
+          style={{
+            display: 'grid',
+            alignContent: 'start',
+            gap: 16,
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingLeft: isMobile ? 18 : 0,
+            paddingRight: isMobile ? 18 : 0,
+            paddingBottom: 28,
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ display: 'grid', gap: 8 }}>
+            <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Negócio</label>
+            <select
+              value={agendaFollowUpDraft.negotiationId}
+              onChange={(event) =>
+                setAgendaFollowUpDraft((currentDraft) => ({
+                  ...currentDraft,
+                  negotiationId: event.target.value
+                }))
+              }
+              style={{
+                width: '100%',
+                height: isMobile ? 46 : 42,
+                border: '1px solid #d7dce4',
+                borderRadius: 10,
+                padding: '0 14px',
+                color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280',
+                fontSize: isMobile ? 17 / 1.2 : 14,
+                fontWeight: 600,
+                boxSizing: 'border-box',
+                background: '#ffffff'
+              }}
+            >
+              <option value="">Selecione</option>
+              {leadNegotiations.map((business) => (
+                <option key={business.id} value={business.id}>
+                  {business.title ?? 'Negócio sem nome'}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {hasSelectedAgendaBusiness ? (
+          {hasSelectedAgendaBusiness ? (
           <>
             <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Título</label>
@@ -3138,6 +3151,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             Selecione um negócio para continuar.
           </p>
         )}
+        </div>
       </section>
     )
 
