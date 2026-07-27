@@ -511,7 +511,7 @@ export function LeadChatTab({
                 flex: 1
               }}
             >
-              Clique no botão para conversar com o cliente.
+              Este lead deixou de enviar mensagens há mais de 24 horas. Clique no botão para conversar com o cliente.
             </p>
             <button
               type="button"
