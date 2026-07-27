@@ -1,28 +1,9 @@
-import { FileText } from 'lucide-react'
-
 import { AudioMessagePlayer } from './AudioMessagePlayer'
+import { DocumentMessageContent } from './DocumentMessageContent'
 import type { ChatMessage } from '../types/webhook.types'
 
 type MessageContentProps = {
   message: ChatMessage
-}
-
-const formatFileSize = (sizeInBytes?: number | null): string | null => {
-  if (typeof sizeInBytes !== 'number' || Number.isNaN(sizeInBytes) || sizeInBytes <= 0) {
-    return null
-  }
-
-  if (sizeInBytes < 1024) {
-    return `${sizeInBytes} B`
-  }
-
-  const sizeInKb = sizeInBytes / 1024
-  if (sizeInKb < 1024) {
-    return `${sizeInKb.toFixed(1)} KB`
-  }
-
-  const sizeInMb = sizeInKb / 1024
-  return `${sizeInMb.toFixed(1)} MB`
 }
 
 const renderUnavailableMedia = () => {
@@ -80,50 +61,14 @@ export function MessageContent({ message }: MessageContentProps) {
         </div>
       ) : renderUnavailableMedia()
     case 'document': {
-      const formattedFileSize = formatFileSize(message.mediaSize)
-
       return message.mediaUrl ? (
-        <div
-          style={{
-            display: 'grid',
-            gap: 10,
-            minWidth: 220
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileText size={18} />
-            </span>
-            <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
-              <span style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {message.fileName || 'Documento'}
-              </span>
-              {formattedFileSize ? <span style={{ fontSize: 12, opacity: 0.82 }}>{formattedFileSize}</span> : null}
-            </div>
-          </div>
-          {message.content ? <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.content}</span> : null}
-          <a
-            href={message.mediaUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: 34,
-              padding: '0 12px',
-              borderRadius: 8,
-              border: '1px solid currentColor',
-              color: 'inherit',
-              textDecoration: 'none',
-              fontSize: 13,
-              fontWeight: 700,
-              width: 'fit-content'
-            }}
-          >
-            Abrir documento
-          </a>
-        </div>
+        <DocumentMessageContent
+          mediaUrl={message.mediaUrl}
+          fileName={message.fileName}
+          mediaSize={message.mediaSize}
+          mimeType={message.mimeType}
+          caption={message.content}
+        />
       ) : renderUnavailableMedia()
     }
     case 'text':

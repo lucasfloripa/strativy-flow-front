@@ -1,12 +1,12 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Mic, SendHorizontal } from 'lucide-react'
+import { ImagePlus, Loader2, Paperclip, SendHorizontal } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { useRealtime } from '../../../core/realtime/useRealtime'
+import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
-import { RecordingComposer } from './RecordingComposer'
-import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { useChatMediaUpload } from '../hooks/useChatMediaUpload'
 import { WebhookService } from '../services/WebhookService'
 import type { ChatMessage, ChatMessageApi } from '../types/webhook.types'
 
@@ -16,24 +16,24 @@ type LeadChatTabProps = {
 
 export function LeadChatTab({ leadId }: LeadChatTabProps) {
   const realtime = useRealtime()
-  const audioRecorder = useAudioRecorder()
+  const mediaUploader = useChatMediaUpload()
   const [message, setMessage] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isSending, setIsSending] = useState<boolean>(false)
-  const [isUploadingAudio, setIsUploadingAudio] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false)
-  const [isAudioButtonHovered, setIsAudioButtonHovered] = useState<boolean>(false)
+  const [isAttachmentButtonHovered, setIsAttachmentButtonHovered] = useState<boolean>(false)
+  const [isImageButtonHovered, setIsImageButtonHovered] = useState<boolean>(false)
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
 
-  const recordingDurationInSeconds = Math.floor(audioRecorder.recordingDurationInMs / 1000)
-  const recordingMinutes = Math.floor(recordingDurationInSeconds / 60)
-  const recordingSeconds = recordingDurationInSeconds % 60
-  const recordingDurationLabel = `${String(recordingMinutes).padStart(2, '0')}:${String(recordingSeconds).padStart(2, '0')}`
-  const isRecordingActive = audioRecorder.isRecording || isUploadingAudio
+  const isUploadingDocument = mediaUploader.isUploading && mediaUploader.uploadingType === 'document'
+  const isUploadingImageOrVideo =
+    mediaUploader.isUploading &&
+    (mediaUploader.uploadingType === 'image' || mediaUploader.uploadingType === 'video')
+  const isAnyUploadActive = mediaUploader.isUploading
 
   useEffect(() => {
     if (!leadId.trim()) {
@@ -139,72 +139,55 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
     }
   }
 
-  const handleStartRecording = async () => {
-    if (!audioRecorder.isSupported) {
-      setError('Seu navegador nao suporta gravacao de audio.')
-      return
-    }
+  const handleDocumentSelected = async (selectedFile: File) => {
+    const caption = message.trim()
 
     try {
       setError(null)
-      await audioRecorder.startRecording()
+
+      const wasUploaded = await mediaUploader.uploadMedia({
+        leadId,
+        file: selectedFile,
+        type: 'document',
+        ...(caption ? { caption } : {})
+      })
+
+      if (wasUploaded && caption) {
+        setMessage('')
+      }
     } catch (exception: unknown) {
-      const messageText =
+      const errorMessage =
         exception instanceof Error && exception.message.trim().length > 0
           ? exception.message
-          : 'Nao foi possivel acessar o microfone. Verifique as permissoes e tente novamente.'
-
-      setError(messageText)
+          : 'Nao foi possivel enviar documento. Tente novamente.'
+      setError(errorMessage)
     }
   }
 
-  const handleCancelRecording = async () => {
-    try {
-      await audioRecorder.cancelRecording()
-    } finally {
-      setIsUploadingAudio(false)
-    }
-  }
+  const handleImageSelected = async (selectedFile: File) => {
+    const caption = message.trim()
+    const isVideo = selectedFile.type.startsWith('video/')
+    const mediaType = isVideo ? 'video' : 'image'
 
-  const handleFinishRecording = async () => {
     try {
       setError(null)
-      setIsUploadingAudio(true)
 
-      const recordedAudioBlob = await audioRecorder.stopRecording()
-
-      if (!recordedAudioBlob || recordedAudioBlob.size === 0) {
-        setError('Nao foi possivel finalizar a gravacao de audio.')
-        return
-      }
-
-      const mimeType = recordedAudioBlob.type || 'audio/webm'
-      const extension = mimeType.includes('ogg')
-        ? 'ogg'
-        : mimeType.includes('mpeg')
-          ? 'mp3'
-          : mimeType.includes('mp4')
-            ? 'mp4'
-            : mimeType.includes('aac')
-              ? 'aac'
-              : mimeType.includes('amr')
-                ? 'amr'
-                : 'webm'
-
-      const audioFile = new File(
-        [recordedAudioBlob],
-        `audio-${Date.now()}.${extension}`,
-        { type: mimeType }
-      )
-
-      await WebhookService.sendMediaMessage(leadId, {
-        file: audioFile,
-        type: 'audio'
+      const wasUploaded = await mediaUploader.uploadMedia({
+        leadId,
+        file: selectedFile,
+        type: mediaType,
+        ...(caption ? { caption } : {})
       })
-    } catch {
-      setError('Nao foi possivel enviar o audio. Tente novamente.')
-    } finally {
-      setIsUploadingAudio(false)
+
+      if (wasUploaded && caption) {
+        setMessage('')
+      }
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error && exception.message.trim().length > 0
+          ? exception.message
+          : `Nao foi possivel enviar ${isVideo ? 'video' : 'imagem'}. Tente novamente.`
+      setError(errorMessage)
     }
   }
 
@@ -267,19 +250,7 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
           onSubmit={handleSendSubmit}
           style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb' }}
         >
-          {isRecordingActive ? (
-            <RecordingComposer
-              durationLabel={recordingDurationLabel}
-              isUploading={isUploadingAudio}
-              onCancel={() => {
-                void handleCancelRecording()
-              }}
-              onFinish={() => {
-                void handleFinishRecording()
-              }}
-            />
-          ) : (
-            <>
+          <>
               <input
                 ref={messageInputRef}
                 type="text"
@@ -288,7 +259,7 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
                 onFocus={() => setIsInputFocused(true)}
                 onBlur={() => setIsInputFocused(false)}
                 placeholder="Digite uma mensagem..."
-                disabled={isSending}
+                disabled={isSending || isAnyUploadActive}
                 style={{
                   flex: 1,
                   height: 40,
@@ -305,39 +276,80 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
                     : 'none'
                 }}
               />
-              <button
-                type="button"
-                aria-label="Gravar áudio"
-                onClick={() => {
-                  void handleStartRecording()
-                }}
-                onMouseEnter={() => setIsAudioButtonHovered(true)}
-                onMouseLeave={() => setIsAudioButtonHovered(false)}
-                disabled={isSending}
-                style={{
-                  height: 40,
-                  width: 40,
-                  minWidth: 40,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: isAudioButtonHovered
-                    ? interactionTheme.primaryButtonHoverBackground
-                    : interactionTheme.primaryButtonBackground,
-                  color: '#ffffff',
-                  padding: 0,
-                  cursor: isSending ? 'not-allowed' : 'pointer',
-                  opacity: isSending ? 0.7 : 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+              <MediaPicker
+                accept=".jpg,.jpeg,.png,.webp,.mp4,.3gp,image/jpeg,image/png,image/webp,video/mp4,video/3gpp"
+                disabled={isSending || isAnyUploadActive}
+                onFileSelected={handleImageSelected}
               >
-                <Mic size={18} />
-              </button>
+                {({ openPicker }) => (
+                  <button
+                    type="button"
+                    aria-label="Anexar foto ou vídeo"
+                    onClick={openPicker}
+                    onMouseEnter={() => setIsImageButtonHovered(true)}
+                    onMouseLeave={() => setIsImageButtonHovered(false)}
+                    disabled={isSending || isAnyUploadActive}
+                    style={{
+                      height: 40,
+                      width: 40,
+                      minWidth: 40,
+                      border: 'none',
+                      borderRadius: 8,
+                      background: isImageButtonHovered
+                        ? interactionTheme.primaryButtonHoverBackground
+                        : interactionTheme.primaryButtonBackground,
+                      color: '#ffffff',
+                      padding: 0,
+                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
+                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {isUploadingImageOrVideo ? <Loader2 size={18} /> : <ImagePlus size={18} />}
+                  </button>
+                )}
+              </MediaPicker>
+              <MediaPicker
+                accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                disabled={isSending || isAnyUploadActive}
+                onFileSelected={handleDocumentSelected}
+              >
+                {({ openPicker }) => (
+                  <button
+                    type="button"
+                    aria-label="Anexar documento"
+                    onClick={openPicker}
+                    onMouseEnter={() => setIsAttachmentButtonHovered(true)}
+                    onMouseLeave={() => setIsAttachmentButtonHovered(false)}
+                    disabled={isSending || isAnyUploadActive}
+                    style={{
+                      height: 40,
+                      width: 40,
+                      minWidth: 40,
+                      border: 'none',
+                      borderRadius: 8,
+                      background: isAttachmentButtonHovered
+                        ? interactionTheme.primaryButtonHoverBackground
+                        : interactionTheme.primaryButtonBackground,
+                      color: '#ffffff',
+                      padding: 0,
+                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
+                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {isUploadingDocument ? <Loader2 size={18} /> : <Paperclip size={18} />}
+                  </button>
+                )}
+              </MediaPicker>
               <button
                 type="submit"
                 aria-label="Enviar mensagem"
-                disabled={isSending}
+                disabled={isSending || isAnyUploadActive}
                 onMouseEnter={() => setIsSendButtonHovered(true)}
                 onMouseLeave={() => setIsSendButtonHovered(false)}
                 style={{
@@ -346,14 +358,14 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
                   minWidth: 40,
                   border: 'none',
                   borderRadius: 8,
-                  background: isSending
+                  background: isSending || isAnyUploadActive
                     ? '#9ca3af'
                     : isSendButtonHovered
                       ? interactionTheme.primaryButtonHoverBackground
                       : interactionTheme.primaryButtonBackground,
                   color: '#ffffff',
                   padding: 0,
-                  cursor: isSending ? 'not-allowed' : 'pointer',
+                  cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -362,7 +374,6 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
                 {isSending ? '...' : <SendHorizontal size={18} />}
               </button>
             </>
-          )}
         </form>
       </div>
     </section>

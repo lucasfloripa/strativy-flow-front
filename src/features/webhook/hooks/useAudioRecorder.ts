@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 
-const SUPPORTED_AUDIO_MIME_TYPES = [
-  'audio/ogg;codecs=opus',
-  'audio/mp4',
-  'audio/aac',
-  'audio/amr',
-  'audio/mpeg'
+type RecorderAudioFormat = {
+  mimeType: string
+  extension: string
+}
+
+const PREFERRED_RECORDER_AUDIO_FORMATS: RecorderAudioFormat[] = [
+  { mimeType: 'audio/webm;codecs=opus', extension: 'webm' },
+  { mimeType: 'audio/ogg;codecs=opus', extension: 'ogg' },
+  { mimeType: 'audio/ogg', extension: 'ogg' },
+  { mimeType: 'audio/webm', extension: 'webm' },
+  { mimeType: 'audio/mp4', extension: 'm4a' },
+  { mimeType: 'audio/mpeg', extension: 'mp3' },
+  { mimeType: 'audio/aac', extension: 'aac' },
+  { mimeType: 'audio/amr', extension: 'amr' }
 ]
 
-const resolveSupportedMimeType = (): string | null => {
+const resolveSupportedAudioFormat = (): RecorderAudioFormat | null => {
   if (typeof MediaRecorder === 'undefined') {
     return null
   }
 
-  for (const mimeType of SUPPORTED_AUDIO_MIME_TYPES) {
-    if (MediaRecorder.isTypeSupported(mimeType)) {
-      return mimeType
+  for (const format of PREFERRED_RECORDER_AUDIO_FORMATS) {
+    if (MediaRecorder.isTypeSupported(format.mimeType)) {
+      return format
     }
   }
 
@@ -45,6 +53,7 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const selectedMimeTypeRef = useRef<string | null>(null)
   const recordingStartedAtRef = useRef<number | null>(null)
   const timerIntervalRef = useRef<number | null>(null)
 
@@ -93,9 +102,29 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
     stopMediaStreamTracks(mediaStreamRef.current)
     mediaStreamRef.current = null
     mediaRecorderRef.current = null
+    selectedMimeTypeRef.current = null
     chunksRef.current = []
     setIsRecording(false)
     resetRecordingClock()
+  }
+
+  const buildRecordedAudioBlob = (mediaRecorder: MediaRecorder): Blob | null => {
+    if (!chunksRef.current.length) {
+      return null
+    }
+
+    const recorderMimeType = mediaRecorder.mimeType || selectedMimeTypeRef.current || ''
+    const recordedBlob = new Blob(chunksRef.current, {
+      type: recorderMimeType
+    })
+
+    console.debug('[audio-debug] Recorder output blob metadata', {
+      recorderMimeType,
+      blobType: recordedBlob.type,
+      blobSize: recordedBlob.size
+    })
+
+    return recordedBlob
   }
 
   const finalizeRecording = async (discard: boolean): Promise<Blob | null> => {
@@ -107,11 +136,7 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
     }
 
     if (mediaRecorder.state === 'inactive') {
-      const recordedBlob = chunksRef.current.length
-        ? new Blob(chunksRef.current, {
-            type: mediaRecorder.mimeType || 'audio/webm'
-          })
-        : null
+      const recordedBlob = buildRecordedAudioBlob(mediaRecorder)
 
       releaseRecorderResources()
       return discard ? null : recordedBlob
@@ -121,11 +146,7 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
       mediaRecorder.addEventListener(
         'stop',
         () => {
-          const recordedBlob = chunksRef.current.length
-            ? new Blob(chunksRef.current, {
-                type: mediaRecorder.mimeType || 'audio/webm'
-              })
-            : null
+          const recordedBlob = buildRecordedAudioBlob(mediaRecorder)
 
           releaseRecorderResources()
           resolve(discard ? null : recordedBlob)
@@ -150,14 +171,25 @@ export const useAudioRecorder = (): UseAudioRecorderResult => {
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const supportedMimeType = resolveSupportedMimeType()
+      const supportedFormat = resolveSupportedAudioFormat()
 
-      if (!supportedMimeType) {
-        throw new Error('Formato de audio nao suportado neste navegador.')
-      }
+      const selectedMimeType = supportedFormat?.mimeType ?? null
+      selectedMimeTypeRef.current = selectedMimeType
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: supportedMimeType
+      console.debug('[audio-debug] Selected MediaRecorder MIME type', {
+        selectedMimeType,
+        extension: supportedFormat?.extension ?? null,
+        usedDefaultRecorderConfig: !selectedMimeType
+      })
+
+      const mediaRecorder = selectedMimeType
+        ? new MediaRecorder(stream, {
+            mimeType: selectedMimeType
+          })
+        : new MediaRecorder(stream)
+
+      console.debug('[audio-debug] MediaRecorder runtime MIME type', {
+        mediaRecorderMimeType: mediaRecorder.mimeType
       })
 
       chunksRef.current = []

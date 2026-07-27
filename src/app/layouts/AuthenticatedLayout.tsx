@@ -755,9 +755,24 @@ export function AuthenticatedLayout() {
     return digits.length === 10 || digits.length === 11
   }
 
+  const persistWhatsAppNumbers = async (numbers: WhatsAppNumber[]) => {
+    try {
+      const userInformationsId = getUserIdFromStoredAccessToken()
+      if (!userInformationsId) return
+
+      await appApiClient.patch(
+        `/user/user-informations/${userInformationsId}/notifications`,
+        { notificationWhatsAppNumbers: numbers.map((n) => n.number) }
+      )
+    } catch (error) {
+      console.error('Erro ao salvar numeros de WhatsApp:', error)
+    }
+  }
+
   const handleDeleteWhatsAppNumber = (id: string) => {
-    // Delete immediately without confirmation
-    setWhatsAppNumbers((prev) => prev.filter((num) => num.id !== id))
+    const next = whatsAppNumbers.filter((num) => num.id !== id)
+    setWhatsAppNumbers(next)
+    void persistWhatsAppNumbers(next)
   }
 
   const handleStartEditWhatsAppNumber = (id: string, number: string) => {
@@ -776,13 +791,14 @@ export function AuthenticatedLayout() {
   const handleConfirmEditWhatsAppNumber = (id: string) => {
     if (isValidWhatsAppNumber(editingWhatsAppNumberValue)) {
       const digits = editingWhatsAppNumberValue.replace(/\D/g, '')
-      // Add country code if not present
       const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
-      setWhatsAppNumbers((prev) =>
-        prev.map((num) => (num.id === id ? { ...num, number: numberWithCountryCode } : num))
+      const next = whatsAppNumbers.map((num) =>
+        num.id === id ? { ...num, number: numberWithCountryCode } : num
       )
+      setWhatsAppNumbers(next)
       setEditingWhatsAppNumberId(null)
       setEditingWhatsAppNumberValue('')
+      void persistWhatsAppNumbers(next)
     }
   }
 
@@ -839,11 +855,12 @@ export function AuthenticatedLayout() {
     if (isValidWhatsAppNumber(newWhatsAppNumber)) {
       const newId = String(Math.max(...whatsAppNumbers.map(n => parseInt(n.id, 10)), 0) + 1)
       const digits = newWhatsAppNumber.replace(/\D/g, '')
-      // Add country code if not present
       const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
-      setWhatsAppNumbers((prev) => [{ id: newId, number: numberWithCountryCode }, ...prev])
+      const next = [{ id: newId, number: numberWithCountryCode }, ...whatsAppNumbers]
+      setWhatsAppNumbers(next)
       setIsAddingWhatsAppNumber(false)
       setNewWhatsAppNumber('')
+      void persistWhatsAppNumbers(next)
     }
   }
 

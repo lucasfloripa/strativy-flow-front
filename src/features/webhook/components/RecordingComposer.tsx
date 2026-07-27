@@ -61,7 +61,7 @@ export function RecordingComposer({
           type="button"
           aria-label="Cancelar gravacao"
           onClick={onCancel}
-          disabled={isUploading}
+          disabled={false}
           style={{
             height: 30,
             width: 30,
@@ -73,8 +73,8 @@ export function RecordingComposer({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: isUploading ? 'not-allowed' : 'pointer',
-            opacity: isUploading ? 0.7 : 1
+            cursor: 'pointer',
+            opacity: 1
           }}
         >
           <Square size={14} />

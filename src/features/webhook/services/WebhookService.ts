@@ -170,6 +170,7 @@ export const WebhookService = {
       type: 'audio' | 'image' | 'video' | 'document'
       caption?: string
       metadata?: Record<string, unknown>
+      signal?: AbortSignal
     }
   ): Promise<ChatMessage> {
     const formData = new FormData()
@@ -190,7 +191,8 @@ export const WebhookService = {
       {
         headers: {
           'Content-Type': 'multipart/form-data'
-        }
+        },
+        signal: payload.signal
       }
     )
 
