@@ -370,7 +370,10 @@ export default function AgendaPage() {
     [agendaFollowUpDraft.leadId, negocios]
   )
   const canConfirmAgendaFollowUp =
-    Boolean(agendaFollowUpDraft.leadId) && Boolean(agendaFollowUpDraft.negotiationId)
+    Boolean(agendaFollowUpDraft.leadId) &&
+    Boolean(agendaFollowUpDraft.negotiationId) &&
+    Boolean(agendaFollowUpDraft.title.trim()) &&
+    Boolean(agendaFollowUpDraft.dueAt)
 
   const leadsById = useMemo(
     () =>
@@ -1839,84 +1842,91 @@ export default function AgendaPage() {
                     ))}
                   </select>
 
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</span>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <select
-                      value={agendaFollowUpDraft.negotiationId}
-                      onChange={(event) =>
-                        setAgendaFollowUpDraft((currentDraft) => ({
-                          ...currentDraft,
-                          negotiationId: event.target.value
-                        }))
-                      }
-                      disabled={!agendaFollowUpDraft.leadId}
-                      style={{
-                        height: 36,
-                        maxWidth: 360,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 10px',
-                        color: '#111827',
-                        fontSize: 14,
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <option value="">Selecione</option>
-                      {agendaFollowUpBusinesses.map((negocio) => (
-                        <option key={negocio.id} value={negocio.id}>
-                          {negocio.title ?? 'Negócio sem nome'}
-                        </option>
-                      ))}
-                    </select>
-                    {agendaFollowUpDraft.leadId && agendaFollowUpBusinesses.length === 0 ? (
-                      <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
-                    ) : null}
-                  </div>
+                  {agendaFollowUpDraft.leadId ? (
+                    <>
+                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</span>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <select
+                          value={agendaFollowUpDraft.negotiationId}
+                          onChange={(event) =>
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              negotiationId: event.target.value
+                            }))
+                          }
+                          style={{
+                            height: 36,
+                            maxWidth: 360,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 10px',
+                            color: '#111827',
+                            fontSize: 14,
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <option value="">Selecione</option>
+                          {agendaFollowUpBusinesses.map((negocio) => (
+                            <option key={negocio.id} value={negocio.id}>
+                              {negocio.title ?? 'Negócio sem nome'}
+                            </option>
+                          ))}
+                        </select>
+                        {agendaFollowUpBusinesses.length === 0 ? (
+                          <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
 
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</span>
-                  <input
-                    type="text"
-                    placeholder="Nome do Follow-up"
-                    value={agendaFollowUpDraft.title}
-                    onChange={(event) =>
-                      setAgendaFollowUpDraft((currentDraft) => ({
-                        ...currentDraft,
-                        title: event.target.value
-                      }))
-                    }
-                    style={{
-                      height: 36,
-                      maxWidth: 360,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 10px',
-                      color: '#111827',
-                      fontSize: 16,
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  {agendaFollowUpDraft.negotiationId ? (
+                    <>
+                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</span>
+                      <input
+                        type="text"
+                        placeholder="Nome do Follow-up"
+                        value={agendaFollowUpDraft.title}
+                        onChange={(event) =>
+                          setAgendaFollowUpDraft((currentDraft) => ({
+                            ...currentDraft,
+                            title: event.target.value
+                          }))
+                        }
+                        style={{
+                          height: 36,
+                          maxWidth: 360,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          padding: '0 10px',
+                          color: '#111827',
+                          fontSize: 16,
+                          boxSizing: 'border-box'
+                        }}
+                      />
 
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
-                  <input
-                    type="datetime-local"
-                    value={agendaFollowUpDraft.dueAt}
-                    onChange={(event) =>
-                      setAgendaFollowUpDraft((currentDraft) => ({
-                        ...currentDraft,
-                        dueAt: event.target.value
-                      }))
-                    }
-                    style={{
-                      height: 36,
-                      maxWidth: 360,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 10px',
-                      color: '#111827',
-                      fontSize: 14,
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
+                      <input
+                        type="datetime-local"
+                        value={agendaFollowUpDraft.dueAt}
+                        onChange={(event) =>
+                          setAgendaFollowUpDraft((currentDraft) => ({
+                            ...currentDraft,
+                            dueAt: event.target.value
+                          }))
+                        }
+                        style={{
+                          height: 36,
+                          maxWidth: 360,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          padding: '0 10px',
+                          color: '#111827',
+                          fontSize: 14,
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </>
+                  ) : null}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
@@ -1946,7 +1956,7 @@ export default function AgendaPage() {
                       height: 42,
                       border: 'none',
                       borderRadius: 8,
-                      background: '#1f7a4d',
+                      background: canConfirmAgendaFollowUp ? '#1f7a4d' : '#9ca3af',
                       color: '#ffffff',
                       fontSize: 14,
                       fontWeight: 700,
