@@ -1442,7 +1442,7 @@ export default function AgendaPage() {
                           </div>
                         ) : null}
 
-                        {selectedAgendaTemplate?.variables?.length ? (
+                        {selectedAgendaTemplate ? (
                           <div style={{ display: 'grid', gap: 8 }}>
                             <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição do template</label>
                             <textarea
@@ -2116,7 +2116,7 @@ export default function AgendaPage() {
                         ))
                       ) : null}
 
-                      {selectedAgendaTemplate?.variables?.length ? (
+                      {selectedAgendaTemplate ? (
                         <>
                           <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</span>
                           <textarea
