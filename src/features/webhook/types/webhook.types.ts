@@ -108,6 +108,11 @@ export type MessageTemplateResponse = {
   id: string
   name: string
   description?: string | null
+  metaTemplateName: string
+  metaTemplateId?: string | null
+  language: string
+  category?: string | null
+  userInformationsId?: string | null
   variables?: Array<{
     key: string
     label: string

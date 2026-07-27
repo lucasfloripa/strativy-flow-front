@@ -209,17 +209,8 @@ export function LeadChatTab({
       setIsSending(true)
       setError(null)
 
-      const templateContent = template.description || ''
-      let messageContent = templateContent
-
-      if (template.variables?.length) {
-        template.variables.forEach((variable) => {
-          const value = templateVariables[variable.key] || ''
-          messageContent = messageContent.replace(`{{${variable.key}}}`, value)
-        })
-      }
-
-      await WebhookService.sendMessage(leadId, messageContent, 'template')
+      // Send template via WhatsApp Template API
+      await WebhookService.sendTemplate(leadId, selectedTemplateId, templateVariables)
       setIsReopeningConversation(false)
       setSelectedTemplateId('')
       setTemplateVariables({})

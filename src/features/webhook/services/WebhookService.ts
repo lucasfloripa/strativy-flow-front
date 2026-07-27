@@ -247,6 +247,21 @@ export const WebhookService = {
     return data ?? []
   },
 
+  async sendTemplate(
+    leadId: string,
+    templateId: string,
+    variables: Record<string, string>
+  ): Promise<{ success: boolean; message: ChatMessageApi }> {
+    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
+      `/leads/${leadId}/messages/template`,
+      {
+        templateId,
+        variables
+      }
+    )
+    return data
+  },
+
   async createNegotiationFollowUp(
     payload: CreateNegotiationFollowUpPayload
   ): Promise<NegotiationFollowUpResponse> {
