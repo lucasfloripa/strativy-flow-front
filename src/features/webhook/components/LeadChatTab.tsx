@@ -349,7 +349,7 @@ export function LeadChatTab({
           <div style={{ padding: 16, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 16, alignContent: 'start' }}>
             <div>
               <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 700, color: '#111827' }}>
-                Reabrir conversa
+                Entrar em contato
               </h3>
               <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
                 Selecione um template para reabrir esta conversa
@@ -511,12 +511,12 @@ export function LeadChatTab({
                 flex: 1
               }}
             >
-              Este lead deixou de enviar mensagens há mais de 24 horas. Clique no botão para reabrir a conversa.
+              Clique no botão para conversar com o cliente.
             </p>
             <button
               type="button"
               onClick={handleReopenConversation}
-              aria-label="Reabrir conversa"
+              aria-label="Entrar em contato"
               style={{
                 padding: '10px 20px',
                 borderRadius: 8,
@@ -537,12 +537,12 @@ export function LeadChatTab({
                 e.currentTarget.style.background = interactionTheme.primaryButtonBackground
               }}
             >
-              Reabrir conversa
+              Entrar em contato
             </button>
           </div>
         )}
 
-        {!isReopeningConversation && (
+        {!isReopeningConversation && !shouldShowReopenButton && (
         <form
           onSubmit={handleSendSubmit}
           style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
