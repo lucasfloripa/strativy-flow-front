@@ -342,7 +342,8 @@ export function LeadChatTab({
           flex: 1,
           minHeight: 0,
           display: 'grid',
-          gridTemplateRows: '1fr auto'
+          gridTemplateRows: '1fr auto',
+          overflow: 'hidden'
         }}
       >
         {isReopeningConversation ? (
