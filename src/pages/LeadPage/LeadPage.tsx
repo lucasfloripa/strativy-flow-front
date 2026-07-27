@@ -3044,6 +3044,34 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               </div>
             ) : null}
 
+            {selectedAgendaTemplate ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Descrição do template</label>
+                <textarea
+                  value={interpolateTemplateDescription(
+                    selectedAgendaTemplate.description,
+                    agendaFollowUpDraft.templateVariables
+                  )}
+                  readOnly
+                  disabled
+                  style={{
+                    width: '100%',
+                    minHeight: isMobile ? 96 : 86,
+                    border: '1px solid #d7dce4',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    color: '#64748b',
+                    fontSize: isMobile ? 17 / 1.2 : 14,
+                    boxSizing: 'border-box',
+                    background: '#f8fafc',
+                    cursor: 'not-allowed',
+                    resize: 'vertical',
+                    lineHeight: 1.4
+                  }}
+                />
+              </div>
+            ) : null}
+
             <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
               <input
