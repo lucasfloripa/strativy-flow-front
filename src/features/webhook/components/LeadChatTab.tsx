@@ -514,11 +514,19 @@ export function LeadChatTab({
                   <div
                     key={item.id}
                     style={{
-                      marginBottom: 10,
+                      marginBottom: 16,
                       display: 'flex',
-                      justifyContent: isOutbound ? 'flex-end' : 'flex-start'
+                      justifyContent: isOutbound ? 'flex-end' : 'flex-start',
+                      alignItems: 'flex-end',
+                      gap: 8
                     }}
                   >
+                    {!isOutbound && !isTemplateMessage && (
+                      <span style={{ fontSize: 11, color: '#9ca3af', minWidth: 40, textAlign: 'right' }}>
+                        {formattedTime}
+                      </span>
+                    )}
+
                     <div
                       style={{
                         maxWidth: '70%',
@@ -590,12 +598,15 @@ export function LeadChatTab({
                           </div>
                         </>
                       ) : (
-                        <div style={{ display: 'grid', gap: 4 }}>
-                          <MessageContent message={item} />
-                          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{formattedTime}</div>
-                        </div>
+                        <MessageContent message={item} />
                       )}
                     </div>
+
+                    {isOutbound && !isTemplateMessage && (
+                      <span style={{ fontSize: 11, color: '#9ca3af', minWidth: 40, textAlign: 'left' }}>
+                        {formattedTime}
+                      </span>
+                    )}
                   </div>
                 )
               })
