@@ -42,7 +42,8 @@ export const WebhookService = {
       mediaUrl: message.mediaUrl ?? null,
       mimeType: message.mimeType ?? null,
       mediaSize: message.mediaSize ?? null,
-      fileName: message.fileName ?? null
+      fileName: message.fileName ?? null,
+      createdAt: message.createdAt
     }
   },
 
