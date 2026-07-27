@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User } from 'lucide-react'
+import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { useRealtime } from '../../../core/realtime/useRealtime'
@@ -500,31 +500,105 @@ export function LeadChatTab({
             {statusText ? (
               <div style={{ color: '#6b7280' }}>{statusText}</div>
             ) : (
-              messages.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    marginBottom: 10,
-                    display: 'flex',
-                    justifyContent: item.direction === 'outbound' ? 'flex-end' : 'flex-start'
-                  }}
-                >
+              messages.map((item) => {
+                const formattedTime = item.createdAt
+                  ? new Date(item.createdAt).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : ''
+                const isTemplateMessage = item.source === 'template'
+                const isOutbound = item.direction === 'outbound'
+
+                return (
                   <div
+                    key={item.id}
                     style={{
-                      maxWidth: '70%',
-                      borderRadius: 12,
-                      padding: '10px 12px',
-                      background:
-                        item.direction === 'outbound'
-                          ? interactionTheme.primaryButtonBackground
-                          : interactionTheme.clickableCardHoverBackground,
-                      color: item.direction === 'outbound' ? '#ffffff' : '#111827'
+                      marginBottom: 10,
+                      display: 'flex',
+                      justifyContent: isOutbound ? 'flex-end' : 'flex-start'
                     }}
                   >
-                    <MessageContent message={item} />
+                    <div
+                      style={{
+                        maxWidth: '70%',
+                        borderRadius: 12,
+                        padding: isTemplateMessage ? 0 : '10px 12px',
+                        background: isTemplateMessage
+                          ? 'transparent'
+                          : isOutbound
+                            ? interactionTheme.primaryButtonBackground
+                            : interactionTheme.clickableCardHoverBackground,
+                        color: isTemplateMessage
+                          ? '#111827'
+                          : isOutbound
+                            ? '#ffffff'
+                            : '#111827',
+                        display: isTemplateMessage ? 'grid' : 'block'
+                      }}
+                    >
+                      {isTemplateMessage ? (
+                        <>
+                          <div
+                            style={{
+                              background: '#f0fdf4',
+                              border: '1px solid #bbf7d0',
+                              borderBottomLeftRadius: 0,
+                              borderBottomRightRadius: 0,
+                              borderTopLeftRadius: 12,
+                              borderTopRightRadius: 12,
+                              padding: '10px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              justifyContent: 'space-between'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div
+                                style={{
+                                  background: '#10b981',
+                                  borderRadius: '50%',
+                                  width: 28,
+                                  height: 28,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <FileText size={16} color="#ffffff" />
+                              </div>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: '#059669' }}>
+                                Mensagem de template
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 12, color: '#6b7280' }}>{formattedTime}</span>
+                          </div>
+                          <div
+                            style={{
+                              background: '#f0fdf4',
+                              border: '1px solid #bbf7d0',
+                              borderTop: 'none',
+                              borderBottomLeftRadius: 12,
+                              borderBottomRightRadius: 12,
+                              padding: '10px 12px',
+                              color: '#111827'
+                            }}
+                          >
+                            <MessageContent message={item} />
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <MessageContent message={item} />
+                          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{formattedTime}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         )}
