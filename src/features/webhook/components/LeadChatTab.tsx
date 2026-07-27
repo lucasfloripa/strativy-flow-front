@@ -8,7 +8,7 @@ import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
 import { useChatMediaUpload } from '../hooks/useChatMediaUpload'
 import { WebhookService } from '../services/WebhookService'
-import type { ChatMessage, ChatMessageApi, LeadRuntimeMode } from '../types/webhook.types'
+import type { ChatMessage, ChatMessageApi, LeadRuntimeMode, MessageTemplateResponse } from '../types/webhook.types'
 
 type LeadChatTabProps = {
   leadId: string
@@ -34,6 +34,10 @@ export function LeadChatTab({
   const [isAttachmentButtonHovered, setIsAttachmentButtonHovered] = useState<boolean>(false)
   const [isImageButtonHovered, setIsImageButtonHovered] = useState<boolean>(false)
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
+  const [isReopeningConversation, setIsReopeningConversation] = useState<boolean>(false)
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateResponse[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -148,6 +152,107 @@ export function LeadChatTab({
     container.scrollTop = container.scrollHeight
   }, [isLoading, messages])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTemplates = async () => {
+      try {
+        const templates = await WebhookService.loadMessageTemplates()
+        if (isMounted) {
+          setMessageTemplates(templates)
+        }
+      } catch (exception: unknown) {
+        console.error('Falha ao carregar templates:', exception)
+      }
+    }
+
+    void loadTemplates()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const handleReopenConversation = () => {
+    setIsReopeningConversation(true)
+    setSelectedTemplateId('')
+    setTemplateVariables({})
+  }
+
+  const handleCancelReopenConversation = () => {
+    setIsReopeningConversation(false)
+    setSelectedTemplateId('')
+    setTemplateVariables({})
+  }
+
+  const selectedTemplate = messageTemplates.find((t) => t.id === selectedTemplateId)
+
+  const handleSendReopening = async () => {
+    if (!selectedTemplateId) {
+      setError('Selecione um template para reabrir a conversa.')
+      return
+    }
+
+    const template = messageTemplates.find((t) => t.id === selectedTemplateId)
+    if (!template) return
+
+    const missingRequiredVariables = template.variables?.some(
+      (v) => v.required && !templateVariables[v.key]?.trim()
+    )
+
+    if (missingRequiredVariables) {
+      setError('Preencha as variáveis obrigatórias do template.')
+      return
+    }
+
+    try {
+      setIsSending(true)
+      setError(null)
+
+      const templateContent = template.description || ''
+      let messageContent = templateContent
+
+      if (template.variables?.length) {
+        template.variables.forEach((variable) => {
+          const value = templateVariables[variable.key] || ''
+          messageContent = messageContent.replace(`{{${variable.key}}}`, value)
+        })
+      }
+
+      await WebhookService.sendMessage(leadId, messageContent)
+      setIsReopeningConversation(false)
+      setSelectedTemplateId('')
+      setTemplateVariables({})
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error ? exception.message : 'Falha ao reabrir conversa.'
+      setError(errorMessage)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleSelectTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId)
+    const template = messageTemplates.find((t) => t.id === templateId)
+    if (template?.variables?.length) {
+      const newVariables: Record<string, string> = {}
+      template.variables.forEach((v) => {
+        newVariables[v.key] = ''
+      })
+      setTemplateVariables(newVariables)
+    } else {
+      setTemplateVariables({})
+    }
+  }
+
+  const handleTemplateVariableChange = (key: string, value: string) => {
+    setTemplateVariables((current) => ({
+      ...current,
+      [key]: value
+    }))
+  }
+
   const handleSendSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -249,39 +354,153 @@ export function LeadChatTab({
           gridTemplateRows: '1fr auto'
         }}
       >
-        <div ref={messagesContainerRef} style={{ padding: 16, minHeight: 0, overflowY: 'auto' }}>
-          {statusText ? (
-            <div style={{ color: '#6b7280' }}>{statusText}</div>
-          ) : (
-            messages.map((item) => (
-              <div
-                key={item.id}
+        {isReopeningConversation ? (
+          <div style={{ padding: 16, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 16, alignContent: 'start' }}>
+            <div>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                Reabrir conversa
+              </h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+                Selecione um template para reabrir esta conversa
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>
+                Template
+              </label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleSelectTemplate(e.target.value)}
                 style={{
-                  marginBottom: 10,
-                  display: 'flex',
-                  justifyContent: item.direction === 'outbound' ? 'flex-end' : 'flex-start'
+                  height: 42,
+                  border: '1px solid #d7dce4',
+                  borderRadius: 10,
+                  padding: '0 14px',
+                  color: selectedTemplateId ? '#111827' : '#6b7280',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  boxSizing: 'border-box',
+                  background: '#ffffff'
                 }}
               >
+                <option value="">Selecione um template...</option>
+                {messageTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedTemplate?.variables?.length ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {selectedTemplate.variables.map((variable) => (
+                  <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
+                    <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>
+                      {variable.label}{variable.required ? ' *' : ''}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={`Valor para ${variable.label}`}
+                      value={templateVariables[variable.key] ?? ''}
+                      onChange={(e) => handleTemplateVariableChange(variable.key, e.target.value)}
+                      style={{
+                        height: 42,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 10,
+                        padding: '0 14px',
+                        color: '#111827',
+                        fontSize: 14,
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={handleCancelReopenConversation}
+                disabled={isSending}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: isSending ? 'not-allowed' : 'pointer',
+                  opacity: isSending ? 0.6 : 1
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSendReopening()}
+                disabled={isSending || !selectedTemplateId}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: interactionTheme.primaryButtonBackground,
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: isSending || !selectedTemplateId ? 'not-allowed' : 'pointer',
+                  opacity: isSending || !selectedTemplateId ? 0.6 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                {isSending ? <Loader2 size={16} /> : null}
+                {isSending ? 'Reabrindo...' : 'Reabrir'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div ref={messagesContainerRef} style={{ padding: 16, minHeight: 0, overflowY: 'auto' }}>
+            {statusText ? (
+              <div style={{ color: '#6b7280' }}>{statusText}</div>
+            ) : (
+              messages.map((item) => (
                 <div
+                  key={item.id}
                   style={{
-                    maxWidth: '70%',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                    background:
-                      item.direction === 'outbound'
-                        ? interactionTheme.primaryButtonBackground
-                        : interactionTheme.clickableCardHoverBackground,
-                    color: item.direction === 'outbound' ? '#ffffff' : '#111827'
+                    marginBottom: 10,
+                    display: 'flex',
+                    justifyContent: item.direction === 'outbound' ? 'flex-end' : 'flex-start'
                   }}
                 >
-                  <MessageContent message={item} />
+                  <div
+                    style={{
+                      maxWidth: '70%',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                      background:
+                        item.direction === 'outbound'
+                          ? interactionTheme.primaryButtonBackground
+                          : interactionTheme.clickableCardHoverBackground,
+                      color: item.direction === 'outbound' ? '#ffffff' : '#111827'
+                    }}
+                  >
+                    <MessageContent message={item} />
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
 
-        {shouldShowReopenButton && (
+        {!isReopeningConversation && shouldShowReopenButton && (
           <div
             style={{
               display: 'flex',
@@ -293,6 +512,7 @@ export function LeadChatTab({
           >
             <button
               type="button"
+              onClick={handleReopenConversation}
               aria-label="Reabrir conversa"
               style={{
                 padding: '10px 20px',
@@ -317,6 +537,7 @@ export function LeadChatTab({
           </div>
         )}
 
+        {!isReopeningConversation && (
         <form
           onSubmit={handleSendSubmit}
           style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
@@ -475,6 +696,7 @@ export function LeadChatTab({
               </button>
             </>
         </form>
+        )}
       </div>
     </section>
   )

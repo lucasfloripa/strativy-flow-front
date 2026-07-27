@@ -2866,7 +2866,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           overflowX: 'hidden',
           paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
-          padding: isMobile ? '22px 18px 28px' : 0
+          padding: isMobile ? '0 18px 28px' : 0
         }}
       >
         {isMobile ? (
@@ -2880,6 +2880,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               justifyContent: 'space-between',
               gap: 12,
               background: '#ffffff',
+              paddingTop: 22,
               paddingBottom: 6
             }}
           >
@@ -3614,7 +3615,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           overflowX: 'hidden',
           paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
-          padding: isMobile ? '22px 18px 28px' : 0
+          padding: isMobile ? '0 18px 28px' : 0,
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch'
         }}
       >
         {isMobile ? (
@@ -3622,13 +3625,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             style={{
               position: 'sticky',
               top: 0,
-              zIndex: 1,
+              zIndex: 3,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 12,
               background: '#ffffff',
-              paddingBottom: 6
+              paddingTop: 22,
+              paddingBottom: 10,
+              borderBottom: '1px solid #f1f5f9'
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
@@ -3916,11 +3921,60 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
+          height: '100%',
           minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
-          padding: isMobile ? '22px 18px 28px' : 0
+          padding: isMobile ? '0 18px 28px' : 0,
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch'
         }}
       >
+        {isMobile ? (
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: '#ffffff',
+              paddingTop: 22,
+              paddingBottom: 10,
+              borderBottom: '1px solid #f1f5f9'
+            }}
+          >
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
+              Follow-up
+            </h3>
+
+            <button
+              type="button"
+              aria-label="Fechar visualização de follow-up"
+              onClick={handleCancelBusinessFollowUpCreation}
+              style={{
+                height: 28,
+                minWidth: 28,
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
+                color: '#6b7280',
+                padding: '0 8px',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: 1
+              }}
+            >
+              X
+            </button>
+          </div>
+        ) : null}
+
         {isConfirmingViewedBusinessFollowUpDelete ? (
           <article
             style={{
