@@ -74,9 +74,9 @@ export function LeadChatTab({
     return false
   })()
 
-  const buildTemplateDescription = (description: string | undefined | null): string => {
-    if (!description) return ''
-    let result = description
+  const buildTemplateDescription = (): string => {
+    if (!selectedTemplate?.description) return ''
+    let result = selectedTemplate.description
     if (selectedTemplate?.variables) {
       selectedTemplate.variables.forEach((variable) => {
         result = result.replace(new RegExp(`\\{${variable.key}\\}`, 'g'), `{{${variable.label}}}`)
@@ -430,7 +430,7 @@ export function LeadChatTab({
                 </label>
                 <textarea
                   readOnly
-                  value={buildTemplateDescription(selectedTemplate.description)}
+                  value={buildTemplateDescription()}
                   style={{
                     minHeight: 80,
                     border: '1px solid #d7dce4',
