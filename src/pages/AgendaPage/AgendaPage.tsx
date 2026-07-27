@@ -1946,7 +1946,9 @@ export default function AgendaPage() {
                   display: 'grid',
                   gap: 18,
                   maxWidth: 760,
-                  overflowY: 'auto'
+                  overflowY: 'auto',
+                  flex: 1,
+                  minHeight: 0
                 }}
               >
                 <div
