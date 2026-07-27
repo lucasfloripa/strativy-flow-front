@@ -55,6 +55,8 @@ export function LeadChatTab({
       return bTime - aTime
     })[0]
 
+  const hasNeverConversed = messages.filter((msg) => msg.direction === 'inbound').length === 0
+
   const shouldShowReopenButton = (() => {
     const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
     
@@ -630,7 +632,9 @@ export function LeadChatTab({
                 flex: 1
               }}
             >
-              Este lead deixou de enviar mensagens há mais de 24 horas. Clique no botão para conversar com o cliente.
+              {hasNeverConversed
+                ? 'Clique no botão para conversar com o cliente.'
+                : 'Este lead deixou de enviar mensagens há mais de 24 horas. Clique no botão para conversar com o cliente.'}
             </p>
             <button
               type="button"
