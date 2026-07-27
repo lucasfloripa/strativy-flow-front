@@ -35,11 +35,6 @@ class RealtimeService {
     }
 
     this.socket.emit('joinLeadRoom', { leadId: normalizedLeadId })
-
-    console.info('[Realtime] Entrou na sala', {
-      room: `lead:${normalizedLeadId}`,
-      timestamp: new Date().toISOString()
-    })
   }
 
   leaveLeadRoom(leadId: string): void {
@@ -50,11 +45,6 @@ class RealtimeService {
     }
 
     this.socket.emit('leaveLeadRoom', { leadId: normalizedLeadId })
-
-    console.info('[Realtime] Saiu da sala', {
-      room: `lead:${normalizedLeadId}`,
-      timestamp: new Date().toISOString()
-    })
   }
 
   on<T = unknown>(event: string, handler: SocketEventHandler<T>): void {
