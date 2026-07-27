@@ -504,12 +504,24 @@ export function LeadChatTab({
           <div
             style={{
               display: 'flex',
-              justifyContent: 'center',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               padding: '12px 16px',
               borderTop: '1px solid #e5e7eb',
-              backgroundColor: '#f9fafb'
+              backgroundColor: '#f9fafb',
+              gap: 16
             }}
           >
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: '#6b7280',
+                flex: 1
+              }}
+            >
+              Este lead deixou de enviar mensagens há mais de 24 horas. Clique no botão para reabrir a conversa.
+            </p>
             <button
               type="button"
               onClick={handleReopenConversation}
@@ -523,7 +535,9 @@ export function LeadChatTab({
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'background 120ms ease'
+                transition: 'background 120ms ease',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = interactionTheme.primaryButtonHoverBackground
