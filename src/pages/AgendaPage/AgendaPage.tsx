@@ -1442,11 +1442,14 @@ export default function AgendaPage() {
                           </div>
                         ) : null}
 
-                        {selectedAgendaTemplate ? (
+                        {agendaFollowUpDraft.templateId ? (
                           <div style={{ display: 'grid', gap: 8 }}>
                             <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição do template</label>
                             <textarea
-                              value={interpolateTemplateDescription(selectedAgendaTemplate.description, agendaFollowUpDraft.templateVariables)}
+                              value={interpolateTemplateDescription(
+                                messageTemplates.find((t) => t.id === agendaFollowUpDraft.templateId)?.description,
+                                agendaFollowUpDraft.templateVariables
+                              )}
                               readOnly
                               disabled
                               style={{ width: '100%', minHeight: 86, border: '1px solid #d7dce4', borderRadius: 12, padding: '10px 14px', color: '#64748b', fontSize: 15, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed', resize: 'vertical', lineHeight: 1.4 }}
@@ -2113,11 +2116,14 @@ export default function AgendaPage() {
                         ))
                       ) : null}
 
-                      {selectedAgendaTemplate ? (
+                      {agendaFollowUpDraft.templateId ? (
                         <>
                           <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</span>
                           <textarea
-                            value={interpolateTemplateDescription(selectedAgendaTemplate.description, agendaFollowUpDraft.templateVariables)}
+                            value={interpolateTemplateDescription(
+                              messageTemplates.find((t) => t.id === agendaFollowUpDraft.templateId)?.description,
+                              agendaFollowUpDraft.templateVariables
+                            )}
                             readOnly
                             disabled
                             style={{
