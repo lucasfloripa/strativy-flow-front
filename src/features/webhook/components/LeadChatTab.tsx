@@ -80,7 +80,7 @@ export function LeadChatTab({
     if (selectedTemplate?.variables) {
       selectedTemplate.variables.forEach((variable) => {
         const value = templateVariables[variable.key]
-        const replacement = value || `{{${variable.label}}}`
+        const replacement = value || `{${variable.label}}`
         result = result.replace(new RegExp(`\\{${variable.key}\\}`, 'g'), replacement)
       })
     }
