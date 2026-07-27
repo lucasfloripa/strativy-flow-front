@@ -516,13 +516,13 @@ export function LeadChatTab({
                     style={{
                       marginBottom: 16,
                       display: 'flex',
+                      flexDirection: 'column',
                       justifyContent: isOutbound ? 'flex-end' : 'flex-start',
-                      alignItems: 'flex-end',
-                      gap: 8
+                      alignItems: isOutbound ? 'flex-end' : 'flex-start'
                     }}
                   >
-                    {!isOutbound && !isTemplateMessage && (
-                      <span style={{ fontSize: 11, color: '#9ca3af', minWidth: 40, textAlign: 'right' }}>
+                    {!isTemplateMessage && (
+                      <span style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>
                         {formattedTime}
                       </span>
                     )}
@@ -581,7 +581,6 @@ export function LeadChatTab({
                                 Mensagem de template
                               </span>
                             </div>
-                            <span style={{ fontSize: 12, color: '#6b7280' }}>{formattedTime}</span>
                           </div>
                           <div
                             style={{
@@ -596,17 +595,14 @@ export function LeadChatTab({
                           >
                             <MessageContent message={item} />
                           </div>
+                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                            {formattedTime}
+                          </div>
                         </>
                       ) : (
                         <MessageContent message={item} />
                       )}
                     </div>
-
-                    {isOutbound && !isTemplateMessage && (
-                      <span style={{ fontSize: 11, color: '#9ca3af', minWidth: 40, textAlign: 'left' }}>
-                        {formattedTime}
-                      </span>
-                    )}
                   </div>
                 )
               })
