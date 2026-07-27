@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Loader2, Paperclip, SendHorizontal } from 'lucide-react'
+import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { useRealtime } from '../../../core/realtime/useRealtime'
@@ -8,13 +8,21 @@ import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
 import { useChatMediaUpload } from '../hooks/useChatMediaUpload'
 import { WebhookService } from '../services/WebhookService'
-import type { ChatMessage, ChatMessageApi } from '../types/webhook.types'
+import type { ChatMessage, ChatMessageApi, LeadRuntimeMode } from '../types/webhook.types'
 
 type LeadChatTabProps = {
   leadId: string
+  runtimeMode?: LeadRuntimeMode
+  isUpdatingRuntimeMode?: boolean
+  onToggleRuntimeMode?: () => void
 }
 
-export function LeadChatTab({ leadId }: LeadChatTabProps) {
+export function LeadChatTab({
+  leadId,
+  runtimeMode = 'AUTOMATION',
+  isUpdatingRuntimeMode = false,
+  onToggleRuntimeMode
+}: LeadChatTabProps) {
   const realtime = useRealtime()
   const mediaUploader = useChatMediaUpload()
   const [message, setMessage] = useState<string>('')
@@ -44,11 +52,22 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
     })[0]
 
   const shouldShowReopenButton = (() => {
-    if (!lastInboundMessage?.createdAt) return false
-    const lastInboundTime = new Date(lastInboundMessage.createdAt).getTime()
-    const now = Date.now()
-    const hoursSinceLastInbound = (now - lastInboundTime) / (1000 * 60 * 60)
-    return hoursSinceLastInbound > 24
+    const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
+    
+    // Se não há nenhuma mensagem inbound, mostrar botão
+    if (inboundMessages.length === 0) {
+      return true
+    }
+    
+    // Se há mensagens inbound, verificar se a última foi há mais de 24h
+    if (lastInboundMessage?.createdAt) {
+      const lastInboundTime = new Date(lastInboundMessage.createdAt).getTime()
+      const now = Date.now()
+      const hoursSinceLastInbound = (now - lastInboundTime) / (1000 * 60 * 60)
+      return hoursSinceLastInbound > 24
+    }
+    
+    return false
   })()
 
   useEffect(() => {
@@ -300,9 +319,38 @@ export function LeadChatTab({ leadId }: LeadChatTabProps) {
 
         <form
           onSubmit={handleSendSubmit}
-          style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb' }}
+          style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
         >
           <>
+              <button
+                type="button"
+                onClick={onToggleRuntimeMode}
+                disabled={isUpdatingRuntimeMode}
+                aria-label={runtimeMode === 'HUMAN' ? 'Voltar para automação' : 'Assumir como humano'}
+                title={runtimeMode === 'HUMAN' ? 'Voltar para automação' : 'Assumir como humano'}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: runtimeMode === 'HUMAN'
+                    ? 'linear-gradient(135deg, #1e7f46 0%, #146737 100%)'
+                    : 'linear-gradient(135deg, #325dca 0%, #1f46ad 100%)',
+                  color: '#ffffff',
+                  cursor: isUpdatingRuntimeMode ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  opacity: isUpdatingRuntimeMode ? 0.7 : 1,
+                  transition: 'opacity 120ms ease',
+                  flexShrink: 0
+                }}
+              >
+                {runtimeMode === 'HUMAN' ? <User size={16} /> : <Bot size={16} />}
+              </button>
+
               <input
                 ref={messageInputRef}
                 type="text"

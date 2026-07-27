@@ -2,7 +2,6 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  Bot,
   BriefcaseBusiness,
   Brush,
   ArrowLeft,
@@ -16,7 +15,6 @@ import {
   Facebook,
   Flame,
   Handshake,
-  Headset,
   Mail,
   MapPin,
   MessageCircle,
@@ -808,7 +806,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     initialNewBusinessDraft
   )
   const [isUpdatingRuntimeMode, setIsUpdatingRuntimeMode] = useState<boolean>(false)
-  const [runtimeModeError, setRuntimeModeError] = useState<string | null>(null)
   const notesDraftRef = useRef<string>('')
   const lastSavedNotesRef = useRef<string>('')
   const isSavingNotesRef = useRef<boolean>(false)
@@ -8404,8 +8401,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
     const currentRuntimeMode: LeadRuntimeMode = leadData?.runtimeMode ?? 'AUTOMATION'
     const isHumanMode = currentRuntimeMode === 'HUMAN'
-    const nextModeLabel = isHumanMode ? 'Voltar para automação' : 'Assumir como humano'
-    const nextModeIcon = isHumanMode ? <Bot size={18} /> : <CircleUserRound size={18} />
 
     const handleToggleRuntimeMode = async () => {
       if (!leadId || isUpdatingRuntimeMode) return
@@ -8415,7 +8410,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
       try {
         setIsUpdatingRuntimeMode(true)
-        setRuntimeModeError(null)
 
         const updatedRuntimeMode = await WebhookService.updateLeadRuntimeMode(
           leadId,
@@ -8436,112 +8430,19 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             ? exception.message
             : 'Falha ao atualizar modo de atendimento.'
 
-        setRuntimeModeError(message)
+        console.error(message)
       } finally {
         setIsUpdatingRuntimeMode(false)
       }
     }
 
     return (
-      <section
-        style={{
-          display: 'grid',
-          alignContent: 'start',
-          gap: 12,
-          height: '100%'
-        }}
-      >
-        <div
-          style={{
-            border: '1px solid #e5e7eb',
-            borderRadius: 18,
-            background: '#ffffff',
-            padding: 14,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap'
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              minWidth: 220
-            }}
-          >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 999,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: isHumanMode
-                  ? 'linear-gradient(135deg, #e8f7ee 0%, #d8f0e3 100%)'
-                  : 'linear-gradient(135deg, #eef2ff 0%, #dde6ff 100%)',
-                color: isHumanMode ? '#167a43' : '#324fa8'
-              }}
-            >
-              <Headset size={28} />
-            </div>
-
-            <div style={{ display: 'grid', gap: 4 }}>
-              <p style={{ margin: 0, fontSize: 14, color: '#111827', fontWeight: 700, lineHeight: 1.15 }}>
-                Modo de atendimento
-              </p>
-              <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.2 }}>
-                Atual:{' '}
-                <span style={{ color: isHumanMode ? '#167a43' : '#324fa8', fontWeight: 600 }}>
-                  {isHumanMode ? 'Manual' : 'Automação'}
-                </span>
-              </p>
-              {runtimeModeError ? (
-                <p style={{ margin: 0, fontSize: 12, color: '#b91c1c', lineHeight: 1.2 }}>
-                  {runtimeModeError}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void handleToggleRuntimeMode()}
-            disabled={isUpdatingRuntimeMode}
-            style={{
-              minHeight: 48,
-              border: '1px solid rgba(22, 122, 67, 0.26)',
-              borderRadius: 12,
-              background: isHumanMode
-                ? 'linear-gradient(135deg, #1e7f46 0%, #146737 100%)'
-                : 'linear-gradient(135deg, #325dca 0%, #1f46ad 100%)',
-              color: '#ffffff',
-              padding: '0 20px',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: isUpdatingRuntimeMode ? 'not-allowed' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              minWidth: 230,
-              boxShadow: isUpdatingRuntimeMode
-                ? 'none'
-                : '0 8px 18px rgba(17, 24, 39, 0.14)',
-              opacity: isUpdatingRuntimeMode ? 0.75 : 1,
-              transition: 'transform 140ms ease, filter 140ms ease'
-            }}
-          >
-            {isUpdatingRuntimeMode ? null : nextModeIcon}
-            {isUpdatingRuntimeMode ? 'Atualizando...' : nextModeLabel}
-          </button>
-        </div>
-
-        <LeadChatTab leadId={leadId} />
-      </section>
+      <LeadChatTab
+        leadId={leadId}
+        runtimeMode={currentRuntimeMode}
+        isUpdatingRuntimeMode={isUpdatingRuntimeMode}
+        onToggleRuntimeMode={handleToggleRuntimeMode}
+      />
     )
   }
 
@@ -8610,7 +8511,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setActiveBusinessTab('informacoes')
       setIsCreatingBusiness(false)
       setIsUpdatingRuntimeMode(false)
-      setRuntimeModeError(null)
       return
     }
 
@@ -8625,7 +8525,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setFollowUpsTotalItems(0)
       setStatusSortFocus('overdue')
       setDateSortOrder('asc')
-      setRuntimeModeError(null)
       setIsUpdatingRuntimeMode(false)
       setNotesDraft('')
       notesDraftRef.current = ''
@@ -8643,7 +8542,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         const initialDateSortOrder: FollowUpDateSortOrder = 'asc'
         setStatusSortFocus(initialStatusSortFocus)
         setDateSortOrder(initialDateSortOrder)
-        setRuntimeModeError(null)
         setIsUpdatingRuntimeMode(false)
         const [lead, templates] = await Promise.all([
           WebhookService.loadLead(leadId),
