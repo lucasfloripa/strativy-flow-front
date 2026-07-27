@@ -479,16 +479,8 @@ export function LeadChatTab({
                       background:
                         item.direction === 'outbound'
                           ? interactionTheme.primaryButtonBackground
-                          : item.source === 'template'
-                            ? '#f0fdf4'
-                            : interactionTheme.clickableCardHoverBackground,
-                      color:
-                        item.direction === 'outbound'
-                          ? '#ffffff'
-                          : item.source === 'template'
-                            ? '#166534'
-                            : '#111827',
-                      border: item.source === 'template' ? '1px solid #86efac' : 'none'
+                          : interactionTheme.clickableCardHoverBackground,
+                      color: item.direction === 'outbound' ? '#ffffff' : '#111827'
                     }}
                   >
                     <MessageContent message={item} />
