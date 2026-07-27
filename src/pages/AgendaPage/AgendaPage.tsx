@@ -1271,47 +1271,54 @@ export default function AgendaPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={agendaFollowUpDraft.negotiationId}
-                      onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, negotiationId: event.target.value }))}
-                      disabled={!agendaFollowUpDraft.leadId}
-                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
-                    >
-                      <option value="">Selecione</option>
-                      {agendaFollowUpBusinesses.map((negocio) => (
-                        <option key={negocio.id} value={negocio.id}>{negocio.title ?? 'Negócio sem nome'}</option>
-                      ))}
-                    </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
-                  </div>
-                  {agendaFollowUpDraft.leadId && agendaFollowUpBusinesses.length === 0 ? (
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
-                  ) : null}
-                </div>
+                {agendaFollowUpDraft.leadId ? (
+                  <>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          value={agendaFollowUpDraft.negotiationId}
+                          onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, negotiationId: event.target.value }))}
+                          style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                        >
+                          <option value="">Selecione</option>
+                          {agendaFollowUpBusinesses.map((negocio) => (
+                            <option key={negocio.id} value={negocio.id}>{negocio.title ?? 'Negócio sem nome'}</option>
+                          ))}
+                        </select>
+                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                      </div>
+                      {agendaFollowUpBusinesses.length === 0 ? (
+                        <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                      ) : null}
+                    </div>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Nome do Follow-up</label>
-                  <input
-                    type="text"
-                    placeholder="Nome do Follow-up"
-                    value={agendaFollowUpDraft.title}
-                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, title: event.target.value }))}
-                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
-                  />
-                </div>
+                    {agendaFollowUpDraft.negotiationId ? (
+                      <>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Nome do Follow-up</label>
+                          <input
+                            type="text"
+                            placeholder="Nome do Follow-up"
+                            value={agendaFollowUpDraft.title}
+                            onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, title: event.target.value }))}
+                            style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                          />
+                        </div>
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
-                  <input
-                    type="datetime-local"
-                    value={agendaFollowUpDraft.dueAt}
-                    onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, dueAt: event.target.value }))}
-                    style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
-                  />
-                </div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
+                          <input
+                            type="datetime-local"
+                            value={agendaFollowUpDraft.dueAt}
+                            onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, dueAt: event.target.value }))}
+                            style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 2 }}>
                   <button
@@ -1325,7 +1332,7 @@ export default function AgendaPage() {
                     type="button"
                     onClick={() => void handleCreateAgendaFollowUp()}
                     disabled={!canConfirmAgendaFollowUp}
-                    style={{ height: 42, border: 'none', borderRadius: 8, background: '#1f7a4d', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
+                    style={{ height: 42, border: 'none', borderRadius: 8, background: canConfirmAgendaFollowUp ? '#1f7a4d' : '#9ca3af', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
                   >
                     Salvar
                   </button>
