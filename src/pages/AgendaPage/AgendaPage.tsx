@@ -1442,12 +1442,12 @@ export default function AgendaPage() {
                           </div>
                         ) : null}
 
-                        {agendaFollowUpDraft.templateId ? (
+                        {selectedAgendaTemplate?.variables?.length ? (
                           <div style={{ display: 'grid', gap: 8 }}>
                             <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição do template</label>
                             <textarea
                               value={interpolateTemplateDescription(
-                                messageTemplates.find((t) => t.id === agendaFollowUpDraft.templateId)?.description,
+                                selectedAgendaTemplate.description,
                                 agendaFollowUpDraft.templateVariables
                               )}
                               readOnly
@@ -2116,12 +2116,12 @@ export default function AgendaPage() {
                         ))
                       ) : null}
 
-                      {agendaFollowUpDraft.templateId ? (
+                      {selectedAgendaTemplate?.variables?.length ? (
                         <>
                           <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</span>
                           <textarea
                             value={interpolateTemplateDescription(
-                              messageTemplates.find((t) => t.id === agendaFollowUpDraft.templateId)?.description,
+                              selectedAgendaTemplate.description,
                               agendaFollowUpDraft.templateVariables
                             )}
                             readOnly
