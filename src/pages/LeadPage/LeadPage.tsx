@@ -2751,6 +2751,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const businessNameById = new Map(leadNegotiations.map((business) => [business.id, business.title ?? 'Negócio sem nome']))
     const selectedAgendaTemplate =
       messageTemplates.find((template) => template.id === agendaFollowUpDraft.templateId) ?? null
+    const hasSelectedAgendaBusiness = Boolean(agendaFollowUpDraft.negotiationId)
     const canCreateAgendaFollowUp =
       Boolean(agendaFollowUpDraft.negotiationId) &&
       Boolean(agendaFollowUpDraft.title.trim()) &&
@@ -2943,164 +2944,172 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           </select>
         </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Título</label>
-          <input
-            type="text"
-            placeholder="Título do follow-up"
-            value={agendaFollowUpDraft.title}
-            onChange={(event) =>
-              setAgendaFollowUpDraft((currentDraft) => ({
-                ...currentDraft,
-                title: event.target.value
-              }))
-            }
-            style={{
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: '#111827',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
+        {hasSelectedAgendaBusiness ? (
+          <>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Título</label>
+              <input
+                type="text"
+                placeholder="Título do follow-up"
+                value={agendaFollowUpDraft.title}
+                onChange={(event) =>
+                  setAgendaFollowUpDraft((currentDraft) => ({
+                    ...currentDraft,
+                    title: event.target.value
+                  }))
+                }
+                style={{
+                  height: isMobile ? 46 : 42,
+                  border: '1px solid #d7dce4',
+                  borderRadius: 10,
+                  padding: '0 14px',
+                  color: '#111827',
+                  fontSize: isMobile ? 17 / 1.2 : 14,
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
-          <select
-            value={agendaFollowUpDraft.templateId}
-            onChange={(event) => {
-              const templateId = event.target.value
-              const nextTemplate = messageTemplates.find((template) => template.id === templateId) ?? null
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
+              <select
+                value={agendaFollowUpDraft.templateId}
+                onChange={(event) => {
+                  const templateId = event.target.value
+                  const nextTemplate = messageTemplates.find((template) => template.id === templateId) ?? null
 
-              setAgendaFollowUpDraft((currentDraft) => ({
-                ...currentDraft,
-                templateId,
-                templateVariables: buildTemplateVariablesDraft(
-                  nextTemplate,
-                  currentDraft.templateVariables
-                )
-              }))
-            }}
-            style={{
-              width: '100%',
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              fontWeight: 600,
-              boxSizing: 'border-box',
-              background: '#ffffff'
-            }}
-          >
-            <option value="">Sem template</option>
-            {messageTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-        </div>
+                  setAgendaFollowUpDraft((currentDraft) => ({
+                    ...currentDraft,
+                    templateId,
+                    templateVariables: buildTemplateVariablesDraft(
+                      nextTemplate,
+                      currentDraft.templateVariables
+                    )
+                  }))
+                }}
+                style={{
+                  width: '100%',
+                  height: isMobile ? 46 : 42,
+                  border: '1px solid #d7dce4',
+                  borderRadius: 10,
+                  padding: '0 14px',
+                  color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
+                  fontSize: isMobile ? 17 / 1.2 : 14,
+                  fontWeight: 600,
+                  boxSizing: 'border-box',
+                  background: '#ffffff'
+                }}
+              >
+                <option value="">Sem template</option>
+                {messageTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {selectedAgendaTemplate?.variables?.length ? (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {selectedAgendaTemplate.variables.map((variable) => (
-              <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                  {variable.label}{variable.required ? ' *' : ''}
-                </label>
-                <input
-                  type="text"
-                  placeholder={`Valor para ${variable.label}`}
-                  value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
-                  onChange={(event) =>
-                    setAgendaFollowUpDraft((currentDraft) => ({
-                      ...currentDraft,
-                      templateVariables: {
-                        ...currentDraft.templateVariables,
-                        [variable.key]: event.target.value
+            {selectedAgendaTemplate?.variables?.length ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {selectedAgendaTemplate.variables.map((variable) => (
+                  <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
+                    <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
+                      {variable.label}{variable.required ? ' *' : ''}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={`Valor para ${variable.label}`}
+                      value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
+                      onChange={(event) =>
+                        setAgendaFollowUpDraft((currentDraft) => ({
+                          ...currentDraft,
+                          templateVariables: {
+                            ...currentDraft.templateVariables,
+                            [variable.key]: event.target.value
+                          }
+                        }))
                       }
-                    }))
-                  }
-                  style={{
-                    height: isMobile ? 46 : 42,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#111827',
-                    fontSize: isMobile ? 17 / 1.2 : 14,
-                    boxSizing: 'border-box'
-                  }}
-                />
+                      style={{
+                        height: isMobile ? 46 : 42,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 10,
+                        padding: '0 14px',
+                        color: '#111827',
+                        fontSize: isMobile ? 17 / 1.2 : 14,
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : null}
+            ) : null}
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
-          <input
-            type="datetime-local"
-            value={agendaFollowUpDraft.dueAt}
-            onChange={(event) =>
-              setAgendaFollowUpDraft((currentDraft) => ({
-                ...currentDraft,
-                dueAt: event.target.value
-              }))
-            }
-            style={{
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: '#111827',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
+              <input
+                type="datetime-local"
+                value={agendaFollowUpDraft.dueAt}
+                onChange={(event) =>
+                  setAgendaFollowUpDraft((currentDraft) => ({
+                    ...currentDraft,
+                    dueAt: event.target.value
+                  }))
+                }
+                style={{
+                  height: isMobile ? 46 : 42,
+                  border: '1px solid #d7dce4',
+                  borderRadius: 10,
+                  padding: '0 14px',
+                  color: '#111827',
+                  fontSize: isMobile ? 17 / 1.2 : 14,
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={handleCancelAgendaFollowUpCreation}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: '1px solid #d1d5db',
-              borderRadius: 8,
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCreateAgendaFollowUp()}
-            disabled={!canCreateAgendaFollowUp}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: 'none',
-              borderRadius: 8,
-              background: '#1f7a4d',
-              color: '#ffffff',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Salvar
-          </button>
-        </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
+              <button
+                type="button"
+                onClick={handleCancelAgendaFollowUpCreation}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateAgendaFollowUp()}
+                disabled={!canCreateAgendaFollowUp}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: canCreateAgendaFollowUp ? '#1f7a4d' : '#9ca3af',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Salvar
+              </button>
+            </div>
+          </>
+        ) : (
+          <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
+            Selecione um negócio para continuar.
+          </p>
+        )}
       </section>
     )
 
@@ -3123,10 +3132,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               <button
                 type="button"
                 onClick={() => {
-                  const defaultNegotiationId = leadNegotiations[0]?.id ?? ''
                   setAgendaFollowUpDraft({
                     ...initialAgendaFollowUpDraft,
-                    negotiationId: agendaFollowUpDraft.negotiationId || defaultNegotiationId
+                    negotiationId: ''
                   })
                   setIsCreatingAgendaFollowUp(true)
                 }}

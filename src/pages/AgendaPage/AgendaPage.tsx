@@ -18,6 +18,7 @@ import {
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
+  MessageTemplateResponse,
   NegotiationFollowUpResponse,
   NegotiationResponse
 } from '../../features/webhook/types/webhook.types'
@@ -66,6 +67,8 @@ type AgendaFollowUpDraft = {
   leadId: string
   negotiationId: string
   title: string
+  templateId: string
+  templateVariables: Record<string, string>
   dueAt: string
 }
 
@@ -73,7 +76,59 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   leadId: '',
   negotiationId: '',
   title: '',
+  templateId: '',
+  templateVariables: {},
   dueAt: ''
+}
+
+const buildTemplateVariablesDraft = (
+  template: MessageTemplateResponse | null | undefined,
+  currentVariables?: Record<string, string>
+): Record<string, string> => {
+  if (!template?.variables?.length) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    template.variables.map((variable) => [
+      variable.key,
+      currentVariables?.[variable.key] ?? ''
+    ])
+  )
+}
+
+const hasMissingRequiredTemplateVariables = (
+  template: MessageTemplateResponse | null | undefined,
+  variables: Record<string, string>
+): boolean => {
+  if (!template?.variables?.length) {
+    return false
+  }
+
+  return template.variables.some(
+    (variable) => variable.required && !String(variables[variable.key] ?? '').trim()
+  )
+}
+
+const interpolateTemplateDescription = (
+  description: string | null | undefined,
+  variables?: Record<string, unknown> | null
+): string => {
+  if (!description) {
+    return ''
+  }
+
+  return description.replace(/{\{\s*([^{}]+?)\s*}}/g, (_match, rawKey: string) => {
+    const key = rawKey.trim()
+    const value = variables?.[key]
+
+    if (value === null || value === undefined) {
+      return `{{${key}}}`
+    }
+
+    const text = String(value).trim()
+    return text || `{{${key}}}`
+  })
 }
 
 const getFilterOptionStyle = (isSelected: boolean) => ({
@@ -299,6 +354,7 @@ export default function AgendaPage() {
   const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [followUpFilter, setFollowUpFilter] = useState<AgendaFollowUpFilter>(initialFollowUpFilter)
+  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateResponse[]>([])
   const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] = useState<boolean>(false)
   const [isAgendaFollowUpPanelEntering, setIsAgendaFollowUpPanelEntering] = useState<boolean>(false)
   const [shouldRefreshOnAgendaClose, setShouldRefreshOnAgendaClose] = useState<boolean>(false)
@@ -369,11 +425,15 @@ export default function AgendaPage() {
     () => negocios.filter((negocio) => negocio.leadId === agendaFollowUpDraft.leadId),
     [agendaFollowUpDraft.leadId, negocios]
   )
+  const selectedAgendaTemplate =
+    messageTemplates.find((t) => t.id === agendaFollowUpDraft.templateId) ?? null
+
   const canConfirmAgendaFollowUp =
     Boolean(agendaFollowUpDraft.leadId) &&
     Boolean(agendaFollowUpDraft.negotiationId) &&
     Boolean(agendaFollowUpDraft.title.trim()) &&
-    Boolean(agendaFollowUpDraft.dueAt)
+    Boolean(agendaFollowUpDraft.dueAt) &&
+    !hasMissingRequiredTemplateVariables(selectedAgendaTemplate, agendaFollowUpDraft.templateVariables)
 
   const leadsById = useMemo(
     () =>
@@ -421,6 +481,27 @@ export default function AgendaPage() {
       }
     })
   }, [activeLeads])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTemplates = async () => {
+      try {
+        const loaded = await WebhookService.loadMessageTemplates()
+        if (isMounted) {
+          setMessageTemplates(loaded)
+        }
+      } catch {
+        // non-critical
+      }
+    }
+
+    void loadTemplates()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -559,6 +640,12 @@ export default function AgendaPage() {
       const createdFollowUp = await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
+        templateId: agendaFollowUpDraft.templateId.trim() || null,
+        templateVariables: agendaFollowUpDraft.templateId.trim()
+          ? Object.fromEntries(
+              Object.entries(agendaFollowUpDraft.templateVariables).filter(([, value]) => String(value).trim())
+            )
+          : {},
         dueAt: agendaFollowUpDraft.dueAt
       })
 
@@ -1310,6 +1397,64 @@ export default function AgendaPage() {
                         </div>
 
                         <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Template</label>
+                          <select
+                            value={agendaFollowUpDraft.templateId}
+                            onChange={(event) => {
+                              const templateId = event.target.value
+                              const nextTemplate = messageTemplates.find((t) => t.id === templateId) ?? null
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                templateId,
+                                templateVariables: buildTemplateVariablesDraft(nextTemplate, currentDraft.templateVariables)
+                              }))
+                            }}
+                            style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', background: '#ffffff' }}
+                          >
+                            <option value="">Sem template</option>
+                            {messageTemplates.map((template) => (
+                              <option key={template.id} value={template.id}>{template.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {selectedAgendaTemplate?.variables?.length ? (
+                          <div style={{ display: 'grid', gap: 12 }}>
+                            {selectedAgendaTemplate.variables.map((variable) => (
+                              <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
+                                <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>
+                                  {variable.label}{variable.required ? ' *' : ''}
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder={`Valor para ${variable.label}`}
+                                  value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
+                                  onChange={(event) =>
+                                    setAgendaFollowUpDraft((currentDraft) => ({
+                                      ...currentDraft,
+                                      templateVariables: { ...currentDraft.templateVariables, [variable.key]: event.target.value }
+                                    }))
+                                  }
+                                  style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {selectedAgendaTemplate ? (
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Descrição do template</label>
+                            <textarea
+                              value={interpolateTemplateDescription(selectedAgendaTemplate.description, agendaFollowUpDraft.templateVariables)}
+                              readOnly
+                              disabled
+                              style={{ width: '100%', minHeight: 86, border: '1px solid #d7dce4', borderRadius: 12, padding: '10px 14px', color: '#64748b', fontSize: 15, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed', resize: 'vertical', lineHeight: 1.4 }}
+                            />
+                          </div>
+                        ) : null}
+
+                        <div style={{ display: 'grid', gap: 8 }}>
                           <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
                           <input
                             type="datetime-local"
@@ -1903,6 +2048,93 @@ export default function AgendaPage() {
                           boxSizing: 'border-box'
                         }}
                       />
+
+                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Template</span>
+                      <select
+                        value={agendaFollowUpDraft.templateId}
+                        onChange={(event) => {
+                          const templateId = event.target.value
+                          const nextTemplate = messageTemplates.find((t) => t.id === templateId) ?? null
+                          setAgendaFollowUpDraft((currentDraft) => ({
+                            ...currentDraft,
+                            templateId,
+                            templateVariables: buildTemplateVariablesDraft(nextTemplate, currentDraft.templateVariables)
+                          }))
+                        }}
+                        style={{
+                          height: 36,
+                          maxWidth: 360,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          padding: '0 10px',
+                          color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="">Sem template</option>
+                        {messageTemplates.map((template) => (
+                          <option key={template.id} value={template.id}>{template.name}</option>
+                        ))}
+                      </select>
+
+                      {selectedAgendaTemplate?.variables?.length ? (
+                        selectedAgendaTemplate.variables.map((variable) => (
+                          <>
+                            <span key={`label-${variable.key}`} style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>
+                              {variable.label}{variable.required ? ' *' : ''}
+                            </span>
+                            <input
+                              key={variable.key}
+                              type="text"
+                              placeholder={`Valor para ${variable.label}`}
+                              value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
+                              onChange={(event) =>
+                                setAgendaFollowUpDraft((currentDraft) => ({
+                                  ...currentDraft,
+                                  templateVariables: { ...currentDraft.templateVariables, [variable.key]: event.target.value }
+                                }))
+                              }
+                              style={{
+                                height: 36,
+                                maxWidth: 360,
+                                border: '1px solid #d1d5db',
+                                borderRadius: 8,
+                                padding: '0 10px',
+                                color: '#111827',
+                                fontSize: 14,
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </>
+                        ))
+                      ) : null}
+
+                      {selectedAgendaTemplate ? (
+                        <>
+                          <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</span>
+                          <textarea
+                            value={interpolateTemplateDescription(selectedAgendaTemplate.description, agendaFollowUpDraft.templateVariables)}
+                            readOnly
+                            disabled
+                            style={{
+                              maxWidth: 360,
+                              minHeight: 86,
+                              border: '1px solid #d1d5db',
+                              borderRadius: 8,
+                              padding: '8px 10px',
+                              color: '#64748b',
+                              fontSize: 14,
+                              boxSizing: 'border-box',
+                              background: '#f8fafc',
+                              cursor: 'not-allowed',
+                              resize: 'vertical',
+                              lineHeight: 1.4
+                            }}
+                          />
+                        </>
+                      ) : null}
 
                       <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
                       <input
