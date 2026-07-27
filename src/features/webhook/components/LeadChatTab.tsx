@@ -74,6 +74,15 @@ export function LeadChatTab({
     return false
   })()
 
+  const buildTemplateDescription = (description: string | undefined | null): string => {
+    if (!description) return ''
+    let result = description
+    Object.entries(templateVariables).forEach(([key, value]) => {
+      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value || '')
+    })
+    return result
+  }
+
   useEffect(() => {
     if (!leadId.trim()) {
       return
@@ -415,11 +424,11 @@ export function LeadChatTab({
             {selectedTemplate ? (
               <div style={{ display: 'grid', gap: 8 }}>
                 <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>
-                  Descrição
+                  Mensagem
                 </label>
                 <textarea
                   readOnly
-                  value={selectedTemplate.description ?? ''}
+                  value={buildTemplateDescription(selectedTemplate.description)}
                   style={{
                     minHeight: 80,
                     border: '1px solid #d7dce4',
