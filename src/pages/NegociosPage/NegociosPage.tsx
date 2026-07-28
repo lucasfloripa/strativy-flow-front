@@ -1850,11 +1850,11 @@ export default function NegociosPage() {
                   )}
 
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={tagContentStyle}>{getLeadStageLabel(negocio.stage)}</span>
+                    <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(negocio.stage)}`}</span>
                   </span>
 
                   <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
+                    <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
                   </span>
 
                   {temperatureTagPresentation.label === '-' ? null : (
@@ -2488,7 +2488,7 @@ export default function NegociosPage() {
                           lineHeight: 1.1
                         }}
                       >
-                        <span style={tagContentStyle}>{getLeadStageLabel(negocio.stage)}</span>
+                        <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(negocio.stage)}`}</span>
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
@@ -2507,7 +2507,7 @@ export default function NegociosPage() {
                           lineHeight: 1.1
                         }}
                       >
-                        <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
+                        <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>

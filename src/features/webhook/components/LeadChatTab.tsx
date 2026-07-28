@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText } from 'lucide-react'
+import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { useRealtime } from '../../../core/realtime/useRealtime'
@@ -45,6 +45,7 @@ export function LeadChatTab({
   const isUploadingImageOrVideo =
     mediaUploader.isUploading &&
     (mediaUploader.uploadingType === 'image' || mediaUploader.uploadingType === 'video')
+  const isUploadingAudio = mediaUploader.isUploading && mediaUploader.uploadingType === 'audio'
   const isAnyUploadActive = mediaUploader.isUploading
 
   const lastInboundMessage = messages
@@ -333,6 +334,24 @@ export function LeadChatTab({
         exception instanceof Error && exception.message.trim().length > 0
           ? exception.message
           : `Nao foi possivel enviar ${isVideo ? 'video' : 'imagem'}. Tente novamente.`
+      setError(errorMessage)
+    }
+  }
+
+  const handleAudioSelected = async (selectedFile: File) => {
+    try {
+      setError(null)
+
+      await mediaUploader.uploadMedia({
+        leadId,
+        file: selectedFile,
+        type: 'audio'
+      })
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error && exception.message.trim().length > 0
+          ? exception.message
+          : 'Nao foi possivel enviar áudio. Tente novamente.'
       setError(errorMessage)
     }
   }
@@ -792,6 +811,37 @@ export function LeadChatTab({
                     }}
                   >
                     {isUploadingDocument ? <Loader2 size={18} /> : <Paperclip size={18} />}
+                  </button>
+                )}
+              </MediaPicker>
+              <MediaPicker
+                accept="audio/*"
+                disabled={isSending || isAnyUploadActive}
+                onFileSelected={handleAudioSelected}
+              >
+                {({ openPicker }) => (
+                  <button
+                    type="button"
+                    aria-label="Enviar áudio"
+                    onClick={openPicker}
+                    disabled={isSending || isAnyUploadActive}
+                    style={{
+                      height: 40,
+                      width: 40,
+                      minWidth: 40,
+                      border: 'none',
+                      borderRadius: 8,
+                      background: interactionTheme.primaryButtonBackground,
+                      color: '#ffffff',
+                      padding: 0,
+                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
+                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {isUploadingAudio ? <Loader2 size={18} /> : <Mic size={18} />}
                   </button>
                 )}
               </MediaPicker>
