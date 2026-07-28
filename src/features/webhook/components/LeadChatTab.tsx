@@ -726,8 +726,8 @@ export function LeadChatTab({
                 onChange={(event) => setMessage(event.target.value)}
                 onFocus={() => setIsInputFocused(true)}
                 onBlur={() => setIsInputFocused(false)}
-                placeholder="Digite uma mensagem..."
-                disabled={isSending || isAnyUploadActive}
+                placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : 'Digite uma mensagem...'}
+                disabled={isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'}
                 style={{
                   flex: 1,
                   height: 40,
@@ -741,7 +741,10 @@ export function LeadChatTab({
                   outline: 'none',
                   boxShadow: isInputFocused
                     ? interactionTheme.inputFocusBoxShadow
-                    : 'none'
+                    : 'none',
+                  background: runtimeMode === 'AUTOMATION' ? '#f3f4f6' : undefined,
+                  color: runtimeMode === 'AUTOMATION' ? '#9ca3af' : undefined,
+                  cursor: runtimeMode === 'AUTOMATION' ? 'not-allowed' : undefined
                 }}
               />
               <MediaPicker
