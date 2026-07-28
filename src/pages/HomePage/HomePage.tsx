@@ -870,7 +870,7 @@ export default function HomePage() {
             <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
               {highlightedLeads.map((highlightedLead) => {
                 const isArchivedLead = highlightedLead.status === 'Arquivado'
-                const shouldShowNewTag = isNewLead(highlightedLead.createdAt)
+                const shouldShowNewTag = isNewLead(highlightedLead.createdAt) && !highlightedLead.lastMessageAt
                 const interactionTagPresentation = getInteractionTagPresentation(
                   highlightedLead.lastMessageAt,
                   highlightedLead.createdAt
@@ -1099,7 +1099,7 @@ export default function HomePage() {
 
                   {highlightedLeads.map((highlightedLead) => {
                   const isArchivedLead = highlightedLead.status === 'Arquivado'
-                  const shouldShowNewTag = isNewLead(highlightedLead.createdAt)
+                  const shouldShowNewTag = isNewLead(highlightedLead.createdAt) && !highlightedLead.lastMessageAt
                   const interactionTagPresentation = getInteractionTagPresentation(
                     highlightedLead.lastMessageAt,
                     highlightedLead.createdAt

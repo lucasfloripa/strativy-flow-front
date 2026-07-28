@@ -1216,7 +1216,7 @@ export default function LeadsPage() {
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateLeadFormOpen ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
           {paginatedLeads.map((lead) => {
             const isArchivedLead = lead.state === 'archived'
-            const shouldShowNewTag = isNewLead(lead.createdAt)
+            const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
             const interactionTagPresentation = getInteractionTagPresentation(
               lead.lastMessageAt,
               lead.createdAt
@@ -1878,7 +1878,7 @@ export default function LeadsPage() {
             <tbody>
               {paginatedLeads.map((lead) => {
                 const isArchivedLead = lead.state === 'archived'
-                const shouldShowNewTag = isNewLead(lead.createdAt)
+                const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
                 const interactionTagPresentation = getInteractionTagPresentation(
                   lead.lastMessageAt,
                   lead.createdAt
