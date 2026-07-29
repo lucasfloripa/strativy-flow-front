@@ -635,14 +635,14 @@ export default function NegociosPage() {
     })),
     ...selectedStageFilters.map((value) => ({
       key: `stage-${value}`,
-      label: `Etapa: ${getBusinessStageFilterLabel(value)}`,
+      label: getBusinessStageFilterLabel(value),
       textColor: '#1d4ed8',
       background: '#dbeafe',
       onRemove: () => setSelectedStageFilters((current) => current.filter((item) => item !== value))
     })),
     ...selectedStatusFilters.map((value) => ({
       key: `status-${value}`,
-      label: `Status: ${getBusinessStatusFilterLabel(value)}`,
+      label: getBusinessStatusFilterLabel(value),
       textColor: '#b45309',
       background: '#fef3c7',
       onRemove: () => setSelectedStatusFilters((current) => current.filter((item) => item !== value))
@@ -1843,19 +1843,19 @@ export default function NegociosPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={tagContentStyle}>{isMobile ? `Etapa: ${getLeadStageLabel(negocio.stage)}` : getLeadStageLabel(negocio.stage)}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={tagContentStyle}>{isMobile ? `Status: ${businessLifecycleTagPresentation.label}` : businessLifecycleTagPresentation.label}</span>
+                  </span>
+
                   {businessTypeLabel === '-' ? null : (
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap', background: '#ede9fe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                       <span style={tagContentStyle}>{businessTypeLabel}</span>
                     </span>
                   )}
-
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(negocio.stage)}`}</span>
-                  </span>
-
-                  <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
-                  </span>
 
                   {temperatureTagPresentation.label === '-' ? null : (
                     <span style={{ fontSize: 12, fontWeight: 700, color: temperatureTagPresentation.textColor, whiteSpace: 'nowrap', background: `${temperatureTagPresentation.textColor}44`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
@@ -2321,7 +2321,7 @@ export default function NegociosPage() {
                       onMouseLeave={() => setHoveredNegocioId(null)}
                     >
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -2488,7 +2488,7 @@ export default function NegociosPage() {
                           lineHeight: 1.1
                         }}
                       >
-                        <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(negocio.stage)}`}</span>
+                        <span style={tagContentStyle}>{getLeadStageLabel(negocio.stage)}</span>
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
@@ -2507,7 +2507,7 @@ export default function NegociosPage() {
                           lineHeight: 1.1
                         }}
                       >
-                        <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
+                        <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>

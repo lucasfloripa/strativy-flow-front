@@ -6,7 +6,9 @@ import { interactionTheme } from '../../../app/theme/brandTheme'
 import { useRealtime } from '../../../core/realtime/useRealtime'
 import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
+import { RecordingComposer } from './RecordingComposer'
 import { useChatMediaUpload } from '../hooks/useChatMediaUpload'
+import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { WebhookService } from '../services/WebhookService'
 import type { ChatMessage, ChatMessageApi, LeadRuntimeMode, MessageTemplateResponse } from '../types/webhook.types'
 
@@ -25,6 +27,7 @@ export function LeadChatTab({
 }: LeadChatTabProps) {
   const realtime = useRealtime()
   const mediaUploader = useChatMediaUpload()
+  const audioRecorder = useAudioRecorder()
   const [message, setMessage] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -352,6 +355,77 @@ export function LeadChatTab({
         exception instanceof Error && exception.message.trim().length > 0
           ? exception.message
           : 'Nao foi possivel enviar áudio. Tente novamente.'
+      setError(errorMessage)
+    }
+  }
+
+  const formatRecordingDuration = (durationInMs: number): string => {
+    const totalSeconds = Math.floor(durationInMs / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      setError(null)
+      await audioRecorder.startRecording()
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error && exception.message.trim().length > 0
+          ? exception.message
+          : 'Nao foi possivel iniciar a gravacao de audio.'
+      setError(errorMessage)
+    }
+  }
+
+  const handleFinishRecording = async () => {
+    try {
+      setError(null)
+      const recordedBlob = await audioRecorder.stopRecording()
+
+      if (!recordedBlob) {
+        setError('Nenhum audio foi gravado.')
+        return
+      }
+
+      console.debug('[AUDIO-RECORDING] Recorded blob metadata', {
+        blobType: recordedBlob.type,
+        blobSize: recordedBlob.size,
+        blobSizeInMb: (recordedBlob.size / (1024 * 1024)).toFixed(2)
+      })
+
+      const audioFile = new File([recordedBlob], `audio_${Date.now()}.webm`, {
+        type: recordedBlob.type
+      })
+
+      console.debug('[AUDIO-RECORDING] Created File object', {
+        fileName: audioFile.name,
+        fileType: audioFile.type,
+        fileSize: audioFile.size,
+        fileSizeInMb: (audioFile.size / (1024 * 1024)).toFixed(2)
+      })
+
+      await mediaUploader.uploadMedia({
+        leadId,
+        file: audioFile,
+        type: 'audio'
+      })
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error && exception.message.trim().length > 0
+          ? exception.message
+          : 'Nao foi possivel enviar o audio.'
+      setError(errorMessage)
+    }
+  }
+
+  const handleCancelRecording = async () => {
+    try {
+      await audioRecorder.cancelRecording()
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error ? exception.message : 'Erro ao cancelar gravacao.'
       setError(errorMessage)
     }
   }
@@ -685,11 +759,22 @@ export function LeadChatTab({
         )}
 
         {!isReopeningConversation && !shouldShowReopenButton && (
-        <form
-          onSubmit={handleSendSubmit}
-          style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
-        >
-          <>
+        <>
+          {audioRecorder.isRecording ? (
+            <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}>
+              <RecordingComposer
+                durationLabel={formatRecordingDuration(audioRecorder.recordingDurationInMs)}
+                isUploading={isAnyUploadActive}
+                onCancel={handleCancelRecording}
+                onFinish={handleFinishRecording}
+              />
+            </div>
+          ) : (
+          <form
+            onSubmit={handleSendSubmit}
+            style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
+          >
+            <>
               <button
                 type="button"
                 onClick={onToggleRuntimeMode}
@@ -817,37 +902,62 @@ export function LeadChatTab({
                   </button>
                 )}
               </MediaPicker>
-              <MediaPicker
-                accept="audio/*"
-                disabled={isSending || isAnyUploadActive}
-                onFileSelected={handleAudioSelected}
+              <button
+                type="button"
+                aria-label="Gravar áudio"
+                onClick={handleStartRecording}
+                disabled={isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION'}
+                style={{
+                  height: 40,
+                  width: 40,
+                  minWidth: 40,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: interactionTheme.primaryButtonBackground,
+                  color: '#ffffff',
+                  padding: 0,
+                  cursor: isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION' ? 'not-allowed' : 'pointer',
+                  opacity: isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION' ? 0.7 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                {({ openPicker }) => (
-                  <button
-                    type="button"
-                    aria-label="Enviar áudio"
-                    onClick={openPicker}
-                    disabled={isSending || isAnyUploadActive}
-                    style={{
-                      height: 40,
-                      width: 40,
-                      minWidth: 40,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: interactionTheme.primaryButtonBackground,
-                      color: '#ffffff',
-                      padding: 0,
-                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
-                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {isUploadingAudio ? <Loader2 size={18} /> : <Mic size={18} />}
-                  </button>
-                )}
-              </MediaPicker>
+                <Mic size={18} />
+              </button>
+              <div style={{ display: 'none' }}>
+                <MediaPicker
+                  accept="audio/*"
+                  disabled={isSending || isAnyUploadActive}
+                  onFileSelected={handleAudioSelected}
+                >
+                  {({ openPicker }) => (
+                    <button
+                      type="button"
+                      aria-label="Anexar áudio"
+                      onClick={openPicker}
+                      disabled={isSending || isAnyUploadActive}
+                      style={{
+                        height: 40,
+                        width: 40,
+                        minWidth: 40,
+                        border: 'none',
+                        borderRadius: 8,
+                        background: interactionTheme.primaryButtonBackground,
+                        color: '#ffffff',
+                        padding: 0,
+                        cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
+                        opacity: isSending || isAnyUploadActive ? 0.7 : 1,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {isUploadingAudio ? <Loader2 size={18} /> : <Mic size={18} />}
+                    </button>
+                  )}
+                </MediaPicker>
+              </div>
               <button
                 type="submit"
                 aria-label="Enviar mensagem"
@@ -876,7 +986,9 @@ export function LeadChatTab({
                 {isSending ? '...' : <SendHorizontal size={18} />}
               </button>
             </>
-        </form>
+          </form>
+          )}
+        </>
         )}
       </div>
     </section>

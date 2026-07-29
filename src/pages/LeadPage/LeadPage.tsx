@@ -7575,11 +7575,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                        <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(business.stage)}`}</span>
+                        <span style={tagContentStyle}>{isMobile ? `Etapa: ${getLeadStageLabel(business.stage)}` : getLeadStageLabel(business.stage)}</span>
                       </span>
 
                       <span style={{ fontSize: 12, fontWeight: 700, color: businessLifecycleTagPresentation.textColor, whiteSpace: 'nowrap', background: businessLifecycleTagPresentation.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                        <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
+                        <span style={tagContentStyle}>{isMobile ? `Status: ${businessLifecycleTagPresentation.label}` : businessLifecycleTagPresentation.label}</span>
                       </span>
 
                       {businessTypeLabel === 'Sem tipo' ? null : (
@@ -7694,7 +7694,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                             width: '100%'
                           }}
                         >
-                          <span style={tagContentStyle}>{`Etapa: ${getLeadStageLabel(business.stage)}`}</span>
+                          <span style={tagContentStyle}>{getLeadStageLabel(business.stage)}</span>
                         </span>
                       </div>
 
@@ -7716,7 +7716,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                             width: '100%'
                           }}
                         >
-                          <span style={tagContentStyle}>{`Status: ${businessLifecycleTagPresentation.label}`}</span>
+                          <span style={tagContentStyle}>{businessLifecycleTagPresentation.label}</span>
                         </span>
                       </div>
 
