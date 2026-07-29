@@ -23,6 +23,7 @@ import {
   Phone,
   Link2,
   Instagram,
+  Search,
   Star,
   Snowflake,
   Sun,
@@ -362,6 +363,14 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
 
   if (normalizedSource === 'metaads') {
     return { label: 'Meta Ads', textColor: '#1877f2', icon: <Facebook size={12} /> }
+  }
+
+  if (normalizedSource === 'googleads') {
+    return {
+      label: 'Google Ads',
+      textColor: '#FBBC04',
+      icon: <Search size={12} />
+    }
   }
 
   if (normalizedSource === 'whatsapp') {
@@ -2388,6 +2397,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   >
                     <option value="whatsapp">WhatsApp</option>
                     <option value="metaads">MetaAds</option>
+                    <option value="googleads">Google Ads</option>
                     <option value="indicacao">Indicação</option>
                   </select>
                 </div>
@@ -8837,6 +8847,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               <option value="">Selecione</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="metaads">MetaAds</option>
+              <option value="googleads">Google Ads</option>
               <option value="indicacao">Indicação</option>
             </select>
 

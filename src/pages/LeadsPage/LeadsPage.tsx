@@ -1,4 +1,4 @@
-import { Archive, CalendarDays, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Plus, Star, Trash2 } from 'lucide-react'
+import { Archive, CalendarDays, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Plus, Search, Star, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -46,7 +46,7 @@ type LeadSortKey = 'createdAt' | 'name' | 'qualification' | 'nextAgenda' | 'last
 type LeadSortDirection = 'asc' | 'desc'
 type QualificationSortFocus = 'qualify' | 'notQualify' | 'unqualified'
 type NextAgendaSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
-type SourceSortFocus = 'whatsappFirst' | 'metaAdsFirst' | 'indicacaoFirst'
+type SourceSortFocus = 'whatsappFirst' | 'metaAdsFirst' | 'googleAdsFirst' | 'indicacaoFirst'
 
 
 const getSourceTagPresentation = (source: string): TagPresentation => {
@@ -61,6 +61,14 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
       label: 'Meta Ads',
       textColor: '#1877f2',
       icon: <Facebook size={12} />
+    }
+  }
+
+  if (normalizedSource === 'googleads') {
+    return {
+      label: 'Google Ads',
+      textColor: '#FBBC04',
+      icon: <Search size={12} />
     }
   }
 
@@ -314,7 +322,7 @@ const getQualificationSortRank = (
 
 const normalizeSourceValue = (
   source: string
-): 'whatsapp' | 'metaads' | 'indicacao' | 'other' => {
+): 'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other' => {
   const normalizedSource = source
     .trim()
     .toLowerCase()
@@ -330,6 +338,10 @@ const normalizeSourceValue = (
     return 'metaads'
   }
 
+  if (normalizedSource === 'googleads') {
+    return 'googleads'
+  }
+
   if (normalizedSource === 'indicacao') {
     return 'indicacao'
   }
@@ -342,25 +354,35 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
 
   const ranksByFocus: Record<
     SourceSortFocus,
-    Record<'whatsapp' | 'metaads' | 'indicacao' | 'other', number>
+    Record<'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other', number>
   > = {
     whatsappFirst: {
       whatsapp: 0,
       metaads: 1,
-      indicacao: 2,
-      other: 3
+      googleads: 2,
+      indicacao: 3,
+      other: 4
     },
     metaAdsFirst: {
       metaads: 0,
       whatsapp: 1,
-      indicacao: 2,
-      other: 3
+      googleads: 2,
+      indicacao: 3,
+      other: 4
+    },
+    googleAdsFirst: {
+      googleads: 0,
+      whatsapp: 1,
+      metaads: 2,
+      indicacao: 3,
+      other: 4
     },
     indicacaoFirst: {
       indicacao: 0,
       whatsapp: 1,
       metaads: 2,
-      other: 3
+      googleads: 3,
+      other: 4
     }
   }
 
@@ -930,6 +952,10 @@ export default function LeadsPage() {
         }
 
         if (currentFocus === 'metaAdsFirst') {
+          return 'googleAdsFirst'
+        }
+
+        if (currentFocus === 'googleAdsFirst') {
           return 'indicacaoFirst'
         }
 
