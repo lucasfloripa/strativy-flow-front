@@ -34,6 +34,7 @@ type LeadsTableRow = {
   hasFollowUpToday: boolean
   hasFollowUpScheduled: boolean
   hasAnyFollowUp: boolean
+  hasOnlyClosedNegotiations: boolean
 }
 
 type TagPresentation = {
@@ -577,7 +578,8 @@ export default function LeadsPage() {
       hasFollowUpOverdue: lead.hasFollowUpOverdue ?? false,
       hasFollowUpToday: lead.hasFollowUpToday ?? false,
       hasFollowUpScheduled: lead.hasFollowUpScheduled ?? false,
-      hasAnyFollowUp: lead.hasAnyFollowUp ?? false
+      hasAnyFollowUp: lead.hasAnyFollowUp ?? false,
+      hasOnlyClosedNegotiations: lead.hasOnlyClosedNegotiations ?? false
     }))
 
   const openLeadNextAgendaFollowUp = async (lead: LeadsTableRow) => {
@@ -689,11 +691,11 @@ export default function LeadsPage() {
     const matchesQuickView = isNewTodayView
       ? isCreatedWithin24h
       : isWithoutConversation24hView
-        ? hasNoConversationFor24h
+        ? hasNoConversationFor24h && !lead.hasOnlyClosedNegotiations
         : true
     const matchesNewFilter = showOnlyNewLeads ? isCreatedWithin24h : true
     const matchesWithoutConversation24hFilter = showOnlyWithoutConversation24h
-      ? hasAnyMessage && !hasRecentMessageInLast24h
+      ? (hasAnyMessage && !hasRecentMessageInLast24h) && !lead.hasOnlyClosedNegotiations
       : true
 
     return (

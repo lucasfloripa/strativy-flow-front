@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -17,7 +17,7 @@ export type AuthenticatedLayoutOutletContext = {
   setMobileHomeNotificationsCount: (count: number) => void
 }
 
-type SettingsTab = 'usuario' | 'notificacoes'
+type SettingsTab = 'usuario' | 'notificacoes' | 'chat'
 type NotificationChannelKey = 'inApp' | 'whatsApp' | 'email'
 type NotificationPreference = {
   id: string
@@ -35,6 +35,13 @@ type UserInformationsResponse = {
   notificationWhatsAppNumbers?: string[]
   notificationEmails?: string[]
   notificationPreferences?: Record<string, string[]>
+  messageShortcuts?: Record<string, string> | null
+}
+
+type MessageShortcut = {
+  id: string
+  key: string
+  value: string
 }
 
 const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
@@ -58,6 +65,20 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     description: 'Quando falta 1 hora para um follow-up vencer',
     icon: 'clock',
     channels: { inApp: true, whatsApp: false, email: false }
+  },
+  {
+    id: 'conversation-expiring-1h',
+    title: 'Conversa a 1 hora de expirar',
+    description: 'Quando uma conversa está a 1 hora de expirar (24h sem resposta do lead)',
+    icon: 'clock',
+    channels: { inApp: true, whatsApp: false, email: false }
+  },
+  {
+    id: 'conversation-expired',
+    title: 'Conversa expirada',
+    description: 'Quando uma conversa expirou (passaram 24h sem resposta do lead)',
+    icon: 'clock',
+    channels: { inApp: true, whatsApp: true, email: true }
   },
   {
     id: 'followup-list',
@@ -88,7 +109,9 @@ const buildNotificationPreferences = (
     NEW_LEAD: 'new-lead',
     MESSAGE_RECEIVED: 'new-message',
     FOLLOWUP_ONE_HOUR: 'followup-1h',
-    DAILY_FOLLOWUP_SUMMARY: 'followup-list'
+    DAILY_FOLLOWUP_SUMMARY: 'followup-list',
+    CONVERSATION_EXPIRING_1H: 'conversation-expiring-1h',
+    CONVERSATION_EXPIRED: 'conversation-expired'
   }
 
   const channelMap: Record<string, keyof typeof preferences[0]['channels']> = {
@@ -274,6 +297,15 @@ export function AuthenticatedLayout() {
   const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTab>('usuario')
   const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null)
   const [selectedNotificationsTab, setSelectedNotificationsTab] = useState<'tipos' | 'canais' | 'preferencias'>('tipos')
+  const [selectedChatTab, setSelectedChatTab] = useState<'atalhos'>('atalhos')
+  const [messageShortcuts, setMessageShortcuts] = useState<MessageShortcut[]>([])
+  const [isAddingShortcut, setIsAddingShortcut] = useState<boolean>(false)
+  const [newShortcutKey, setNewShortcutKey] = useState<string>('')
+  const [newShortcutValue, setNewShortcutValue] = useState<string>('')
+  const [editingShortcutId, setEditingShortcutId] = useState<string | null>(null)
+  const [editingShortcutKey, setEditingShortcutKey] = useState<string>('')
+  const [editingShortcutValue, setEditingShortcutValue] = useState<string>('')
+  const [isLoadingShortcuts, setIsLoadingShortcuts] = useState<boolean>(false)
   const [whatsAppNumbers, setWhatsAppNumbers] = useState<WhatsAppNumber[]>([])
   const [emailAddresses, setEmailAddresses] = useState<EmailAddress[]>([])
   const [isAddingWhatsAppNumber, setIsAddingWhatsAppNumber] = useState<boolean>(false)
@@ -477,6 +509,43 @@ export function AuthenticatedLayout() {
   }, [isSettingsPanelOpen, selectedSettingsTab])
 
   useEffect(() => {
+    if (!isSettingsPanelOpen || selectedSettingsTab !== 'chat') {
+      return
+    }
+
+    let isMounted = true
+
+    const loadShortcutsData = async () => {
+      try {
+        setIsLoadingShortcuts(true)
+        const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+
+        if (!isMounted) {
+          return
+        }
+
+        const shortcuts = data[0]?.messageShortcuts ?? {}
+        const shortcutsList = Object.entries(shortcuts).map(([key, value], index) => ({
+          id: String(index + 1),
+          key,
+          value
+        }))
+        setMessageShortcuts(shortcutsList)
+      } finally {
+        if (isMounted) {
+          setIsLoadingShortcuts(false)
+        }
+      }
+    }
+
+    void loadShortcutsData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isSettingsPanelOpen, selectedSettingsTab])
+
+  useEffect(() => {
     if (!passwordChangeSucceeded || passwordChangeFeedback !== 'Senha alterada com sucesso.') {
       return
     }
@@ -493,6 +562,7 @@ export function AuthenticatedLayout() {
 
   const usuarioTabIsActive = selectedSettingsTab === 'usuario'
   const notificacoesTabIsActive = selectedSettingsTab === 'notificacoes'
+  const chatTabIsActive = selectedSettingsTab === 'chat'
   const isHomePage = location.pathname === '/inicio'
   const mobileHomeHeaderHeight = 74
   const mobileBottomNavHeight = 82
@@ -565,6 +635,33 @@ export function AuthenticatedLayout() {
       >
         Notificações
       </button>
+
+      <button
+        type="button"
+        role="tab"
+        aria-selected={chatTabIsActive}
+        onClick={() => setSelectedSettingsTab('chat')}
+        onMouseEnter={() => setHoveredSettingsTab('chat')}
+        onMouseLeave={() => setHoveredSettingsTab(null)}
+        style={{
+          border: 'none',
+          background:
+            chatTabIsActive || hoveredSettingsTab === 'chat'
+              ? interactionTheme.clickableCardHoverBackground
+              : 'transparent',
+          borderRadius: 6,
+          padding: '8px 12px',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: chatTabIsActive ? 600 : 400,
+          color:
+            chatTabIsActive || hoveredSettingsTab === 'chat'
+              ? interactionTheme.activeIconColor
+              : '#6b7280'
+        }}
+      >
+        Chat
+      </button>
     </div>
   )
 
@@ -597,7 +694,9 @@ export function AuthenticatedLayout() {
       'new-lead': 'NEW_LEAD',
       'new-message': 'MESSAGE_RECEIVED',
       'followup-1h': 'FOLLOWUP_ONE_HOUR',
-      'followup-list': 'DAILY_FOLLOWUP_SUMMARY'
+      'followup-list': 'DAILY_FOLLOWUP_SUMMARY',
+      'conversation-expiring-1h': 'CONVERSATION_EXPIRING_1H',
+      'conversation-expired': 'CONVERSATION_EXPIRED'
     }
 
     const channelMap: Record<NotificationChannelKey, string> = {
@@ -862,6 +961,74 @@ export function AuthenticatedLayout() {
       setNewWhatsAppNumber('')
       void persistWhatsAppNumbers(next)
     }
+  }
+
+  const persistShortcuts = async (shortcuts: MessageShortcut[]) => {
+    try {
+      const userInformationsId = getUserIdFromStoredAccessToken()
+      if (!userInformationsId) return
+
+      const shortcutsRecord = Object.fromEntries(shortcuts.map((s) => [s.key, s.value]))
+      await appApiClient.patch(
+        `/user/user-informations/${userInformationsId}/shortcuts`,
+        { messageShortcuts: shortcutsRecord }
+      )
+    } catch (error) {
+      console.error('Erro ao salvar atalhos:', error)
+    }
+  }
+
+  const handleCancelAddShortcut = () => {
+    setIsAddingShortcut(false)
+    setNewShortcutKey('')
+    setNewShortcutValue('')
+  }
+
+  const handleConfirmAddShortcut = () => {
+    const trimmedKey = newShortcutKey.trim()
+    const trimmedValue = newShortcutValue.trim()
+    if (!trimmedKey || !trimmedValue) return
+
+    const newId = String(Math.max(...messageShortcuts.map((s) => parseInt(s.id, 10)), 0) + 1)
+    const next = [{ id: newId, key: trimmedKey, value: trimmedValue }, ...messageShortcuts]
+    setMessageShortcuts(next)
+    setIsAddingShortcut(false)
+    setNewShortcutKey('')
+    setNewShortcutValue('')
+    void persistShortcuts(next)
+  }
+
+  const handleDeleteShortcut = (id: string) => {
+    const next = messageShortcuts.filter((s) => s.id !== id)
+    setMessageShortcuts(next)
+    void persistShortcuts(next)
+  }
+
+  const handleStartEditShortcut = (id: string, key: string, value: string) => {
+    setEditingShortcutId(id)
+    setEditingShortcutKey(key)
+    setEditingShortcutValue(value)
+  }
+
+  const handleCancelEditShortcut = () => {
+    setEditingShortcutId(null)
+    setEditingShortcutKey('')
+    setEditingShortcutValue('')
+  }
+
+  const handleConfirmEditShortcut = (id: string) => {
+    const trimmedKey = editingShortcutKey.trim()
+    const trimmedValue = editingShortcutValue.trim()
+    if (!trimmedKey || !trimmedValue) return
+
+    const next = messageShortcuts.map((s) =>
+      s.id === id ? { ...s, key: trimmedKey, value: trimmedValue } : s
+    )
+    setMessageShortcuts(next)
+    setEditingShortcutId(null)
+    setEditingShortcutKey('')
+    setEditingShortcutValue('')
+    void persistShortcuts(next)
   }
 
   const handleOpenChangePasswordForm = () => {
@@ -1867,7 +2034,7 @@ export function AuthenticatedLayout() {
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
                         <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
-                          Notificações
+                          Eventos
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b' }}>
                           Escolha quais eventos você deseja receber e por qual canal
@@ -2549,6 +2716,313 @@ export function AuthenticatedLayout() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {selectedSettingsTab === 'chat' ? (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    background: '#ffffff',
+                    overflow: 'hidden',
+                    display: 'grid',
+                    gridTemplateRows: 'auto 1fr'
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChatTab('atalhos')}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        background: selectedChatTab === 'atalhos' ? '#2f8f55' : '#ffffff',
+                        color: selectedChatTab === 'atalhos' ? '#ffffff' : '#111827',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        border: selectedChatTab === 'atalhos' ? 'none' : '1px solid #d1d5db',
+                        flex: 1
+                      }}
+                    >
+                      Atalhos
+                    </button>
+                  </div>
+
+                  {selectedChatTab === 'atalhos' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {isLoadingShortcuts ? (
+                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
+                          Carregando atalhos...
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                              <div>
+                                <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                                  Atalhos
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
+                                  Digite <strong style={{ color: '#111827' }}>/</strong> no início de uma mensagem no chat para ver e usar seus atalhos rapidamente
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingShortcut(true)}
+                                style={{
+                                  padding: '8px 14px',
+                                  borderRadius: 8,
+                                  background: '#2f8f55',
+                                  color: '#ffffff',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 6,
+                                  border: 'none',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
+                                }}
+                              >
+                                + Adicionar atalho
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ padding: '12px 16px' }}>
+                            {isAddingShortcut ? (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: '1fr 2fr auto auto',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '12px 0',
+                                  borderBottom: '1px solid #e5e7eb'
+                                }}
+                              >
+                                <input
+                                  type="text"
+                                  value={newShortcutKey}
+                                  onChange={(e) => setNewShortcutKey(e.target.value)}
+                                  placeholder="Chave (ex: oi)"
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#111827',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 6,
+                                    padding: '6px 10px',
+                                    fontFamily: 'inherit'
+                                  }}
+                                  autoFocus
+                                />
+                                <input
+                                  type="text"
+                                  value={newShortcutValue}
+                                  onChange={(e) => setNewShortcutValue(e.target.value)}
+                                  placeholder="Mensagem completa"
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#111827',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 6,
+                                    padding: '6px 10px',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleCancelAddShortcut}
+                                  aria-label="Cancelar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#6b7280',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <X size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleConfirmAddShortcut}
+                                  disabled={!newShortcutKey.trim() || !newShortcutValue.trim()}
+                                  aria-label="Confirmar"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: newShortcutKey.trim() && newShortcutValue.trim() ? '#2f8f55' : '#d1d5db',
+                                    cursor: newShortcutKey.trim() && newShortcutValue.trim() ? 'pointer' : 'not-allowed',
+                                    padding: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Check size={16} />
+                                </button>
+                              </div>
+                            ) : null}
+
+                            {messageShortcuts.map((shortcut, index) => (
+                              <div key={shortcut.id}>
+                                {editingShortcutId === shortcut.id ? (
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 2fr auto auto',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      padding: '12px 0'
+                                    }}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={editingShortcutKey}
+                                      onChange={(e) => setEditingShortcutKey(e.target.value)}
+                                      placeholder="Chave"
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: '#111827',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: 4,
+                                        padding: '8px 12px',
+                                        fontFamily: 'inherit'
+                                      }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={editingShortcutValue}
+                                      onChange={(e) => setEditingShortcutValue(e.target.value)}
+                                      placeholder="Mensagem"
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: '#111827',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: 4,
+                                        padding: '8px 12px',
+                                        fontFamily: 'inherit'
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditShortcut}
+                                      aria-label="Cancelar"
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: '#6b7280',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      <X size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConfirmEditShortcut(shortcut.id)}
+                                      disabled={!editingShortcutKey.trim() || !editingShortcutValue.trim()}
+                                      aria-label="Confirmar"
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: editingShortcutKey.trim() && editingShortcutValue.trim() ? '#2f8f55' : '#d1d5db',
+                                        cursor: editingShortcutKey.trim() && editingShortcutValue.trim() ? 'pointer' : 'not-allowed',
+                                        padding: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      <Check size={16} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 2fr auto auto',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      padding: '12px 0'
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                                      /{shortcut.key}
+                                    </div>
+                                    <div style={{ fontSize: 14, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {shortcut.value}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditShortcut(shortcut.id, shortcut.key, shortcut.value)}
+                                      aria-label="Editar atalho"
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: '#6b7280',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      <Pencil size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteShortcut(shortcut.id)}
+                                      aria-label="Excluir atalho"
+                                      style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: '#6b7280',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                )}
+                                {index < messageShortcuts.length - 1 ? (
+                                  <div style={{ height: '1px', background: '#e5e7eb' }} />
+                                ) : null}
+                              </div>
+                            ))}
+
+                            {messageShortcuts.length === 0 && !isAddingShortcut ? (
+                              <p style={{ margin: 0, color: '#9ca3af', fontSize: 14, paddingTop: 8 }}>
+                                Nenhum atalho cadastrado ainda.
+                              </p>
+                            ) : null}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : null}
                 </div>

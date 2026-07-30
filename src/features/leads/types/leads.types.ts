@@ -17,6 +17,7 @@ export type Lead = {
   hasFollowUpToday?: boolean
   hasFollowUpScheduled?: boolean
   hasAnyFollowUp?: boolean
+  hasOnlyClosedNegotiations?: boolean
 }
 
 export type LeadsBootstrapData = {

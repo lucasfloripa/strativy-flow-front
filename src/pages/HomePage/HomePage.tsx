@@ -428,6 +428,13 @@ const getNotificationNavigation = (
       return {
         path: '/agenda?followUp=today'
       }
+    case 'CONVERSATION_EXPIRING_1H':
+      return {
+        path: `/leads/${notification.referenceId}`,
+        state: {
+          initialLeadTab: 'chat'
+        }
+      }
     default:
       return {
         path: '/leads'

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
+import { appApiClient } from '../../../core/api/appApiClient'
 import { useRealtime } from '../../../core/realtime/useRealtime'
 import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
@@ -34,6 +35,10 @@ export function LeadChatTab({
   const [isSending, setIsSending] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false)
+  const [shortcuts, setShortcuts] = useState<{ key: string; value: string }[]>([])
+  const [shortcutDropdownVisible, setShortcutDropdownVisible] = useState<boolean>(false)
+  const [shortcutFilter, setShortcutFilter] = useState<string>('')
+  const [shortcutActiveIndex, setShortcutActiveIndex] = useState<number>(0)
   const [isAttachmentButtonHovered, setIsAttachmentButtonHovered] = useState<boolean>(false)
   const [isImageButtonHovered, setIsImageButtonHovered] = useState<boolean>(false)
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
@@ -191,6 +196,74 @@ export function LeadChatTab({
       isMounted = false
     }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadShortcuts = async () => {
+      try {
+        const { data } = await appApiClient.get<Array<{ messageShortcuts?: Record<string, string> | null }>>('/user/user-informations')
+        if (!isMounted) return
+        const raw = data[0]?.messageShortcuts ?? {}
+        setShortcuts(Object.entries(raw).map(([key, value]) => ({ key, value })))
+      } catch {
+        // silently ignore
+      }
+    }
+
+    void loadShortcuts()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const filteredShortcuts = (() => {
+    if (!shortcutDropdownVisible) return []
+    const filter = shortcutFilter.toLowerCase()
+    const matched = filter
+      ? shortcuts.filter((s) => s.key.toLowerCase().startsWith(filter))
+      : shortcuts
+    return matched.slice(0, 5)
+  })()
+
+  const handleMessageChange = (value: string) => {
+    setMessage(value)
+
+    if (value.startsWith('/')) {
+      const query = value.slice(1)
+      setShortcutFilter(query)
+      setShortcutDropdownVisible(true)
+      setShortcutActiveIndex(0)
+    } else {
+      setShortcutDropdownVisible(false)
+      setShortcutFilter('')
+    }
+  }
+
+  const handleSelectShortcut = (shortcut: { key: string; value: string }) => {
+    setMessage(shortcut.value)
+    setShortcutDropdownVisible(false)
+    setShortcutFilter('')
+    messageInputRef.current?.focus()
+  }
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!shortcutDropdownVisible || filteredShortcuts.length === 0) return
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setShortcutActiveIndex((i) => Math.min(i + 1, filteredShortcuts.length - 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setShortcutActiveIndex((i) => Math.max(i - 1, 0))
+    } else if (event.key === 'Enter' && filteredShortcuts[shortcutActiveIndex]) {
+      event.preventDefault()
+      handleSelectShortcut(filteredShortcuts[shortcutActiveIndex])
+    } else if (event.key === 'Escape') {
+      setShortcutDropdownVisible(false)
+    }
+  }
 
   const handleReopenConversation = () => {
     setIsReopeningConversation(true)
@@ -770,6 +843,45 @@ export function LeadChatTab({
               />
             </div>
           ) : (
+          <div style={{ position: 'relative' }}>
+            {shortcutDropdownVisible && filteredShortcuts.length > 0 ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 12,
+                  right: 12,
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  boxShadow: '0 -4px 16px rgba(15,23,42,0.1)',
+                  overflow: 'hidden',
+                  zIndex: 10
+                }}
+              >
+                {filteredShortcuts.map((shortcut, index) => (
+                  <button
+                    key={shortcut.key}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); handleSelectShortcut(shortcut) }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '9px 14px',
+                      border: 'none',
+                      background: index === shortcutActiveIndex ? '#f3f4f6' : 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#2f8f55', flexShrink: 0 }}>/{shortcut.key}</span>
+                    <span style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortcut.value}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           <form
             onSubmit={handleSendSubmit}
             style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
@@ -808,9 +920,10 @@ export function LeadChatTab({
                 ref={messageInputRef}
                 type="text"
                 value={message}
-                onChange={(event) => setMessage(event.target.value)}
+                onChange={(event) => handleMessageChange(event.target.value)}
                 onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
+                onBlur={() => { setIsInputFocused(false); setShortcutDropdownVisible(false) }}
+                onKeyDown={handleInputKeyDown}
                 placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : 'Digite uma mensagem...'}
                 disabled={isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'}
                 style={{
@@ -987,6 +1100,7 @@ export function LeadChatTab({
               </button>
             </>
           </form>
+          </div>
           )}
         </>
         )}

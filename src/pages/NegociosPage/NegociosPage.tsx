@@ -1,8 +1,12 @@
 import {
   ChevronDown,
+  Facebook,
   Flame,
+  Handshake,
   ListFilter,
+  MessageCircle,
   Plus,
+  Search,
   Snowflake,
   Sun,
   Trash2
@@ -367,6 +371,32 @@ const tagIconStyle = {
   verticalAlign: 'middle' as const
 }
 
+const getSourceTagPresentation = (source: string): TagPresentation => {
+  const normalizedSource = source
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (normalizedSource === 'metaads') {
+    return { label: 'Meta Ads', textColor: '#1877f2', icon: <Facebook size={12} /> }
+  }
+
+  if (normalizedSource === 'googleads') {
+    return { label: 'Google Ads', textColor: '#FBBC04', icon: <Search size={12} /> }
+  }
+
+  if (normalizedSource === 'whatsapp') {
+    return { label: 'WhatsApp', textColor: '#15803d', icon: <MessageCircle size={12} /> }
+  }
+
+  if (normalizedSource === 'indicacao') {
+    return { label: 'Indicação', textColor: '#0f766e', icon: <Handshake size={12} /> }
+  }
+
+  return { label: source || '-', textColor: '#6b7280' }
+}
+
 const initialBusinessCreateDraft: BusinessCreateDraft = {
   leadId: '',
   negotiationType: '',
@@ -493,6 +523,14 @@ export default function NegociosPage() {
           lead.id,
           lead.name?.trim() || `Lead ${index + 1}`
         ])
+      ),
+    [leadsData.leads]
+  )
+
+  const leadSourceById = useMemo(
+    () =>
+      new Map(
+        (leadsData.leads ?? []).map((lead) => [lead.id, lead.source ?? ''])
       ),
     [leadsData.leads]
   )
@@ -1742,6 +1780,9 @@ export default function NegociosPage() {
               negocio.closedAt ?? null
             )
             const leadName = leadNameById.get(negocio.leadId) ?? 'Lead sem nome'
+            const leadSourceTag = getSourceTagPresentation(
+              leadSourceById.get(negocio.leadId) ?? ''
+            )
 
             if (confirmingDeleteNegocioId === negocio.id) {
               return (
@@ -1871,6 +1912,15 @@ export default function NegociosPage() {
                       <span style={tagContentStyle}>{formatLeadValue(negocio.value)}</span>
                     </span>
                   )}
+
+                  {leadSourceTag.label !== '-' ? (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: leadSourceTag.textColor, whiteSpace: 'nowrap', background: `${leadSourceTag.textColor}44`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                      {leadSourceTag.icon ? (
+                        <span style={tagIconStyle}>{leadSourceTag.icon}</span>
+                      ) : null}
+                      <span style={tagContentStyle}>{leadSourceTag.label}</span>
+                    </span>
+                  ) : null}
                 </div>
               </article>
             )
@@ -2239,13 +2289,14 @@ export default function NegociosPage() {
           >
             <colgroup>
               <col style={{ width: '19%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '11%' }} />
               <col style={{ width: '12%' }} />
               <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '7%' }} />
             </colgroup>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
@@ -2258,6 +2309,9 @@ export default function NegociosPage() {
                   <button type="button" onClick={() => handleSortToggle('lead')} style={getHeaderSortButtonStyle('lead')}>
                     Lead <span>{getSortIndicator('lead')}</span>
                   </button>
+                </th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                  Origem
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('type')} style={getHeaderSortButtonStyle('type', 'center')}>
@@ -2308,6 +2362,9 @@ export default function NegociosPage() {
                 )
                 const leadName =
                   leadNameById.get(negocio.leadId) ?? 'Lead sem nome'
+                const leadSourceTag = getSourceTagPresentation(
+                  leadSourceById.get(negocio.leadId) ?? ''
+                )
 
                 if (confirmingDeleteNegocioId === negocio.id) {
                   return (
@@ -2321,7 +2378,7 @@ export default function NegociosPage() {
                       onMouseLeave={() => setHoveredNegocioId(null)}
                     >
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         style={{
                           padding: '14px 16px',
                           color: '#2f2f2f',
@@ -2448,6 +2505,34 @@ export default function NegociosPage() {
                       >
                         {leadName}
                       </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {leadSourceTag.label === '-' ? (
+                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: leadSourceTag.textColor,
+                            whiteSpace: 'nowrap',
+                            background: `${leadSourceTag.textColor}44`,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1
+                          }}
+                        >
+                          {leadSourceTag.icon ? (
+                            <span style={tagIconStyle}>{leadSourceTag.icon}</span>
+                          ) : null}
+                          <span style={tagContentStyle}>{leadSourceTag.label}</span>
+                        </span>
+                      )}
+                      </div>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {businessTypeLabel === '-' ? (
@@ -2605,7 +2690,7 @@ export default function NegociosPage() {
 
               {!isLoading && !error && sortedNegocios.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: '14px 16px', color: '#6b7280' }}>
+                  <td colSpan={9} style={{ padding: '14px 16px', color: '#6b7280' }}>
                     Nenhum negócio encontrado.
                   </td>
                 </tr>
