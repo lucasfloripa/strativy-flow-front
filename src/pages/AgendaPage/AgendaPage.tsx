@@ -2,6 +2,7 @@ import {
   CalendarClock,
   ChevronDown,
   ListFilter,
+  MessageCircle,
   Plus,
   Trash2
 } from 'lucide-react'
@@ -1586,45 +1587,73 @@ export default function AgendaPage() {
                     </h2>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
-                    <button
-                      type="button"
-                      aria-label="Excluir follow-up"
-                      onClick={() => setConfirmingDeleteFollowUpId(row.followUpId)}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        aria-label={`Abrir conversa com ${row.leadName}`}
+                        title="Abrir conversa"
+                        onClick={() => {
+                          navigate(`/leads/${row.leadId}`, {
+                            state: { initialLeadTab: 'chat' }
+                          })
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <MessageCircle size={16} />
+                      </button>
 
-                    <button
-                      type="button"
-                      aria-label={row.status === 'done' ? 'Desfazer conclusão do follow-up' : 'Concluir follow-up'}
-                      onClick={() => void handleToggleFollowUpStatus(row.followUpId, row.status)}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
-                        color: row.status === 'done' ? '#16a34a' : '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      ✓
-                    </button>
+                      <button
+                        type="button"
+                        aria-label={row.status === 'done' ? 'Desfazer conclusão do follow-up' : 'Concluir follow-up'}
+                        onClick={() => void handleToggleFollowUpStatus(row.followUpId, row.status)}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
+                          color: row.status === 'done' ? '#16a34a' : '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ✓
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label="Excluir follow-up"
+                        onClick={() => setConfirmingDeleteFollowUpId(row.followUpId)}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1636,6 +1665,10 @@ export default function AgendaPage() {
 
                   <span style={{ fontSize: 12, fontWeight: 700, color: lifecycleStatusTag.textColor, whiteSpace: 'nowrap', background: lifecycleStatusTag.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                     <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
+                  </span>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: row.templateName ? '#1f7a4d' : '#6b7280', whiteSpace: 'nowrap', background: row.templateName ? '#dcfce7' : '#f3f4f6', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    {row.templateName ? 'Template aplicado' : 'Sem template'}
                   </span>
 
                   <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%', width: 'max-content', boxSizing: 'border-box', overflow: 'hidden', flex: '0 1 auto' }}>
@@ -2290,11 +2323,11 @@ export default function AgendaPage() {
             <colgroup>
               <col style={{ width: '24%' }} />
               <col style={{ width: '16%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
               <col style={{ width: '10%' }} />
-              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '10%' }} />
             </colgroup>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
@@ -2307,7 +2340,25 @@ export default function AgendaPage() {
                     Follow-up <span style={{ fontSize: 11 }}>{getSortIndicator('title')}</span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSortToggle('dateTime')}
+                    style={getHeaderSortButtonStyle('dateTime')}
+                  >
+                    Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
+                  </button>
+                </th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSortToggle('status')}
+                    style={getHeaderSortButtonStyle('status')}
+                  >
+                    Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
+                  </button>
+                </th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   Template
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
@@ -2326,24 +2377,6 @@ export default function AgendaPage() {
                     style={getHeaderSortButtonStyle('negotiation')}
                   >
                     Negócio <span style={{ fontSize: 11 }}>{getSortIndicator('negotiation')}</span>
-                  </button>
-                </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSortToggle('status')}
-                    style={getHeaderSortButtonStyle('status')}
-                  >
-                    Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
-                  </button>
-                </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSortToggle('dateTime')}
-                    style={getHeaderSortButtonStyle('dateTime')}
-                  >
-                    Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
@@ -2475,50 +2508,6 @@ export default function AgendaPage() {
                     <td style={{ padding: '14px 16px', color: '#111827' }}>
                       {row.title || '-'}
                     </td>
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{row.templateName || '-'}</td>
-                    <td
-                      style={{
-                        padding: wrappedAgendaLeadNames[row.followUpId]
-                          ? '6px 16px'
-                          : '14px 16px',
-                        color: '#111827'
-                      }}
-                    >
-                      <span
-                        ref={(element) => {
-                          setAgendaLeadNameRef(row.followUpId, element)
-                        }}
-                        style={{
-                          display: 'inline-block',
-                          maxWidth: '100%',
-                          lineHeight: 1.25,
-                          whiteSpace: 'normal',
-                          wordBreak: 'break-word'
-                        }}
-                      >
-                        {row.leadName}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>{row.negotiationTitle}</td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: lifecycleStatusTag.textColor,
-                          whiteSpace: 'nowrap',
-                          background: lifecycleStatusTag.background,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1
-                        }}
-                      >
-                        {lifecycleStatusTag.label}
-                      </span>
-                    </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {(() => {
                         const dateStatus = getAgendaVisualStatus(row.status, row.dueAt)
@@ -2550,6 +2539,52 @@ export default function AgendaPage() {
                         )
                       })()}
                     </td>
+                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: lifecycleStatusTag.textColor,
+                          whiteSpace: 'nowrap',
+                          background: lifecycleStatusTag.background,
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1.1
+                        }}
+                      >
+                        {lifecycleStatusTag.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
+                      {row.templateName ? 'Aplicado' : '-'}
+                    </td>
+                    <td
+                      style={{
+                        padding: wrappedAgendaLeadNames[row.followUpId]
+                          ? '6px 16px'
+                          : '14px 16px',
+                        color: '#111827'
+                      }}
+                    >
+                      <span
+                        ref={(element) => {
+                          setAgendaLeadNameRef(row.followUpId, element)
+                        }}
+                        style={{
+                          display: 'inline-block',
+                          maxWidth: '100%',
+                          lineHeight: 1.25,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {row.leadName}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: '#111827' }}>{row.negotiationTitle}</td>
                     <td
                       style={{
                         padding: '14px 16px',
@@ -2559,6 +2594,63 @@ export default function AgendaPage() {
                       onClick={(event) => event.stopPropagation()}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label={`Abrir conversa com ${row.leadName}`}
+                          title="Abrir conversa"
+                          onClick={() => {
+                            navigate(`/leads/${row.leadId}`, {
+                              state: { initialLeadTab: 'chat' }
+                            })
+                          }}
+                          onMouseEnter={(event) => {
+                            event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                          }}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.style.background = '#ffffff'
+                          }}
+                          style={{
+                            height: 24,
+                            width: 24,
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 4,
+                            background: '#ffffff',
+                            color: '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <MessageCircle size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label={
+                            row.status === 'done'
+                              ? 'Desfazer conclusão do follow-up'
+                              : 'Concluir follow-up'
+                          }
+                          onClick={() => {
+                            void handleToggleFollowUpStatus(row.followUpId, row.status)
+                          }}
+                          style={{
+                            height: 24,
+                            width: 24,
+                            border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
+                            borderRadius: 4,
+                            background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
+                            color: row.status === 'done' ? '#16a34a' : '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✓
+                        </button>
+
                         <button
                           type="button"
                           aria-label="Excluir follow-up"
@@ -2588,30 +2680,6 @@ export default function AgendaPage() {
                         >
                           <Trash2 size={14} />
                         </button>
-
-                        <button
-                          type="button"
-                          aria-label={
-                            row.status === 'done'
-                              ? 'Desfazer conclusão do follow-up'
-                              : 'Concluir follow-up'
-                          }
-                          onClick={() => {
-                            void handleToggleFollowUpStatus(row.followUpId, row.status)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
-                            color: row.status === 'done' ? '#16a34a' : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ✓
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -2620,7 +2688,7 @@ export default function AgendaPage() {
 
               {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '14px 16px', color: '#6b7280' }}>
+                  <td colSpan={7} style={{ padding: '14px 16px', color: '#6b7280' }}>
                     Nenhum follow-up encontrado.
                   </td>
                 </tr>

@@ -47,7 +47,7 @@ export function LeadChatTab({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
-  const messageInputRef = useRef<HTMLInputElement | null>(null)
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
 
   const isUploadingDocument = mediaUploader.isUploading && mediaUploader.uploadingType === 'document'
   const isUploadingImageOrVideo =
@@ -248,20 +248,39 @@ export function LeadChatTab({
     messageInputRef.current?.focus()
   }
 
-  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!shortcutDropdownVisible || filteredShortcuts.length === 0) return
-
-    if (event.key === 'ArrowDown') {
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shortcutDropdownVisible && filteredShortcuts.length > 0 && event.key === 'ArrowDown') {
       event.preventDefault()
       setShortcutActiveIndex((i) => Math.min(i + 1, filteredShortcuts.length - 1))
-    } else if (event.key === 'ArrowUp') {
+      return
+    }
+
+    if (shortcutDropdownVisible && filteredShortcuts.length > 0 && event.key === 'ArrowUp') {
       event.preventDefault()
       setShortcutActiveIndex((i) => Math.max(i - 1, 0))
-    } else if (event.key === 'Enter' && filteredShortcuts[shortcutActiveIndex]) {
+      return
+    }
+
+    if (
+      shortcutDropdownVisible &&
+      filteredShortcuts.length > 0 &&
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      filteredShortcuts[shortcutActiveIndex]
+    ) {
       event.preventDefault()
       handleSelectShortcut(filteredShortcuts[shortcutActiveIndex])
-    } else if (event.key === 'Escape') {
+      return
+    }
+
+    if (event.key === 'Escape' && shortcutDropdownVisible) {
       setShortcutDropdownVisible(false)
+      return
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault()
+      event.currentTarget.form?.requestSubmit()
     }
   }
 
@@ -916,9 +935,8 @@ export function LeadChatTab({
                 {runtimeMode === 'HUMAN' ? <User size={16} /> : <Bot size={16} />}
               </button>
 
-              <input
+              <textarea
                 ref={messageInputRef}
-                type="text"
                 value={message}
                 onChange={(event) => handleMessageChange(event.target.value)}
                 onFocus={() => setIsInputFocused(true)}
@@ -926,17 +944,25 @@ export function LeadChatTab({
                 onKeyDown={handleInputKeyDown}
                 placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : 'Digite uma mensagem...'}
                 disabled={isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'}
+                rows={1}
                 style={{
                   flex: 1,
                   height: 40,
+                  minHeight: 40,
+                  maxHeight: 40,
                   border: `1px solid ${
                     isInputFocused
                       ? interactionTheme.inputFocusBorderColor
                       : '#cfd7e6'
                   }`,
                   borderRadius: 8,
-                  padding: '0 12px',
+                  padding: '9px 12px',
                   outline: 'none',
+                  resize: 'none',
+                  overflowY: 'auto',
+                  lineHeight: '20px',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
                   boxShadow: isInputFocused
                     ? interactionTheme.inputFocusBoxShadow
                     : 'none',

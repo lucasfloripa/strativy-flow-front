@@ -297,7 +297,6 @@ export function AuthenticatedLayout() {
   const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTab>('usuario')
   const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null)
   const [selectedNotificationsTab, setSelectedNotificationsTab] = useState<'tipos' | 'canais' | 'preferencias'>('tipos')
-  const [selectedChatTab, setSelectedChatTab] = useState<'atalhos'>('atalhos')
   const [messageShortcuts, setMessageShortcuts] = useState<MessageShortcut[]>([])
   const [isAddingShortcut, setIsAddingShortcut] = useState<boolean>(false)
   const [newShortcutKey, setNewShortcutKey] = useState<string>('')
@@ -2727,36 +2726,10 @@ export function AuthenticatedLayout() {
                     borderRadius: 12,
                     background: '#ffffff',
                     overflow: 'hidden',
-                    display: 'grid',
-                    gridTemplateRows: 'auto 1fr'
+                    display: 'block'
                   }}
                 >
-                  <div style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedChatTab('atalhos')}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        background: selectedChatTab === 'atalhos' ? '#2f8f55' : '#ffffff',
-                        color: selectedChatTab === 'atalhos' ? '#ffffff' : '#111827',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        border: selectedChatTab === 'atalhos' ? 'none' : '1px solid #d1d5db',
-                        flex: 1
-                      }}
-                    >
-                      Atalhos
-                    </button>
-                  </div>
-
-                  {selectedChatTab === 'atalhos' ? (
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
                       {isLoadingShortcuts ? (
                         <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
                           Carregando atalhos...
@@ -2826,11 +2799,11 @@ export function AuthenticatedLayout() {
                                   }}
                                   autoFocus
                                 />
-                                <input
-                                  type="text"
+                                <textarea
                                   value={newShortcutValue}
                                   onChange={(e) => setNewShortcutValue(e.target.value)}
                                   placeholder="Mensagem completa"
+                                  rows={1}
                                   style={{
                                     fontSize: 14,
                                     fontWeight: 600,
@@ -2838,7 +2811,9 @@ export function AuthenticatedLayout() {
                                     border: '1px solid #d1d5db',
                                     borderRadius: 6,
                                     padding: '6px 10px',
-                                    fontFamily: 'inherit'
+                                    fontFamily: 'inherit',
+                                    lineHeight: 1.4,
+                                    resize: 'vertical'
                                   }}
                                 />
                                 <button
@@ -3023,8 +2998,7 @@ export function AuthenticatedLayout() {
                           </div>
                         </>
                       )}
-                    </div>
-                  ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
