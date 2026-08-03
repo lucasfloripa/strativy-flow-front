@@ -5,6 +5,7 @@ import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { appApiClient } from '../../../core/api/appApiClient'
 import { useRealtime } from '../../../core/realtime/useRealtime'
+import { formatChatMessageTimestamp } from '../../../core/utils/dateTime'
 import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
 import { RecordingComposer } from './RecordingComposer'
@@ -688,12 +689,7 @@ export function LeadChatTab({
               <div style={{ color: '#6b7280' }}>{statusText}</div>
             ) : (
               messages.map((item) => {
-                const formattedTime = item.createdAt
-                  ? new Date(item.createdAt).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
-                  : ''
+                const formattedTime = item.createdAt ? formatChatMessageTimestamp(item.createdAt) : ''
                 const isTemplateMessage = item.source === 'template'
                 const isOutbound = item.direction === 'outbound'
 

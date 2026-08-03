@@ -38,6 +38,23 @@ export const formatTime = (date: string | Date) =>
     minute: '2-digit'
   })
 
+export const formatChatMessageTimestamp = (date: string | Date): string => {
+  const parsedDate = toDateInstance(date)
+
+  if (!parsedDate) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    timeZone: DEFAULT_TIME_ZONE,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(parsedDate)
+}
+
 export const formatElapsedHoursAndMinutes = (
   value?: string | Date | null
 ): string => {

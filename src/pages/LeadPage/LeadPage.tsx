@@ -1363,6 +1363,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }
 
   const handleStartLeadInfoEdit = () => {
+    handleLeadTabChange('geral')
     syncInfoDraftFromLead()
     setIsEditingLeadInfo(true)
     setIsConfirmingLeadDelete(false)
@@ -2037,6 +2038,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   <button
                     type="button"
                     onClick={() => {
+                      handleLeadTabChange('geral')
+
                       if (isLeadArchived) {
                         void handleToggleLeadArchive()
                         return
@@ -2066,6 +2069,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   <button
                     type="button"
                     onClick={() => {
+                      handleLeadTabChange('geral')
                       setIsConfirmingLeadDelete(true)
                       setIsEditingLeadInfo(false)
                       setIsGeneralActionsOpen(false)
@@ -9339,6 +9343,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   <button
                     type="button"
                     onClick={() => {
+                      handleLeadTabChange('geral')
+
                       if (isMobileLeadArchived) {
                         void handleToggleLeadArchive()
                         return
@@ -9357,6 +9363,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   <button
                     type="button"
                     onClick={() => {
+                      handleLeadTabChange('geral')
                       setIsConfirmingLeadDelete(true)
                       setIsEditingLeadInfo(false)
                       setIsGeneralActionsOpen(false)
