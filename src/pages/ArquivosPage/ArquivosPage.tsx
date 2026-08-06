@@ -1,4 +1,4 @@
-import { ChevronDown, Download, FileText, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Download, FileText, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -646,7 +646,6 @@ export default function ArquivosPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo arquivo</span>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Adicionar Arquivo</h2>
                 </div>
 
@@ -654,9 +653,9 @@ export default function ArquivosPage() {
                   type="button"
                   onClick={closeCreateArquivoPanel}
                   aria-label="Fechar painel de criação de arquivo"
-                  style={{ height: 32, minWidth: 32, border: 'none', borderRadius: 8, background: '#f3f4f6', color: '#6b7280', padding: '0 10px', cursor: 'pointer', fontSize: 14, fontWeight: 700, lineHeight: 1 }}
+                  style={{ height: 28, minWidth: 28, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  X
+                  <X size={18} strokeWidth={2.4} />
                 </button>
               </div>
 
@@ -1208,7 +1207,6 @@ export default function ArquivosPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <span style={{ color: '#64748b', fontSize: 13, fontWeight: 700 }}>Novo arquivo</span>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
                     Adicionar Arquivo
                   </h2>
@@ -1240,16 +1238,24 @@ export default function ArquivosPage() {
                 <p style={{ margin: 0, color: '#b91c1c' }}>{arquivoCreateError}</p>
               ) : null}
 
+              <div style={{ borderBottom: '1px solid #e5e7eb' }} />
+
               <article
                 style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 16,
-                  padding: 24,
-                  background: '#ffffff',
-                  display: 'grid',
+                  border: 'none',
+                  borderRadius: 0,
+                  padding: 0,
+                  background: 'transparent',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: 18,
-                  maxWidth: 760,
-                  overflowY: 'auto'
+                  maxWidth: 'none',
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  paddingRight: 6,
+                  boxSizing: 'border-box'
                 }}
               >
                 <div style={{ display: 'grid', gap: 8 }}>

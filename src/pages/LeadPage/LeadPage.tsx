@@ -35,7 +35,10 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { DayPicker } from 'react-day-picker'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+
+import 'react-day-picker/style.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -194,6 +197,232 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
 
 const attachmentInputAccept =
   '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif,.zip,.rar,.7z'
+
+type FollowUpDateTimeInputProps = {
+  value: string
+  onChange: (nextValue: string) => void
+  isMobile: boolean
+}
+
+const parseDateTimeLocalValue = (
+  value: string
+): { date: Date | null; time: string } => {
+  const normalizedValue = value.trim()
+  if (!normalizedValue) {
+    return { date: null, time: '' }
+  }
+
+  const [datePart, timePart] = normalizedValue.split('T')
+  if (!datePart || !timePart) {
+    return { date: null, time: '' }
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = datePart.split('-')
+  if (!yearRaw || !monthRaw || !dayRaw) {
+    return { date: null, time: '' }
+  }
+
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+  const day = Number(dayRaw)
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return { date: null, time: '' }
+  }
+
+  const parsedDate = new Date(year, month - 1, day)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return { date: null, time: '' }
+  }
+
+  return {
+    date: parsedDate,
+    time: timePart.slice(0, 5)
+  }
+}
+
+const buildDateTimeLocalValue = (date: Date, time: string): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? time : '09:00'
+
+  return `${year}-${month}-${day}T${normalizedTime}`
+}
+
+const formatDatePickerLabel = (date: Date | null): string => {
+  if (!date) {
+    return 'Selecionar data'
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(date)
+}
+
+function FollowUpDateTimeInput({
+  value,
+  onChange,
+  isMobile
+}: FollowUpDateTimeInputProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false)
+  const [draftTime, setDraftTime] = useState<string>('09:00')
+  const pickerContainerRef = useRef<HTMLDivElement | null>(null)
+  const parsedValue = parseDateTimeLocalValue(value)
+
+  useEffect(() => {
+    if (parsedValue.time) {
+      setDraftTime(parsedValue.time)
+    }
+  }, [parsedValue.time])
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!pickerContainerRef.current) {
+        return
+      }
+
+      if (pickerContainerRef.current.contains(event.target as Node)) {
+        return
+      }
+
+      setIsPickerOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={pickerContainerRef}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setIsPickerOpen((current) => !current)}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: isMobile ? 46 : 42,
+          border: '1px solid #d7dce4',
+          borderRadius: 10,
+          padding: '0 12px',
+          color: parsedValue.date ? '#111827' : '#6b7280',
+          fontSize: isMobile ? 17 / 1.2 : 14,
+          fontWeight: 600,
+          background: '#ffffff',
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxSizing: 'border-box'
+        }}
+        aria-label="Selecionar data do follow-up"
+      >
+        <CalendarDays size={16} color="#6b7280" />
+        <span
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis'
+          }}
+        >
+          {formatDatePickerLabel(parsedValue.date)}
+        </span>
+      </button>
+
+      <input
+        type="time"
+        value={parsedValue.time || draftTime}
+        onChange={(event) => {
+          const nextTime = event.target.value
+          setDraftTime(nextTime)
+
+          if (parsedValue.date) {
+            onChange(buildDateTimeLocalValue(parsedValue.date, nextTime))
+          }
+        }}
+        style={{
+          width: isMobile ? 112 : 104,
+          height: isMobile ? 46 : 42,
+          border: '1px solid #d7dce4',
+          borderRadius: 10,
+          padding: '0 10px',
+          color: '#111827',
+          fontSize: isMobile ? 17 / 1.2 : 14,
+          boxSizing: 'border-box',
+          background: '#ffffff'
+        }}
+        aria-label="Selecionar horário do follow-up"
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange('')}
+        disabled={!value}
+        style={{
+          width: 34,
+          height: isMobile ? 46 : 42,
+          border: '1px solid #d7dce4',
+          borderRadius: 10,
+          background: '#ffffff',
+          color: '#475569',
+          cursor: value ? 'pointer' : 'not-allowed',
+          opacity: value ? 1 : 0.5,
+          fontWeight: 700
+        }}
+        aria-label="Limpar data e hora do follow-up"
+      >
+        X
+      </button>
+
+      {isPickerOpen ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            background: '#ffffff',
+            boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
+            padding: 12,
+            zIndex: 30
+          }}
+        >
+          <DayPicker
+            mode="single"
+            selected={parsedValue.date ?? undefined}
+            onSelect={(selectedDate) => {
+              if (!selectedDate) {
+                onChange('')
+                return
+              }
+
+              const nextTime = parsedValue.time || draftTime || '09:00'
+              onChange(buildDateTimeLocalValue(selectedDate, nextTime))
+              setIsPickerOpen(false)
+            }}
+            weekStartsOn={1}
+            showOutsideDays
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 const formatFileSize = (sizeInBytes: number): string => {
   if (sizeInBytes < 1024) {
@@ -3106,24 +3335,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
-              <input
-                type="datetime-local"
+              <FollowUpDateTimeInput
                 value={agendaFollowUpDraft.dueAt}
-                onChange={(event) =>
+                onChange={(nextValue) =>
                   setAgendaFollowUpDraft((currentDraft) => ({
                     ...currentDraft,
-                    dueAt: event.target.value
+                    dueAt: nextValue
                   }))
                 }
-                style={{
-                  height: isMobile ? 46 : 42,
-                  border: '1px solid #d7dce4',
-                  borderRadius: 10,
-                  padding: '0 14px',
-                  color: '#111827',
-                  fontSize: isMobile ? 17 / 1.2 : 14,
-                  boxSizing: 'border-box'
-                }}
+                isMobile={isMobile}
               />
             </div>
 
@@ -3189,7 +3409,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
         {!shouldShowDesktopCreateOnly ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            {!isCreatingAgendaFollowUp ? (
+            {!isCreatingAgendaFollowUp || isMobile ? (
               <button
                 type="button"
                 onClick={() => {
@@ -3812,24 +4032,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
         <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
-          <input
-            type="datetime-local"
+          <FollowUpDateTimeInput
             value={newBusinessFollowUpDraft.dueAt}
-            onChange={(event) =>
+            onChange={(nextValue) =>
               setNewBusinessFollowUpDraft((current) => ({
                 ...current,
-                dueAt: event.target.value
+                dueAt: nextValue
               }))
             }
-            style={{
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: '#111827',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              boxSizing: 'border-box'
-            }}
+            isMobile={isMobile}
           />
         </div>
 
@@ -3964,7 +4175,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               height: 42,
               border: 'none',
               borderRadius: 8,
-              background: '#1f7a4d',
+              background: canCreateBusinessFollowUp ? '#1f7a4d' : '#9ca3af',
               color: '#ffffff',
               fontSize: 14,
               fontWeight: 700,
@@ -4206,7 +4417,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
         {!shouldShowDesktopCreateOnly ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            {!isManagingBusinessFollowUp ? (
+            {!isManagingBusinessFollowUp || isMobile ? (
               <button
                 type="button"
                 onClick={() => {
@@ -8738,15 +8949,24 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
         {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
 
+        {!isMobile ? (
+          <div
+            style={{
+              borderBottom: '1px solid #e5e7eb'
+            }}
+          />
+        ) : null}
+
         <article
           style={{
-            border: isMobile ? 'none' : '1px solid #e5e7eb',
-            borderRadius: isMobile ? 0 : 16,
-            padding: isMobile ? 0 : 24,
-            background: isMobile ? 'transparent' : '#ffffff',
-            display: 'grid',
+            border: 'none',
+            borderRadius: 0,
+            padding: 0,
+            background: 'transparent',
+            display: 'flex',
+            flexDirection: 'column',
             gap: 18,
-            maxWidth: isMobile ? 'none' : 760,
+            maxWidth: 'none',
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',

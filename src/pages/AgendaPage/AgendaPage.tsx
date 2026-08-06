@@ -7,7 +7,10 @@ import {
   Trash2
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { DayPicker } from 'react-day-picker'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+
+import 'react-day-picker/style.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -80,6 +83,237 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   templateId: '',
   templateVariables: {},
   dueAt: ''
+}
+
+type AgendaDateTimeInputProps = {
+  value: string
+  onChange: (nextValue: string) => void
+  isMobile: boolean
+  compact?: boolean
+}
+
+const parseDateTimeLocalValue = (
+  value: string
+): { date: Date | null; time: string } => {
+  const normalizedValue = value.trim()
+  if (!normalizedValue) {
+    return { date: null, time: '' }
+  }
+
+  const [datePart, timePart] = normalizedValue.split('T')
+  if (!datePart || !timePart) {
+    return { date: null, time: '' }
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = datePart.split('-')
+  if (!yearRaw || !monthRaw || !dayRaw) {
+    return { date: null, time: '' }
+  }
+
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+  const day = Number(dayRaw)
+
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return { date: null, time: '' }
+  }
+
+  const parsedDate = new Date(year, month - 1, day)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return { date: null, time: '' }
+  }
+
+  return {
+    date: parsedDate,
+    time: timePart.slice(0, 5)
+  }
+}
+
+const buildDateTimeLocalValue = (date: Date, time: string): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const normalizedTime = /^\d{2}:\d{2}$/.test(time) ? time : '09:00'
+
+  return `${year}-${month}-${day}T${normalizedTime}`
+}
+
+const formatDatePickerLabel = (date: Date | null): string => {
+  if (!date) {
+    return 'Selecionar data'
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(date)
+}
+
+function AgendaDateTimeInput({
+  value,
+  onChange,
+  isMobile,
+  compact = false
+}: AgendaDateTimeInputProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false)
+  const [draftTime, setDraftTime] = useState<string>('09:00')
+  const pickerContainerRef = useRef<HTMLDivElement | null>(null)
+  const parsedValue = parseDateTimeLocalValue(value)
+  const fieldHeight = compact ? 36 : isMobile ? 48 : 42
+
+  useEffect(() => {
+    if (parsedValue.time) {
+      setDraftTime(parsedValue.time)
+    }
+  }, [parsedValue.time])
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!pickerContainerRef.current) {
+        return
+      }
+
+      if (pickerContainerRef.current.contains(event.target as Node)) {
+        return
+      }
+
+      setIsPickerOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={pickerContainerRef}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        width: '100%'
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setIsPickerOpen((current) => !current)}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: fieldHeight,
+          border: '1px solid #d7dce4',
+          borderRadius: compact ? 8 : 12,
+          padding: '0 12px',
+          color: parsedValue.date ? '#111827' : '#6b7280',
+          fontSize: compact ? 14 : 15,
+          fontWeight: 600,
+          background: '#ffffff',
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxSizing: 'border-box'
+        }}
+        aria-label="Selecionar data do follow-up"
+      >
+        <CalendarClock size={16} color="#6b7280" />
+        <span
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis'
+          }}
+        >
+          {formatDatePickerLabel(parsedValue.date)}
+        </span>
+      </button>
+
+      <input
+        type="time"
+        value={parsedValue.time || draftTime}
+        onChange={(event) => {
+          const nextTime = event.target.value
+          setDraftTime(nextTime)
+
+          if (parsedValue.date) {
+            onChange(buildDateTimeLocalValue(parsedValue.date, nextTime))
+          }
+        }}
+        style={{
+          width: compact ? 96 : 108,
+          height: fieldHeight,
+          border: '1px solid #d7dce4',
+          borderRadius: compact ? 8 : 12,
+          padding: '0 10px',
+          color: '#111827',
+          fontSize: compact ? 14 : 15,
+          boxSizing: 'border-box',
+          background: '#ffffff'
+        }}
+        aria-label="Selecionar horário do follow-up"
+      />
+
+      <button
+        type="button"
+        onClick={() => onChange('')}
+        disabled={!value}
+        style={{
+          width: compact ? 30 : 34,
+          height: fieldHeight,
+          border: '1px solid #d7dce4',
+          borderRadius: compact ? 8 : 12,
+          background: '#ffffff',
+          color: '#475569',
+          cursor: value ? 'pointer' : 'not-allowed',
+          opacity: value ? 1 : 0.5,
+          fontWeight: 700
+        }}
+        aria-label="Limpar data e hora do follow-up"
+      >
+        X
+      </button>
+
+      {isPickerOpen ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            background: '#ffffff',
+            boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
+            padding: 12,
+            zIndex: 60
+          }}
+        >
+          <DayPicker
+            mode="single"
+            selected={parsedValue.date ?? undefined}
+            onSelect={(selectedDate) => {
+              if (!selectedDate) {
+                onChange('')
+                return
+              }
+
+              const nextTime = parsedValue.time || draftTime || '09:00'
+              onChange(buildDateTimeLocalValue(selectedDate, nextTime))
+              setIsPickerOpen(false)
+            }}
+            weekStartsOn={1}
+            showOutsideDays
+          />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 const buildTemplateVariablesDraft = (
@@ -1458,17 +1692,25 @@ export default function AgendaPage() {
 
                         <div style={{ display: 'grid', gap: 8 }}>
                           <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
-                          <input
-                            type="datetime-local"
+                          <AgendaDateTimeInput
                             value={agendaFollowUpDraft.dueAt}
-                            onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, dueAt: event.target.value }))}
-                            style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                            onChange={(nextValue) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                dueAt: nextValue
+                              }))
+                            }
+                            isMobile
                           />
                         </div>
                       </>
                     ) : null}
                   </>
-                ) : null}
+                ) : (
+                  <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
+                    Selecione um lead para continuar.
+                  </p>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 2 }}>
                   <button
@@ -1970,58 +2212,62 @@ export default function AgendaPage() {
                   flex: 1,
                   minHeight: 0,
                   overflowY: 'auto',
-                  padding: '12px 24px 24px',
+                  padding: '0 24px 24px',
                   boxSizing: 'border-box',
-                  display: 'grid',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: 18,
-                  maxWidth: 760
+                  maxWidth: 'none'
                 }}
               >
                 {agendaFollowUpError ? (
                   <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p>
                 ) : null}
 
+                <div style={{ borderBottom: '1px solid #e5e7eb' }} />
+
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '160px minmax(0, 1fr)',
-                    rowGap: 10,
-                    columnGap: 16,
-                    alignItems: 'center'
+                    gridTemplateColumns: 'minmax(0, 1fr)',
+                    gap: 12,
+                    alignContent: 'start'
                   }}
                 >
-                  <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</span>
-                  <select
-                    value={agendaFollowUpDraft.leadId}
-                    onChange={(event) => {
-                      setAgendaFollowUpDraft((currentDraft) => ({
-                        ...currentDraft,
-                        leadId: event.target.value,
-                        negotiationId: ''
-                      }))
-                    }}
-                    style={{
-                      height: 36,
-                      maxWidth: 360,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 10px',
-                      color: '#111827',
-                      fontSize: 14,
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="">Selecione</option>
-                    {activeLeads.map((lead, index) => (
-                      <option key={lead.id} value={lead.id}>
-                        {lead.name?.trim() || `Lead ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</label>
+                    <select
+                      value={agendaFollowUpDraft.leadId}
+                      onChange={(event) => {
+                        setAgendaFollowUpDraft((currentDraft) => ({
+                          ...currentDraft,
+                          leadId: event.target.value,
+                          negotiationId: ''
+                        }))
+                      }}
+                      style={{
+                        width: '100%',
+                        height: 36,
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        padding: '0 10px',
+                        color: '#111827',
+                        fontSize: 14,
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Selecione</option>
+                      {activeLeads.map((lead, index) => (
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name?.trim() || `Lead ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   {agendaFollowUpDraft.leadId ? (
-                    <>
-                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</span>
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</label>
                       <div style={{ display: 'grid', gap: 6 }}>
                         <select
                           value={agendaFollowUpDraft.negotiationId}
@@ -2032,8 +2278,8 @@ export default function AgendaPage() {
                             }))
                           }
                           style={{
+                            width: '100%',
                             height: 36,
-                            maxWidth: 360,
                             border: '1px solid #d1d5db',
                             borderRadius: 8,
                             padding: '0 10px',
@@ -2053,72 +2299,79 @@ export default function AgendaPage() {
                           <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
                         ) : null}
                       </div>
-                    </>
-                  ) : null}
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
+                      Selecione um lead para continuar.
+                    </p>
+                  )}
 
                   {agendaFollowUpDraft.negotiationId ? (
                     <>
-                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</span>
-                      <input
-                        type="text"
-                        placeholder="Nome do Follow-up"
-                        value={agendaFollowUpDraft.title}
-                        onChange={(event) =>
-                          setAgendaFollowUpDraft((currentDraft) => ({
-                            ...currentDraft,
-                            title: event.target.value
-                          }))
-                        }
-                        style={{
-                          height: 36,
-                          maxWidth: 360,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 10px',
-                          color: '#111827',
-                          fontSize: 16,
-                          boxSizing: 'border-box'
-                        }}
-                      />
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</label>
+                        <input
+                          type="text"
+                          placeholder="Nome do Follow-up"
+                          value={agendaFollowUpDraft.title}
+                          onChange={(event) =>
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              title: event.target.value
+                            }))
+                          }
+                          style={{
+                            width: '100%',
+                            height: 36,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 10px',
+                            color: '#111827',
+                            fontSize: 16,
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
 
-                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Template</span>
-                      <select
-                        value={agendaFollowUpDraft.templateId}
-                        onChange={(event) => {
-                          const templateId = event.target.value
-                          const nextTemplate = messageTemplates.find((t) => t.id === templateId) ?? null
-                          setAgendaFollowUpDraft((currentDraft) => ({
-                            ...currentDraft,
-                            templateId,
-                            templateVariables: buildTemplateVariablesDraft(nextTemplate, currentDraft.templateVariables)
-                          }))
-                        }}
-                        style={{
-                          height: 36,
-                          maxWidth: 360,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 10px',
-                          color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
-                          fontSize: 14,
-                          fontWeight: 600,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <option value="">Sem template</option>
-                        {messageTemplates.map((template) => (
-                          <option key={template.id} value={template.id}>{template.name}</option>
-                        ))}
-                      </select>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Template</label>
+                        <select
+                          value={agendaFollowUpDraft.templateId}
+                          onChange={(event) => {
+                            const templateId = event.target.value
+                            const nextTemplate = messageTemplates.find((t) => t.id === templateId) ?? null
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              templateId,
+                              templateVariables: buildTemplateVariablesDraft(nextTemplate, currentDraft.templateVariables)
+                            }))
+                          }}
+                          style={{
+                            width: '100%',
+                            height: 36,
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            padding: '0 10px',
+                            color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <option value="">Sem template</option>
+                          {messageTemplates.map((template) => (
+                            <option key={template.id} value={template.id}>{template.name}</option>
+                          ))}
+                        </select>
+                      </div>
 
                       {selectedAgendaTemplate?.variables?.length ? (
                         selectedAgendaTemplate.variables.map((variable) => (
-                          <>
-                            <span key={`label-${variable.key}`} style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>
+                          <div key={variable.key} style={{ display: 'grid', gap: 6 }}>
+                            <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>
                               {variable.label}{variable.required ? ' *' : ''}
-                            </span>
+                            </label>
                             <input
-                              key={variable.key}
                               type="text"
                               placeholder={`Valor para ${variable.label}`}
                               value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
@@ -2129,8 +2382,8 @@ export default function AgendaPage() {
                                 }))
                               }
                               style={{
+                                width: '100%',
                                 height: 36,
-                                maxWidth: 360,
                                 border: '1px solid #d1d5db',
                                 borderRadius: 8,
                                 padding: '0 10px',
@@ -2139,13 +2392,13 @@ export default function AgendaPage() {
                                 boxSizing: 'border-box'
                               }}
                             />
-                          </>
+                          </div>
                         ))
                       ) : null}
 
                       {selectedAgendaTemplate ? (
-                        <>
-                          <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</span>
+                        <div style={{ display: 'grid', gap: 6 }}>
+                          <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Descrição do template</label>
                           <textarea
                             value={interpolateTemplateDescription(
                               selectedAgendaTemplate.description,
@@ -2154,7 +2407,7 @@ export default function AgendaPage() {
                             readOnly
                             disabled
                             style={{
-                              maxWidth: 360,
+                              width: '100%',
                               minHeight: 86,
                               border: '1px solid #d1d5db',
                               borderRadius: 8,
@@ -2168,30 +2421,25 @@ export default function AgendaPage() {
                               lineHeight: 1.4
                             }}
                           />
-                        </>
+                        </div>
                       ) : null}
 
-                      <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</span>
-                      <input
-                        type="datetime-local"
-                        value={agendaFollowUpDraft.dueAt}
-                        onChange={(event) =>
-                          setAgendaFollowUpDraft((currentDraft) => ({
-                            ...currentDraft,
-                            dueAt: event.target.value
-                          }))
-                        }
-                        style={{
-                          height: 36,
-                          maxWidth: 360,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 10px',
-                          color: '#111827',
-                          fontSize: 14,
-                          boxSizing: 'border-box'
-                        }}
-                      />
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</label>
+                        <div>
+                          <AgendaDateTimeInput
+                            value={agendaFollowUpDraft.dueAt}
+                            onChange={(nextValue) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                dueAt: nextValue
+                              }))
+                            }
+                            isMobile={false}
+                            compact
+                          />
+                        </div>
+                      </div>
                     </>
                   ) : null}
                 </div>
