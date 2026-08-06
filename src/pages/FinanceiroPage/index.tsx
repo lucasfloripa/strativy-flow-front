@@ -7,63 +7,180 @@ import { useNavigate } from 'react-router-dom'
 import 'react-day-picker/style.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { FinanceiroService } from '../../features/financeiro/services/FinanceiroService'
+import type {
+  FinanceiroDistributionKpisResponse,
+  FinanceiroStageKey,
+  FinanceiroTopKpisResponse
+} from '../../features/financeiro/types/financeiro.types'
 
-const financeSummaryCards = [
-  {
-    title: 'Receita Prevista',
-    value: 'R$ 125.400,00',
-    valueColor: '#2563eb',
-    tooltipText: "Valor calculado sobre negócios 'Em Aberto'",
-    statusSummary: null,
-    hideContent: false
-  },
-  {
-    title: 'Receita Faturada',
-    value: 'R$ 98.720,00',
-    valueColor: '#16a34a',
-    tooltipText: "Valor calculado sobre negócios 'Ganho'",
-    statusSummary: null,
-    hideContent: false
-  },
-  {
-    title: 'Receita Perdida',
-    value: 'R$ 12.350,00',
-    valueColor: '#dc2626',
-    tooltipText: "Valor calculado sobre negócios 'Perdido'",
-    statusSummary: null,
-    hideContent: false
-  },
-  {
-    title: 'Negócios em aberto',
-    value: '37',
-    valueColor: '#eab308',
-    statusSummary: null,
-    hideContent: false,
-    metricSummary: {
-      title: 'Ticket Médio',
-      value: 'R$ 3.840,00',
+const defaultFinanceTopSummary: FinanceiroTopKpisResponse = {
+  receitaPrevista: 0,
+  receitaFaturada: 0,
+  receitaPerdida: 0,
+  ticketMedio: 0,
+  taxaConversao: 0,
+  negociosEmAberto: 0
+}
+
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
+}
+
+const formatCount = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    maximumFractionDigits: 0
+  }).format(value)
+}
+
+const formatPercent = (value: number): string => {
+  return `${new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(value)}%`
+}
+
+const buildFinanceSummaryCards = (summary: FinanceiroTopKpisResponse) => {
+  return [
+    {
+      title: 'Receita Prevista',
+      value: formatCurrency(summary.receitaPrevista),
+      valueColor: '#2563eb',
+      tooltipText: "Valor calculado sobre negócios 'Em Aberto'",
+      statusSummary: null,
+      hideContent: false
+    },
+    {
+      title: 'Receita Faturada',
+      value: formatCurrency(summary.receitaFaturada),
       valueColor: '#16a34a',
-      tooltipText: "Media de valor dos negócios 'Ganho'"
+      tooltipText: "Valor calculado sobre negócios 'Ganho'",
+      statusSummary: null,
+      hideContent: false
+    },
+    {
+      title: 'Receita Perdida',
+      value: formatCurrency(summary.receitaPerdida),
+      valueColor: '#dc2626',
+      tooltipText: "Valor calculado sobre negócios 'Perdido'",
+      statusSummary: null,
+      hideContent: false
+    },
+    {
+      title: 'Negócios em aberto',
+      value: formatCount(summary.negociosEmAberto),
+      valueColor: '#eab308',
+      statusSummary: null,
+      hideContent: false,
+      metricSummary: {
+        title: 'Ticket Médio',
+        value: formatCurrency(summary.ticketMedio),
+        valueColor: '#16a34a',
+        tooltipText: "Media de valor dos negócios 'Ganho'"
+      }
+    },
+    {
+      title: 'Taxa de Conversão',
+      value: formatPercent(summary.taxaConversao),
+      valueColor: '#f59e0b',
+      tooltipText: "Valor calculado sobre negócios 'Ganhos' e 'Perdidos'",
+      statusSummary: null,
+      hideContent: false
     }
+  ]
+}
+
+const defaultFinanceDistributionKpis: FinanceiroDistributionKpisResponse = {
+  temperatura: {
+    hot: 0,
+    warm: 0,
+    cold: 0,
+    none: 0
+  },
+  status: {
+    open: 0,
+    won: 0,
+    lost: 0
+  },
+  origem: {
+    whatsapp: 0,
+    metaads: 0,
+    googleads: 0,
+    indicacao: 0,
+    other: 0
+  },
+  etapas: [
+    { stage: 'NEW', count: 0, totalValue: 0 },
+    { stage: 'CONTACTED', count: 0, totalValue: 0 },
+    { stage: 'QUALIFIED', count: 0, totalValue: 0 },
+    { stage: 'PROPOSAL_SENT', count: 0, totalValue: 0 },
+    { stage: 'NEGOTIATION', count: 0, totalValue: 0 },
+    { stage: 'WON', count: 0, totalValue: 0 },
+    { stage: 'LOST', count: 0, totalValue: 0 }
+  ]
+}
+
+const stagePresentationOrder: Array<{
+  stageKey: FinanceiroStageKey
+  stageLabel: string
+  textColor: string
+  amountColor: string
+  background: string
+}> = [
+  {
+    stageKey: 'NEW',
+    stageLabel: 'Novo',
+    textColor: '#0f172a',
+    amountColor: '#0f172a',
+    background: 'linear-gradient(90deg, #dbeafe 0%, #dbeafe 100%)'
   },
   {
-    title: 'Taxa de Conversão',
-    value: '62%',
-    valueColor: '#f59e0b',
-    tooltipText: "Valor calculado sobre negócios 'Ganhos' e 'Perdidos'",
-    statusSummary: null,
-    hideContent: false
+    stageKey: 'CONTACTED',
+    stageLabel: 'Contatado',
+    textColor: '#0f172a',
+    amountColor: '#0f172a',
+    background: 'linear-gradient(90deg, #e0ecff 0%, #e0ecff 100%)'
+  },
+  {
+    stageKey: 'QUALIFIED',
+    stageLabel: 'Qualificado',
+    textColor: '#0f172a',
+    amountColor: '#0f172a',
+    background: 'linear-gradient(90deg, #e9f2ff 0%, #e9f2ff 100%)'
+  },
+  {
+    stageKey: 'PROPOSAL_SENT',
+    stageLabel: 'Proposta Enviada',
+    textColor: '#0f172a',
+    amountColor: '#0f172a',
+    background: 'linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 100%)'
+  },
+  {
+    stageKey: 'NEGOTIATION',
+    stageLabel: 'Negociação',
+    textColor: '#0f172a',
+    amountColor: '#0f172a',
+    background: 'linear-gradient(90deg, #fffbeb 0%, #fefce8 100%)'
+  },
+  {
+    stageKey: 'WON',
+    stageLabel: 'Ganho',
+    textColor: '#15803d',
+    amountColor: '#16a34a',
+    background: 'linear-gradient(90deg, #dcfce7 0%, #ecfdf5 100%)'
+  },
+  {
+    stageKey: 'LOST',
+    stageLabel: 'Perdido',
+    textColor: '#dc2626',
+    amountColor: '#dc2626',
+    background: 'linear-gradient(90deg, #fee2e2 0%, #fef2f2 100%)'
   }
-]
-
-const funnelRows = [
-  { stage: 'Novo', count: '8', value: 'R$ 12.000', width: '100%', textColor: '#0f172a', amountColor: '#0f172a', background: 'linear-gradient(90deg, #dbeafe 0%, #dbeafe 100%)' },
-  { stage: 'Contatado', count: '6', value: 'R$ 9.500', width: '92%', textColor: '#0f172a', amountColor: '#0f172a', background: 'linear-gradient(90deg, #e0ecff 0%, #e0ecff 100%)' },
-  { stage: 'Qualificado', count: '5', value: 'R$ 8.000', width: '84%', textColor: '#0f172a', amountColor: '#0f172a', background: 'linear-gradient(90deg, #e9f2ff 0%, #e9f2ff 100%)' },
-  { stage: 'Proposta Enviada', count: '4', value: 'R$ 6.500', width: '76%', textColor: '#0f172a', amountColor: '#0f172a', background: 'linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 100%)' },
-  { stage: 'Negociação', count: '3', value: 'R$ 4.000', width: '68%', textColor: '#0f172a', amountColor: '#0f172a', background: 'linear-gradient(90deg, #fffbeb 0%, #fefce8 100%)' },
-  { stage: 'Ganho', count: '12', value: 'R$ 18.750', width: '58%', textColor: '#15803d', amountColor: '#16a34a', background: 'linear-gradient(90deg, #dcfce7 0%, #ecfdf5 100%)' },
-  { stage: 'Perdido', count: '5', value: 'R$ 3.250', width: '50%', textColor: '#dc2626', amountColor: '#dc2626', background: 'linear-gradient(90deg, #fee2e2 0%, #fef2f2 100%)' }
 ]
 
 const funnelStageToFilterValue: Record<string, 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL_SENT' | 'NEGOTIATION' | 'WON' | 'LOST'> = {
@@ -76,12 +193,14 @@ const funnelStageToFilterValue: Record<string, 'NEW' | 'CONTACTED' | 'QUALIFIED'
   Perdido: 'LOST'
 }
 
-const temperatureChartData = [
-  { label: 'Quente', value: 12, color: '#dc2626' },
-  { label: 'Morno', value: 9, color: '#eab308' },
-  { label: 'Frio', value: 16, color: '#2563eb' },
-  { label: 'Sem temperatura', value: 5, color: '#94a3b8' }
-]
+const buildTemperatureChartData = (distribution: FinanceiroDistributionKpisResponse) => {
+  return [
+    { label: 'Quente', value: distribution.temperatura.hot, color: '#dc2626' },
+    { label: 'Morno', value: distribution.temperatura.warm, color: '#eab308' },
+    { label: 'Frio', value: distribution.temperatura.cold, color: '#2563eb' },
+    { label: 'Sem temperatura', value: distribution.temperatura.none, color: '#94a3b8' }
+  ]
+}
 
 const temperatureLabelToFilterValue: Record<string, 'hot' | 'warm' | 'cold' | 'none'> = {
   Quente: 'hot',
@@ -90,13 +209,13 @@ const temperatureLabelToFilterValue: Record<string, 'hot' | 'warm' | 'cold' | 'n
   'Sem temperatura': 'none'
 }
 
-const temperatureChartTotal = temperatureChartData.reduce((total, item) => total + item.value, 0)
-
-const businessStatusChartData = [
-  { label: 'Ganhos', value: 14, color: '#16a34a' },
-  { label: 'Perdidos', value: 9, color: '#dc2626' },
-  { label: 'Em aberto', value: 37, color: '#eab308' }
-]
+const buildBusinessStatusChartData = (distribution: FinanceiroDistributionKpisResponse) => {
+  return [
+    { label: 'Ganhos', value: distribution.status.won, color: '#16a34a' },
+    { label: 'Perdidos', value: distribution.status.lost, color: '#dc2626' },
+    { label: 'Em aberto', value: distribution.status.open, color: '#eab308' }
+  ]
+}
 
 const statusLabelToFilterValue: Record<string, 'won' | 'lost' | 'open'> = {
   Ganhos: 'won',
@@ -104,25 +223,37 @@ const statusLabelToFilterValue: Record<string, 'won' | 'lost' | 'open'> = {
   'Em aberto': 'open'
 }
 
-const businessStatusChartTotal = businessStatusChartData.reduce((total, item) => total + item.value, 0)
+const buildLeadSourceDistribution = (distribution: FinanceiroDistributionKpisResponse) => {
+  return [
+    { key: 'whatsapp', label: 'WhatsApp', value: distribution.origem.whatsapp, color: '#16a34a' },
+    { key: 'metaads', label: 'Meta Ads', value: distribution.origem.metaads, color: '#2563eb' },
+    { key: 'googleads', label: 'Google Ads', value: distribution.origem.googleads, color: '#f59e0b' },
+    { key: 'indicacao', label: 'Indicação', value: distribution.origem.indicacao, color: '#7c3aed' },
+    { key: 'other', label: 'Outros', value: distribution.origem.other, color: '#64748b' }
+  ]
+}
 
-const leadSourceDistribution = [
-  { key: 'whatsapp', label: 'WhatsApp', value: 14, color: '#16a34a' },
-  { key: 'metaAds', label: 'Meta Ads', value: 9, color: '#2563eb' },
-  { key: 'googleAds', label: 'Google Ads', value: 7, color: '#f59e0b' },
-  { key: 'indicacao', label: 'Indicação', value: 5, color: '#7c3aed' }
-]
+const buildFunnelRows = (distribution: FinanceiroDistributionKpisResponse) => {
+  const stageCountMap = new Map(distribution.etapas.map((item) => [item.stage, item]))
+  const maxCount = Math.max(...distribution.etapas.map((item) => item.count), 1)
 
-const leadSourceTotal = leadSourceDistribution.reduce((total, item) => total + item.value, 0)
-const leadSourceBarData = [
-  leadSourceDistribution.reduce<Record<string, number | string>>(
-    (accumulator, source) => {
-      accumulator[source.key] = source.value
-      return accumulator
-    },
-    { category: 'Origens' }
-  )
-]
+  return stagePresentationOrder.map((stagePresentation) => {
+    const stageKpi = stageCountMap.get(stagePresentation.stageKey)
+    const count = stageKpi?.count ?? 0
+    const totalValue = stageKpi?.totalValue ?? 0
+    const widthValue = 50 + Math.round((count / maxCount) * 50)
+
+    return {
+      stage: stagePresentation.stageLabel,
+      count: formatCount(count),
+      value: formatCurrency(totalValue),
+      width: `${widthValue}%`,
+      textColor: stagePresentation.textColor,
+      amountColor: stagePresentation.amountColor,
+      background: stagePresentation.background
+    }
+  })
+}
 
 const formatDateFilterLabel = (value: Date): string => {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -130,6 +261,14 @@ const formatDateFilterLabel = (value: Date): string => {
     month: '2-digit',
     year: 'numeric'
   }).format(value)
+}
+
+const formatDateToApi = (value: Date): string => {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
 }
 
 const formatRangeFilterLabel = (range: DateRange | undefined): string => {
@@ -158,6 +297,8 @@ const createDefaultDateRange = (): DateRange => {
 export default function FinanceiroPage() {
   const navigate = useNavigate()
   const [dateRangeFilter, setDateRangeFilter] = useState<DateRange | undefined>(() => createDefaultDateRange())
+  const [financeTopSummary, setFinanceTopSummary] = useState<FinanceiroTopKpisResponse>(defaultFinanceTopSummary)
+  const [financeDistributionKpis, setFinanceDistributionKpis] = useState<FinanceiroDistributionKpisResponse>(defaultFinanceDistributionKpis)
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState<boolean>(false)
   const [visibleSummaryTooltip, setVisibleSummaryTooltip] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false))
@@ -167,6 +308,8 @@ export default function FinanceiroPage() {
   const [hoveredSourceLegendItem, setHoveredSourceLegendItem] = useState<string | null>(null)
   const [hoveredFunnelStage, setHoveredFunnelStage] = useState<string | null>(null)
   const dateRangePickerRef = useRef<HTMLDivElement | null>(null)
+  const createdAtFrom = dateRangeFilter?.from ? formatDateToApi(dateRangeFilter.from) : undefined
+  const createdAtTo = dateRangeFilter?.to ? formatDateToApi(dateRangeFilter.to) : undefined
 
   useEffect(() => {
     const handleResize = () => {
@@ -178,6 +321,59 @@ export default function FinanceiroPage() {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadFinanceiroKpis = async () => {
+      try {
+        const [summary, distribution] = await Promise.all([
+          FinanceiroService.loadTopKpis({
+            createdAtFrom,
+            createdAtTo
+          }),
+          FinanceiroService.loadDistributionKpis({
+            createdAtFrom,
+            createdAtTo
+          })
+        ])
+
+        if (isMounted) {
+          setFinanceTopSummary(summary)
+          setFinanceDistributionKpis(distribution)
+        }
+      } catch {
+        if (isMounted) {
+          setFinanceTopSummary(defaultFinanceTopSummary)
+          setFinanceDistributionKpis(defaultFinanceDistributionKpis)
+        }
+      }
+    }
+
+    void loadFinanceiroKpis()
+
+    return () => {
+      isMounted = false
+    }
+  }, [createdAtFrom, createdAtTo])
+
+  const financeSummaryCards = buildFinanceSummaryCards(financeTopSummary)
+  const temperatureChartData = buildTemperatureChartData(financeDistributionKpis)
+  const temperatureChartTotal = temperatureChartData.reduce((total, item) => total + item.value, 0)
+  const businessStatusChartData = buildBusinessStatusChartData(financeDistributionKpis)
+  const businessStatusChartTotal = businessStatusChartData.reduce((total, item) => total + item.value, 0)
+  const leadSourceDistribution = buildLeadSourceDistribution(financeDistributionKpis)
+  const leadSourceTotal = leadSourceDistribution.reduce((total, item) => total + item.value, 0)
+  const leadSourceBarData = [
+    leadSourceDistribution.reduce<Record<string, number | string>>(
+      (accumulator, source) => {
+        accumulator[source.key] = source.value
+        return accumulator
+      },
+      { category: 'Origens' }
+    )
+  ]
+  const funnelRows = buildFunnelRows(financeDistributionKpis)
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -1044,7 +1240,7 @@ export default function FinanceiroPage() {
                   </ResponsiveContainer>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
                   {leadSourceDistribution.map((source) => (
                     <div
                       key={source.key}
