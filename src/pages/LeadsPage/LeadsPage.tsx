@@ -84,7 +84,7 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
   if (normalizedSource === 'indicacao') {
     return {
       label: 'Indicação',
-      textColor: '#0f766e',
+      textColor: '#7c3aed',
       icon: <Handshake size={12} />
     }
   }
@@ -1463,8 +1463,8 @@ export default function LeadsPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
-                  <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
                       <Clock3 size={17} />
                       <span>Último contato</span>
@@ -1474,7 +1474,7 @@ export default function LeadsPage() {
                     </p>
                   </div>
 
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 'auto' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
                       <CalendarDays size={17} />
                       <span>Próxima agenda</span>
@@ -1492,7 +1492,7 @@ export default function LeadsPage() {
                         void openLeadNextAgendaFollowUp(lead)
                       }}
                       style={{
-                        margin: '8px 0 0 24px',
+                        margin: '8px 0 0 0',
                         border: 'none',
                         background: 'transparent',
                         color: nextAgendaTagColors.textColor,
@@ -1502,9 +1502,9 @@ export default function LeadsPage() {
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        maxWidth: 'calc(100% - 24px)',
+                        maxWidth: '100%',
                         cursor: lead.nextFollowUpNegotiationId ? 'pointer' : 'default',
-                        textAlign: 'left'
+                        textAlign: 'right'
                       }}
                     >
                       {isArchivedLead ? '-' : nextAgendaLabel}

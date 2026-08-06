@@ -1296,7 +1296,7 @@ export default function AgendaPage() {
                 boxSizing: 'border-box'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '22px 18px 12px', flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '22px 18px 12px', flexShrink: 0, borderBottom: 'none' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Novo follow-up</h2>
                 </div>
@@ -1936,7 +1936,7 @@ export default function AgendaPage() {
                 flexDirection: 'column'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '24px 24px 12px', flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '24px 24px 12px', flexShrink: 0, borderBottom: 'none' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
                   <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
                     Novo follow-up

@@ -5,6 +5,8 @@ import {
   Clock3,
   Clock4,
   MessageCircle,
+  TimerReset,
+  TriangleAlert,
   UserPlus,
   X
 } from 'lucide-react'
@@ -643,7 +645,10 @@ export default function HomePage() {
     }
   ]
 
-  const renderNotificationsList = (title: string, titleIcon?: ReactNode) => (
+  const renderNotificationsList = (title: string, titleIcon?: ReactNode) => {
+    const visibleNotifications = notifications
+
+    return (
     <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '10px 10px 8px', minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -674,7 +679,7 @@ export default function HomePage() {
       </div>
 
       <div style={{ marginTop: 10, minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, paddingRight: 4 }}>
-        {notifications.map((activity) => {
+        {visibleNotifications.map((activity) => {
           return (
             <div
               key={activity.id}
@@ -698,11 +703,25 @@ export default function HomePage() {
             >
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 {activity.icon === 'message' ? (
-                  <MessageCircle size={19} color={activity.color} />
+                  <MessageCircle size={20} color={activity.color} />
                 ) : activity.icon === 'followup' ? (
-                  <CalendarClock size={19} color={activity.color} />
+                  activity.title === 'Conversa expira em 1 hora' ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+                      <TimerReset size={20} color={activity.color} />
+                    </span>
+                  ) : activity.title === 'Conversa expirada' ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+                      <TriangleAlert size={20} color={activity.color} />
+                    </span>
+                  ) : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+                      <CalendarClock size={20} color={activity.color} />
+                    </span>
+                  )
                 ) : (
-                  <UserPlus size={19} color={activity.color} />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+                    <UserPlus size={20} color={activity.color} />
+                  </span>
                 )}
 
                 <div style={{ minWidth: 0 }}>
@@ -741,7 +760,8 @@ export default function HomePage() {
         })}
       </div>
     </article>
-  )
+    )
+  }
 
   if (isMobile && isMobileHomeNotificationsOpen) {
     return (

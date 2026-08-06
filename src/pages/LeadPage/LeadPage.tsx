@@ -528,9 +528,7 @@ const leadStageOptions: LeadStage[] = [
   'CONTACTED',
   'QUALIFIED',
   'PROPOSAL_SENT',
-  'NEGOTIATION',
-  'WON',
-  'LOST'
+  'NEGOTIATION'
 ]
 
 const formatDateOnly = (value?: string | null): string => {
@@ -1266,6 +1264,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       isSavingNotesRef.current = false
     }
   }
+
+  const canSaveLeadInfo = Boolean(
+    infoDraft.name.trim() &&
+    isLeadPhoneComplete(infoDraft.phone)
+  )
 
   const handleSaveLeadInfo = async () => {
     if (!leadId || !leadData) return
@@ -2622,16 +2625,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   onClick={() => {
                     void handleSaveLeadInfo()
                   }}
+                  disabled={!canSaveLeadInfo}
                   style={{
                     minWidth: 100,
                     height: 36,
                     border: 'none',
                     borderRadius: 8,
-                    background: '#1f7a4d',
+                    background: canSaveLeadInfo ? '#1f7a4d' : '#9ca3af',
                     color: '#ffffff',
                     fontSize: 14,
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: canSaveLeadInfo ? 'pointer' : 'not-allowed'
                   }}
                 >
                   Salvar
@@ -2894,7 +2898,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               paddingBottom: 6,
               paddingLeft: 18,
               paddingRight: 18,
-              borderBottom: '1px solid #e5e7eb'
+              marginBottom: 16,
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
@@ -3700,7 +3704,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               background: '#ffffff',
               paddingTop: 22,
               paddingBottom: 10,
-              borderBottom: '1px solid #f1f5f9'
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
@@ -4012,7 +4015,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               background: '#ffffff',
               paddingTop: 22,
               paddingBottom: 10,
-              borderBottom: '1px solid #f1f5f9'
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
@@ -6111,16 +6113,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                             }
                           })()
                         }}
+                        disabled={!businessDetailDraft?.title.trim()}
                         style={{
                           minWidth: 100,
                           height: 36,
                           border: 'none',
                           borderRadius: 8,
-                          background: '#1f7a4d',
+                          background: businessDetailDraft?.title.trim() ? '#1f7a4d' : '#9ca3af',
                           color: '#ffffff',
                           fontSize: 14,
                           fontWeight: 700,
-                          cursor: 'pointer'
+                          cursor: businessDetailDraft?.title.trim() ? 'pointer' : 'not-allowed'
                         }}
                       >
                         Salvar
@@ -7021,7 +7024,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'grid', gap: 4 }}>
-              <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700}}>
                 Novo negócio
               </h2>
             </div>
@@ -7153,8 +7156,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     <option value="QUALIFIED">Qualificado</option>
                     <option value="PROPOSAL_SENT">Proposta enviada</option>
                     <option value="NEGOTIATION">Negociação</option>
-                    <option value="WON">Ganho</option>
-                    <option value="LOST">Perdido</option>
                   </select>
                 </div>
 
@@ -7295,8 +7296,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     <option value="QUALIFIED">Qualificado</option>
                     <option value="PROPOSAL_SENT">Proposta enviada</option>
                     <option value="NEGOTIATION">Negociação</option>
-                    <option value="WON">Ganho</option>
-                    <option value="LOST">Perdido</option>
                   </select>
                 </div>
 
@@ -7439,16 +7438,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     }
                   })()
                 }}
+                disabled={!newBusinessDraft.title.trim() || !leadId}
                 style={{
                   minWidth: 120,
                   height: 42,
                   border: 'none',
                   borderRadius: 8,
-                  background: '#1f7a4d',
+                  background: newBusinessDraft.title.trim() && leadId ? '#1f7a4d' : '#9ca3af',
                   color: '#ffffff',
                   fontSize: 14,
                   fontWeight: 700,
-                  cursor: 'pointer'
+                  cursor: newBusinessDraft.title.trim() && leadId ? 'pointer' : 'not-allowed'
                 }}
               >
                 Salvar
@@ -7611,7 +7611,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         </span>
                       )}
 
-                      {formatLeadValue(business.value) === '-' ? null : (
+                      {formatLeadValue(business.value) === '-' ? (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap', background: '#fef3c7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                          <span style={tagContentStyle}>Valor não informado</span>
+                        </span>
+                      ) : (
                         <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                           <span style={tagContentStyle}>{formatLeadValue(business.value)}</span>
                         </span>
@@ -7828,8 +7832,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                             style={{
                               fontSize: 12,
                               fontWeight: 700,
-                              color: '#9ca3af',
-                              background: '#f3f4f6',
+                              color: '#b45309',
+                              background: '#fef3c7',
                               borderRadius: 6,
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -7839,7 +7843,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                               width: '100%'
                             }}
                           >
-                            -
+                            Valor não informado
                           </span>
                         ) : (
                           <span
@@ -9052,7 +9056,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 height: 42,
                 border: 'none',
                 borderRadius: 8,
-                background: '#1f7a4d',
+                background: canCreateLead ? '#1f7a4d' : '#9ca3af',
                 color: '#ffffff',
                 fontSize: 14,
                 fontWeight: 700,

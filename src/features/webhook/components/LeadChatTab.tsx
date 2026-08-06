@@ -36,6 +36,13 @@ export function LeadChatTab({
   const [isSending, setIsSending] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false)
+  const [isCompactScreen, setIsCompactScreen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return window.innerWidth <= 520
+  })
   const [shortcuts, setShortcuts] = useState<{ key: string; value: string }[]>([])
   const [shortcutDropdownVisible, setShortcutDropdownVisible] = useState<boolean>(false)
   const [shortcutFilter, setShortcutFilter] = useState<string>('')
@@ -176,6 +183,18 @@ export function LeadChatTab({
 
     container.scrollTop = container.scrollHeight
   }, [isLoading, messages])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCompactScreen(window.innerWidth <= 520)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -529,6 +548,9 @@ export function LeadChatTab({
       ? 'Nenhuma mensagem ainda'
       : null
 
+  const compactComposerControlSize = 'clamp(30px, 7.8vw, 36px)'
+  const compactComposerGap = 'clamp(4px, 1.6vw, 8px)'
+
   return (
     <section style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       {error ? (
@@ -712,7 +734,8 @@ export function LeadChatTab({
 
                     <div
                       style={{
-                        maxWidth: '70%',
+                        maxWidth: isCompactScreen ? '90%' : '70%',
+                        minWidth: 0,
                         borderRadius: 12,
                         padding: isTemplateMessage ? 0 : '10px 12px',
                         background: isTemplateMessage
@@ -725,7 +748,9 @@ export function LeadChatTab({
                           : isOutbound
                             ? '#ffffff'
                             : '#111827',
-                        display: isTemplateMessage ? 'grid' : 'block'
+                        display: isTemplateMessage ? 'grid' : 'block',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word'
                       }}
                     >
                       {isTemplateMessage ? (
@@ -742,7 +767,8 @@ export function LeadChatTab({
                               display: 'flex',
                               alignItems: 'center',
                               gap: 8,
-                              justifyContent: 'space-between'
+                              justifyContent: 'space-between',
+                              minWidth: 0
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -773,7 +799,9 @@ export function LeadChatTab({
                               borderBottomLeftRadius: 12,
                               borderBottomRightRadius: 12,
                               padding: '10px 12px',
-                              color: '#111827'
+                              color: '#111827',
+                              overflowWrap: 'anywhere',
+                              wordBreak: 'break-word'
                             }}
                           >
                             <MessageContent message={item} />
@@ -797,12 +825,13 @@ export function LeadChatTab({
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: isCompactScreen ? 'stretch' : 'center',
               justifyContent: 'space-between',
+              flexDirection: isCompactScreen ? 'column' : 'row',
               padding: '12px 16px',
               borderTop: '1px solid #e5e7eb',
               backgroundColor: '#f9fafb',
-              gap: 16
+              gap: isCompactScreen ? 10 : 16
             }}
           >
             <p
@@ -832,7 +861,8 @@ export function LeadChatTab({
                 cursor: 'pointer',
                 transition: 'background 120ms ease',
                 whiteSpace: 'nowrap',
-                flexShrink: 0
+                flexShrink: 0,
+                width: isCompactScreen ? '100%' : 'auto'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = interactionTheme.primaryButtonHoverBackground
@@ -849,7 +879,7 @@ export function LeadChatTab({
         {!isReopeningConversation && !shouldShowReopenButton && (
         <>
           {audioRecorder.isRecording ? (
-            <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center', minWidth: 0 }}>
               <RecordingComposer
                 durationLabel={formatRecordingDuration(audioRecorder.recordingDurationInMs)}
                 isUploading={isAnyUploadActive}
@@ -899,7 +929,15 @@ export function LeadChatTab({
             ) : null}
           <form
             onSubmit={handleSendSubmit}
-            style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center' }}
+            style={{
+              display: 'flex',
+              gap: isCompactScreen ? compactComposerGap : 10,
+              padding: 12,
+              borderTop: '1px solid #e5e7eb',
+              alignItems: 'center',
+              flexWrap: 'nowrap',
+              minWidth: 0
+            }}
           >
             <>
               <button
@@ -909,7 +947,7 @@ export function LeadChatTab({
                 aria-label={runtimeMode === 'HUMAN' ? 'Voltar para automação' : 'Assumir como humano'}
                 title={runtimeMode === 'HUMAN' ? 'Voltar para automação' : 'Assumir como humano'}
                 style={{
-                  padding: '8px 12px',
+                  padding: isCompactScreen ? '8px 10px' : '8px 12px',
                   borderRadius: 8,
                   border: 'none',
                   background: runtimeMode === 'HUMAN'
@@ -938,14 +976,16 @@ export function LeadChatTab({
                 onFocus={() => setIsInputFocused(true)}
                 onBlur={() => { setIsInputFocused(false); setShortcutDropdownVisible(false) }}
                 onKeyDown={handleInputKeyDown}
-                placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : 'Digite uma mensagem...'}
+                placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : ''}
                 disabled={isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'}
                 rows={1}
                 style={{
-                  flex: 1,
+                  flex: isCompactScreen ? '1 1 auto' : 1,
+                  width: isCompactScreen ? 'clamp(44px, 28vw, 220px)' : undefined,
                   height: 40,
                   minHeight: 40,
                   maxHeight: 40,
+                  minWidth: 0,
                   border: `1px solid ${
                     isInputFocused
                       ? interactionTheme.inputFocusBorderColor
@@ -981,9 +1021,9 @@ export function LeadChatTab({
                     onMouseLeave={() => setIsImageButtonHovered(false)}
                     disabled={isSending || isAnyUploadActive}
                     style={{
-                      height: 40,
-                      width: 40,
-                      minWidth: 40,
+                      height: isCompactScreen ? compactComposerControlSize : 40,
+                      width: isCompactScreen ? compactComposerControlSize : 40,
+                      minWidth: isCompactScreen ? compactComposerControlSize : 40,
                       border: 'none',
                       borderRadius: 8,
                       background: isImageButtonHovered
@@ -1016,9 +1056,9 @@ export function LeadChatTab({
                     onMouseLeave={() => setIsAttachmentButtonHovered(false)}
                     disabled={isSending || isAnyUploadActive}
                     style={{
-                      height: 40,
-                      width: 40,
-                      minWidth: 40,
+                      height: isCompactScreen ? compactComposerControlSize : 40,
+                      width: isCompactScreen ? compactComposerControlSize : 40,
+                      minWidth: isCompactScreen ? compactComposerControlSize : 40,
                       border: 'none',
                       borderRadius: 8,
                       background: isAttachmentButtonHovered
@@ -1043,9 +1083,9 @@ export function LeadChatTab({
                 onClick={handleStartRecording}
                 disabled={isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION'}
                 style={{
-                  height: 40,
-                  width: 40,
-                  minWidth: 40,
+                  height: isCompactScreen ? compactComposerControlSize : 40,
+                  width: isCompactScreen ? compactComposerControlSize : 40,
+                  minWidth: isCompactScreen ? compactComposerControlSize : 40,
                   border: 'none',
                   borderRadius: 8,
                   background: interactionTheme.primaryButtonBackground,
@@ -1073,9 +1113,9 @@ export function LeadChatTab({
                       onClick={openPicker}
                       disabled={isSending || isAnyUploadActive}
                       style={{
-                        height: 40,
-                        width: 40,
-                        minWidth: 40,
+                        height: isCompactScreen ? compactComposerControlSize : 40,
+                        width: isCompactScreen ? compactComposerControlSize : 40,
+                        minWidth: isCompactScreen ? compactComposerControlSize : 40,
                         border: 'none',
                         borderRadius: 8,
                         background: interactionTheme.primaryButtonBackground,
@@ -1100,9 +1140,9 @@ export function LeadChatTab({
                 onMouseEnter={() => setIsSendButtonHovered(true)}
                 onMouseLeave={() => setIsSendButtonHovered(false)}
                 style={{
-                  height: 40,
-                  width: 40,
-                  minWidth: 40,
+                  height: isCompactScreen ? compactComposerControlSize : 40,
+                  width: isCompactScreen ? compactComposerControlSize : 40,
+                  minWidth: isCompactScreen ? compactComposerControlSize : 40,
                   border: 'none',
                   borderRadius: 8,
                   background: isSending || isAnyUploadActive

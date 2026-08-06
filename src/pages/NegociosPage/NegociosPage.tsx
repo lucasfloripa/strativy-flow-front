@@ -57,10 +57,23 @@ type BusinessTypeSortFocus = 'serviceFirst' | 'productFirst' | 'noneFirst'
 type BusinessStageSortFocus = LeadStage | null
 type BusinessStatusSortFocus = 'open' | 'won' | 'lost' | null
 type BusinessTemperatureSortFocus = 'hot' | 'warm' | 'cold' | 'none' | null
-type BusinessFilterSection = 'type' | 'stage' | 'status' | 'temperature'
+type BusinessFilterSection = 'type' | 'stage' | 'status' | 'temperature' | 'source'
 type BusinessTypeFilterValue = 'service' | 'product' | 'none'
 type BusinessStatusFilterValue = 'open' | 'won' | 'lost'
 type BusinessTemperatureFilterValue = 'hot' | 'warm' | 'cold' | 'none'
+type BusinessSourceFilterValue = 'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other'
+
+const isBusinessStatusFilterValue = (value: string): value is BusinessStatusFilterValue => {
+  return value === 'open' || value === 'won' || value === 'lost'
+}
+
+const isBusinessTemperatureFilterValue = (value: string): value is BusinessTemperatureFilterValue => {
+  return value === 'hot' || value === 'warm' || value === 'cold' || value === 'none'
+}
+
+const isBusinessSourceFilterValue = (value: string): value is BusinessSourceFilterValue => {
+  return value === 'whatsapp' || value === 'metaads' || value === 'googleads' || value === 'indicacao' || value === 'other'
+}
 
 const NEGOCIOS_TABLE_ROW_HEIGHT_PX = 60
 
@@ -177,6 +190,40 @@ const getBusinessTemperatureFilterLabel = (value: BusinessTemperatureFilterValue
   if (value === 'warm') return 'Morno'
   if (value === 'cold') return 'Frio'
   return 'Sem temperatura'
+}
+
+const getBusinessSourceFilterLabel = (value: BusinessSourceFilterValue): string => {
+  if (value === 'whatsapp') return 'WhatsApp'
+  if (value === 'metaads') return 'Meta Ads'
+  if (value === 'googleads') return 'Google Ads'
+  if (value === 'indicacao') return 'Indicação'
+  return 'Outros'
+}
+
+const normalizeBusinessSourceFilterValue = (source: string | null | undefined): BusinessSourceFilterValue => {
+  const normalizedSource = (source ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (normalizedSource === 'whatsapp') {
+    return 'whatsapp'
+  }
+
+  if (normalizedSource === 'metaads') {
+    return 'metaads'
+  }
+
+  if (normalizedSource === 'googleads') {
+    return 'googleads'
+  }
+
+  if (normalizedSource === 'indicacao') {
+    return 'indicacao'
+  }
+
+  return 'other'
 }
 
 const rotateValues = <T extends string>(values: T[], focus: T | null): T[] => {
@@ -391,7 +438,7 @@ const getSourceTagPresentation = (source: string): TagPresentation => {
   }
 
   if (normalizedSource === 'indicacao') {
-    return { label: 'Indicação', textColor: '#0f766e', icon: <Handshake size={12} /> }
+    return { label: 'Indicação', textColor: '#7c3aed', icon: <Handshake size={12} /> }
   }
 
   return { label: source || '-', textColor: '#6b7280' }
@@ -477,6 +524,103 @@ export default function NegociosPage() {
   const [selectedStageFilters, setSelectedStageFilters] = useState<LeadStage[]>([])
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<BusinessStatusFilterValue[]>([])
   const [selectedTemperatureFilters, setSelectedTemperatureFilters] = useState<BusinessTemperatureFilterValue[]>([])
+  const [selectedSourceFilters, setSelectedSourceFilters] = useState<BusinessSourceFilterValue[]>([])
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search)
+    const rawStatusParam = searchParams.get('status')
+    const rawTemperatureParam = searchParams.get('temperature')
+    const rawSourceParam = searchParams.get('source')
+    const rawStageParam = searchParams.get('stage')
+
+    if (rawStatusParam) {
+      const normalizedStatusValues = rawStatusParam
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(isBusinessStatusFilterValue)
+
+      if (normalizedStatusValues.length > 0) {
+        setSelectedStatusFilters((current) => {
+          const nextValues = Array.from(new Set(normalizedStatusValues))
+
+          if (
+            current.length === nextValues.length &&
+            current.every((value) => nextValues.includes(value))
+          ) {
+            return current
+          }
+
+          return nextValues
+        })
+      }
+    }
+
+    if (rawTemperatureParam) {
+      const normalizedTemperatureValues = rawTemperatureParam
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(isBusinessTemperatureFilterValue)
+
+      if (normalizedTemperatureValues.length > 0) {
+        setSelectedTemperatureFilters((current) => {
+          const nextValues = Array.from(new Set(normalizedTemperatureValues))
+
+          if (
+            current.length === nextValues.length &&
+            current.every((value) => nextValues.includes(value))
+          ) {
+            return current
+          }
+
+          return nextValues
+        })
+      }
+    }
+
+    if (rawSourceParam) {
+      const normalizedSourceValues = rawSourceParam
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(isBusinessSourceFilterValue)
+
+      if (normalizedSourceValues.length > 0) {
+        setSelectedSourceFilters((current) => {
+          const nextValues = Array.from(new Set(normalizedSourceValues))
+
+          if (
+            current.length === nextValues.length &&
+            current.every((value) => nextValues.includes(value))
+          ) {
+            return current
+          }
+
+          return nextValues
+        })
+      }
+    }
+
+    if (rawStageParam) {
+      const normalizedStageValues = rawStageParam
+        .split(',')
+        .map((value) => normalizeStageValue(value.toUpperCase()))
+        .filter((value): value is LeadStage => value !== null)
+
+      if (normalizedStageValues.length > 0) {
+        setSelectedStageFilters((current) => {
+          const nextValues = Array.from(new Set(normalizedStageValues))
+
+          if (
+            current.length === nextValues.length &&
+            current.every((value) => nextValues.includes(value))
+          ) {
+            return current
+          }
+
+          return nextValues
+        })
+      }
+    }
+  }, [location.search])
 
   const [sortKey, setSortKey] = useState<BusinessSortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<BusinessSortDirection>('desc')
@@ -661,7 +805,8 @@ export default function NegociosPage() {
     Number(selectedTypeFilters.length > 0) +
     Number(selectedStageFilters.length > 0) +
     Number(selectedStatusFilters.length > 0) +
-    Number(selectedTemperatureFilters.length > 0)
+    Number(selectedTemperatureFilters.length > 0) +
+    Number(selectedSourceFilters.length > 0)
 
   const activeFilterTags = [
     ...selectedTypeFilters.map((value) => ({
@@ -691,6 +836,13 @@ export default function NegociosPage() {
       textColor: '#0f766e',
       background: '#ccfbf1',
       onRemove: () => setSelectedTemperatureFilters((current) => current.filter((item) => item !== value))
+    })),
+    ...selectedSourceFilters.map((value) => ({
+      key: `source-${value}`,
+      label: `Origem: ${getBusinessSourceFilterLabel(value)}`,
+      textColor: '#4338ca',
+      background: '#e0e7ff',
+      onRemove: () => setSelectedSourceFilters((current) => current.filter((item) => item !== value))
     }))
   ]
 
@@ -717,17 +869,31 @@ export default function NegociosPage() {
         const matchesTemperature =
           selectedTemperatureFilters.length === 0 || selectedTemperatureFilters.includes(temperatureValue)
 
-        return matchesSearch && matchesType && matchesStage && matchesStatus && matchesTemperature
+        const sourceValue = normalizeBusinessSourceFilterValue(leadSourceById.get(negocio.leadId) ?? '')
+        const matchesSource =
+          selectedSourceFilters.length === 0 || selectedSourceFilters.includes(sourceValue)
+
+        return matchesSearch && matchesType && matchesStage && matchesStatus && matchesTemperature && matchesSource
       }),
     [
+      leadSourceById,
       negociosByUser,
       normalizedSearchTerm,
       selectedStageFilters,
       selectedStatusFilters,
+      selectedSourceFilters,
       selectedTemperatureFilters,
       selectedTypeFilters
     ]
   )
+
+  const availableSourceFilterValues = useMemo(() => {
+    const orderedSources: BusinessSourceFilterValue[] = ['whatsapp', 'metaads', 'googleads', 'indicacao', 'other']
+
+    return orderedSources.filter((source) =>
+      filteredNegocios.some((negocio) => normalizeBusinessSourceFilterValue(leadSourceById.get(negocio.leadId) ?? '') === source)
+    )
+  }, [filteredNegocios, leadSourceById])
 
   const availableStageSortValues = useMemo(() => {
     const orderedStages: LeadStage[] = [
@@ -1341,8 +1507,6 @@ export default function NegociosPage() {
               <option value="QUALIFIED">Qualificado</option>
               <option value="PROPOSAL_SENT">Proposta enviada</option>
               <option value="NEGOTIATION">Negociação</option>
-              <option value="WON">Ganho</option>
-              <option value="LOST">Perdido</option>
             </select>
           </div>
 
@@ -1609,7 +1773,8 @@ export default function NegociosPage() {
                   { key: 'type' as const, label: 'Tipo' },
                   { key: 'stage' as const, label: 'Etapa' },
                   { key: 'status' as const, label: 'Status' },
-                  { key: 'temperature' as const, label: 'Temperatura' }
+                  { key: 'temperature' as const, label: 'Temperatura' },
+                  { key: 'source' as const, label: 'Origem' }
                 ].map((section) => {
                   const isSelected =
                     section.key === 'type'
@@ -1618,7 +1783,9 @@ export default function NegociosPage() {
                         ? selectedStageFilters.length > 0
                         : section.key === 'status'
                           ? selectedStatusFilters.length > 0
-                          : selectedTemperatureFilters.length > 0
+                          : section.key === 'temperature'
+                            ? selectedTemperatureFilters.length > 0
+                            : selectedSourceFilters.length > 0
                   const isExpanded = expandedFilterSection === section.key
 
                   return (
@@ -1694,20 +1861,37 @@ export default function NegociosPage() {
                                       {getBusinessStatusFilterLabel(value)}
                                     </button>
                                   ))
-                                : availableTemperatureSortValues.map((value) => (
+                                : section.key === 'temperature'
+                                  ? availableTemperatureSortValues.map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => {
+                                          toggleMultiFilterValue(
+                                            selectedTemperatureFilters,
+                                            value,
+                                            setSelectedTemperatureFilters
+                                          )
+                                        }}
+                                        style={getFilterOptionStyle(selectedTemperatureFilters.includes(value))}
+                                      >
+                                        {getBusinessTemperatureFilterLabel(value)}
+                                      </button>
+                                    ))
+                                  : availableSourceFilterValues.map((value) => (
                                     <button
                                       key={value}
                                       type="button"
                                       onClick={() => {
                                         toggleMultiFilterValue(
-                                          selectedTemperatureFilters,
+                                          selectedSourceFilters,
                                           value,
-                                          setSelectedTemperatureFilters
+                                          setSelectedSourceFilters
                                         )
                                       }}
-                                      style={getFilterOptionStyle(selectedTemperatureFilters.includes(value))}
+                                      style={getFilterOptionStyle(selectedSourceFilters.includes(value))}
                                     >
-                                      {getBusinessTemperatureFilterLabel(value)}
+                                      {getBusinessSourceFilterLabel(value)}
                                     </button>
                                   ))}
                         </div>
@@ -1907,7 +2091,11 @@ export default function NegociosPage() {
                     </span>
                   )}
 
-                  {formatLeadValue(negocio.value) === '-' ? null : (
+                  {formatLeadValue(negocio.value) === '-' ? (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap', background: '#fef3c7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                      <span style={tagContentStyle}>Valor não informado</span>
+                    </span>
+                  ) : (
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#166534', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                       <span style={tagContentStyle}>{formatLeadValue(negocio.value)}</span>
                     </span>
@@ -2096,7 +2284,8 @@ export default function NegociosPage() {
                 { key: 'type' as const, label: 'Tipo' },
                 { key: 'stage' as const, label: 'Etapa' },
                 { key: 'status' as const, label: 'Status' },
-                { key: 'temperature' as const, label: 'Temperatura' }
+                { key: 'temperature' as const, label: 'Temperatura' },
+                { key: 'source' as const, label: 'Origem' }
               ].map((section) => {
                 const isSelected =
                   section.key === 'type'
@@ -2105,7 +2294,9 @@ export default function NegociosPage() {
                       ? selectedStageFilters.length > 0
                       : section.key === 'status'
                         ? selectedStatusFilters.length > 0
-                        : selectedTemperatureFilters.length > 0
+                        : section.key === 'temperature'
+                          ? selectedTemperatureFilters.length > 0
+                          : selectedSourceFilters.length > 0
                 const isExpanded = expandedFilterSection === section.key
 
                 return (
@@ -2181,20 +2372,37 @@ export default function NegociosPage() {
                                     {getBusinessStatusFilterLabel(value)}
                                   </button>
                                 ))
-                              : availableTemperatureSortValues.map((value) => (
+                              : section.key === 'temperature'
+                                ? availableTemperatureSortValues.map((value) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => {
+                                        toggleMultiFilterValue(
+                                          selectedTemperatureFilters,
+                                          value,
+                                          setSelectedTemperatureFilters
+                                        )
+                                      }}
+                                      style={getFilterOptionStyle(selectedTemperatureFilters.includes(value))}
+                                    >
+                                      {getBusinessTemperatureFilterLabel(value)}
+                                    </button>
+                                  ))
+                                : availableSourceFilterValues.map((value) => (
                                   <button
                                     key={value}
                                     type="button"
                                     onClick={() => {
                                       toggleMultiFilterValue(
-                                        selectedTemperatureFilters,
+                                        selectedSourceFilters,
                                         value,
-                                        setSelectedTemperatureFilters
+                                        setSelectedSourceFilters
                                       )
                                     }}
-                                    style={getFilterOptionStyle(selectedTemperatureFilters.includes(value))}
+                                    style={getFilterOptionStyle(selectedSourceFilters.includes(value))}
                                   >
-                                    {getBusinessTemperatureFilterLabel(value)}
+                                    {getBusinessSourceFilterLabel(value)}
                                   </button>
                                 ))}
                       </div>
@@ -2920,8 +3128,6 @@ export default function NegociosPage() {
                       <option value="QUALIFIED">Qualificado</option>
                       <option value="PROPOSAL_SENT">Proposta enviada</option>
                       <option value="NEGOTIATION">Negociação</option>
-                      <option value="WON">Ganho</option>
-                      <option value="LOST">Perdido</option>
                     </select>
 
                     <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</span>

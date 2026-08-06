@@ -853,18 +853,28 @@ export function AuthenticatedLayout() {
     return digits.length === 10 || digits.length === 11
   }
 
-  const persistWhatsAppNumbers = async (numbers: WhatsAppNumber[]) => {
+  const persistNotificationSettings = async ({
+    numbers,
+    emails
+  }: {
+    numbers?: WhatsAppNumber[]
+    emails?: EmailAddress[]
+  }) => {
     try {
       const userInformationsId = getUserIdFromStoredAccessToken()
       if (!userInformationsId) return
 
-      await appApiClient.patch(
-        `/user/user-informations/${userInformationsId}/notifications`,
-        { notificationWhatsAppNumbers: numbers.map((n) => n.number) }
-      )
+      await appApiClient.patch(`/user/user-informations/${userInformationsId}/notifications`, {
+        notificationWhatsAppNumbers: numbers?.map((n) => n.number) ?? [],
+        notificationEmails: emails?.map((e) => e.email) ?? []
+      })
     } catch (error) {
-      console.error('Erro ao salvar numeros de WhatsApp:', error)
+      console.error('Erro ao salvar configurações de notificações:', error)
     }
+  }
+
+  const persistWhatsAppNumbers = async (numbers: WhatsAppNumber[]) => {
+    await persistNotificationSettings({ numbers })
   }
 
   const handleDeleteWhatsAppNumber = (id: string) => {
@@ -901,8 +911,9 @@ export function AuthenticatedLayout() {
   }
 
   const handleDeleteEmailAddress = (id: string) => {
-    // Delete immediately without confirmation
-    setEmailAddresses((prev) => prev.filter((email) => email.id !== id))
+    const next = emailAddresses.filter((email) => email.id !== id)
+    setEmailAddresses(next)
+    void persistNotificationSettings({ emails: next })
   }
 
   const isValidEmail = (email: string): boolean => {
@@ -922,11 +933,13 @@ export function AuthenticatedLayout() {
 
   const handleConfirmEditEmailAddress = (id: string) => {
     if (isValidEmail(editingEmailAddressValue)) {
-      setEmailAddresses((prev) =>
-        prev.map((email) => (email.id === id ? { ...email, email: editingEmailAddressValue } : email))
+      const next = emailAddresses.map((email) =>
+        email.id === id ? { ...email, email: editingEmailAddressValue.trim() } : email
       )
+      setEmailAddresses(next)
       setEditingEmailAddressId(null)
       setEditingEmailAddressValue('')
+      void persistNotificationSettings({ emails: next })
     }
   }
 
@@ -937,10 +950,13 @@ export function AuthenticatedLayout() {
 
   const handleConfirmAddEmailAddress = () => {
     if (isValidEmail(newEmailAddress)) {
-      const newId = String(Math.max(...emailAddresses.map(e => parseInt(e.id, 10)), 0) + 1)
-      setEmailAddresses((prev) => [{ id: newId, email: newEmailAddress }, ...prev])
+      const trimmedEmail = newEmailAddress.trim()
+      const newId = String(Math.max(...emailAddresses.map((e) => parseInt(e.id, 10)), 0) + 1)
+      const next = [{ id: newId, email: trimmedEmail }, ...emailAddresses]
+      setEmailAddresses(next)
       setIsAddingEmailAddress(false)
       setNewEmailAddress('')
+      void persistNotificationSettings({ emails: next })
     }
   }
 
