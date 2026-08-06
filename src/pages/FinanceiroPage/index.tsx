@@ -923,12 +923,13 @@ export default function FinanceiroPage() {
               border: '1px solid #f4f6fa',
               borderRadius: 12,
               boxShadow: '0 6px 14px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.016)',
-              minHeight: 0,
+              minHeight: isMobile ? 360 : 0,
               display: 'flex',
               flexDirection: 'column',
-              padding: '16px',
+              padding: '16px 16px 14px',
               boxSizing: 'border-box',
-              gap: 14
+              gap: 8,
+              minWidth: 0
             }}
           >
             <h3 style={{ margin: 0, color: '#0f172a', fontSize: 32 / 2, fontWeight: 700 }}>Origem dos negócios</h3>
