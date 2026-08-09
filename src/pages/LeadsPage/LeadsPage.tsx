@@ -2132,7 +2132,9 @@ export default function LeadsPage() {
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'normal',
-                          lineHeight: '18px'
+                          lineHeight: '18px',
+                          fontSize: 14,
+                          fontWeight: 700
                         }}
                       >
                         {lead.name}

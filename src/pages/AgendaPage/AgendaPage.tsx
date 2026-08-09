@@ -260,26 +260,6 @@ function AgendaDateTimeInput({
         aria-label="Selecionar horário do follow-up"
       />
 
-      <button
-        type="button"
-        onClick={() => onChange('')}
-        disabled={!value}
-        style={{
-          width: compact ? 30 : 34,
-          height: fieldHeight,
-          border: '1px solid #d7dce4',
-          borderRadius: compact ? 8 : 12,
-          background: '#ffffff',
-          color: '#475569',
-          cursor: value ? 'pointer' : 'not-allowed',
-          opacity: value ? 1 : 0.5,
-          fontWeight: 700
-        }}
-        aria-label="Limpar data e hora do follow-up"
-      >
-        X
-      </button>
-
       {isPickerOpen ? (
         <div
           style={{

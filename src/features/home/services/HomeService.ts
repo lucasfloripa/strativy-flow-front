@@ -1,5 +1,7 @@
 import { appApiClient } from '../../../core/api/appApiClient'
 import type {
+  DashboardConversationFilter,
+  DashboardConversationsResponse,
   DashboardSummary,
   HomeHighlightedLead,
   UserNotification
@@ -8,6 +10,17 @@ import type {
 export const HomeService = {
   async getDashboardSummary(): Promise<DashboardSummary> {
     const { data } = await appApiClient.get<DashboardSummary>('/leads/dashboard/summary')
+    return data
+  },
+
+  async getDashboardConversations(
+    filter: DashboardConversationFilter
+  ): Promise<DashboardConversationsResponse> {
+    const { data } = await appApiClient.get<DashboardConversationsResponse>(
+      '/leads/dashboard/conversations',
+      { params: { filter } }
+    )
+
     return data
   },
 

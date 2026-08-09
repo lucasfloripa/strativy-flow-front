@@ -15,6 +15,7 @@ export type AuthenticatedLayoutOutletContext = {
   isMobileHomeNotificationsOpen: boolean
   setIsMobileHomeNotificationsOpen: (isOpen: boolean) => void
   setMobileHomeNotificationsCount: (count: number) => void
+  userFirstName: string
 }
 
 type SettingsTab = 'usuario' | 'notificacoes' | 'chat'
@@ -334,6 +335,7 @@ export function AuthenticatedLayout() {
   const greetingLabel = getGreetingLabel()
   const userFirstName =
     getFirstName(headerUserName) || getFirstName(settingsUserName) || getUserFirstName(authUserEmail)
+  const userFullName = (settingsUserName || headerUserName || userFirstName).trim()
 
   useEffect(() => {
     if (!hasToken) {
@@ -366,7 +368,7 @@ export function AuthenticatedLayout() {
         .find((name) => Boolean(name))
 
       if (firstAvailableName) {
-        setHeaderUserName(getFirstName(firstAvailableName))
+        setHeaderUserName(firstAvailableName)
       }
     }
 
@@ -1199,23 +1201,15 @@ export function AuthenticatedLayout() {
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
               <strong
                 style={{
-                  fontSize: 20,
-                  color: interactionTheme.sidebarItemDefaultColor,
-                  lineHeight: 1.15,
-                  fontWeight: 500
-                }}
-              >
-                {greetingLabel},
-              </strong>
-              <strong
-                style={{
                   fontSize: 28,
                   color: interactionTheme.sidebarItemDefaultColor,
                   lineHeight: 1.1,
-                  fontWeight: 500
+                  fontWeight: 500,
+                  fontFamily: 'Canela, serif',
+                  fontStyle: 'italic'
                 }}
               >
-                {userFirstName}
+                StrativyFlow
               </strong>
             </div>
           ) : null}
@@ -1297,6 +1291,24 @@ export function AuthenticatedLayout() {
               >
                 <Briefcase size={16} />
                 {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Negócios</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/conversas"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'conversas',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('conversas')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <MessageCircle size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Conversas</span> : null}
               </NavLink>
             </li>
             <li>
@@ -1416,11 +1428,13 @@ export function AuthenticatedLayout() {
                 color: interactionTheme.sidebarItemDefaultColor,
                 marginLeft: 8,
                 fontWeight: 500,
-                fontFamily: 'Canela, serif',
-                fontStyle: 'italic'
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 170
               }}
             >
-              StrativyFlow
+              {userFullName}
             </span>
           ) : null}
           <button
@@ -1563,7 +1577,8 @@ export function AuthenticatedLayout() {
             context={{
               isMobileHomeNotificationsOpen,
               setIsMobileHomeNotificationsOpen,
-              setMobileHomeNotificationsCount
+              setMobileHomeNotificationsCount,
+              userFirstName
             } satisfies AuthenticatedLayoutOutletContext}
           />
         </div>
@@ -2302,7 +2317,7 @@ export function AuthenticatedLayout() {
                               placeholder="(00)00000-0000"
                               maxLength={14}
                               style={{
-                                fontSize: 14,
+                                fontSize: hideMobileNotificationIcons ? 16 : 14,
                                 fontWeight: 600,
                                 color: '#111827',
                                 border: '1px solid #d1d5db',
@@ -2376,7 +2391,7 @@ export function AuthenticatedLayout() {
                                   onChange={(e) => setEditingWhatsAppNumberValue(formatWhatsAppInputNumber(e.target.value))}
                                   placeholder="(00)00000-0000"
                                   style={{
-                                    fontSize: 14,
+                                    fontSize: hideMobileNotificationIcons ? 16 : 14,
                                     fontWeight: 600,
                                     color: '#111827',
                                     border: '1px solid #e5e7eb',
@@ -2549,7 +2564,7 @@ export function AuthenticatedLayout() {
                               onChange={(e) => setNewEmailAddress(e.target.value)}
                               placeholder="mail@email.com"
                               style={{
-                                fontSize: 14,
+                                fontSize: hideMobileNotificationIcons ? 16 : 14,
                                 fontWeight: 600,
                                 color: '#111827',
                                 border: '1px solid #e5e7eb',
@@ -2622,7 +2637,7 @@ export function AuthenticatedLayout() {
                                   onChange={(e) => setEditingEmailAddressValue(e.target.value)}
                                   placeholder="mail@email.com"
                                   style={{
-                                    fontSize: 14,
+                                    fontSize: hideMobileNotificationIcons ? 16 : 14,
                                     fontWeight: 600,
                                     color: '#111827',
                                     border: '1px solid #e5e7eb',
@@ -3070,6 +3085,26 @@ export function AuthenticatedLayout() {
 
               <div style={{ display: 'grid', gap: 8 }}>
                 <NavLink
+                  to="/agenda"
+                  onClick={() => {
+                    setIsMobileHomeNotificationsOpen(false)
+                    setIsMobileMenuOpen(false)
+                    setIsSettingsPanelOpen(false)
+                  }}
+                  style={({ isActive }) => ({
+                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'agenda-mobile-menu', false),
+                    justifyContent: 'flex-start',
+                    minHeight: 48,
+                    padding: '12px 14px'
+                  })}
+                  onMouseEnter={() => setHoveredNavKey('agenda-mobile-menu')}
+                  onMouseLeave={() => setHoveredNavKey(null)}
+                >
+                  <CalendarClock size={18} />
+                  <span style={{ marginLeft: 10 }}>Agenda</span>
+                </NavLink>
+
+                <NavLink
                   to="/arquivos"
                   onClick={() => {
                     setIsMobileMenuOpen(false)
@@ -3268,7 +3303,7 @@ export function AuthenticatedLayout() {
                 </li>
                 <li>
                   <NavLink
-                    to="/agenda"
+                    to="/conversas"
                     onClick={() => {
                       setIsMobileHomeNotificationsOpen(false)
                       setIsMobileMenuOpen(false)
@@ -3277,16 +3312,16 @@ export function AuthenticatedLayout() {
                     style={({ isActive }) => ({
                       ...navItemStyle(
                         isMobileMenuOpen ? false : isSettingsPanelOpen ? false : isActive,
-                        hoveredNavKey === 'agenda-mobile',
+                        hoveredNavKey === 'conversas-mobile',
                         true
                       ),
                       minHeight: 58,
                       padding: '8px 6px'
                     })}
-                    onMouseEnter={() => setHoveredNavKey('agenda-mobile')}
+                    onMouseEnter={() => setHoveredNavKey('conversas-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}
                   >
-                    <CalendarClock size={18} />
+                    <MessageCircle size={18} />
                   </NavLink>
                 </li>
                 <li>

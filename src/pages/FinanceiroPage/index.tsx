@@ -734,14 +734,7 @@ export default function FinanceiroPage() {
                         <div
                           style={{
                             position: 'absolute',
-                            ...(isMobile
-                              ? {
-                                  right: 0
-                                }
-                              : {
-                                  left: '50%',
-                                  transform: 'translateX(-50%)'
-                                }),
+                            right: 0,
                             top: '100%',
                             marginTop: 8,
                             background: '#1f2937',
@@ -750,8 +743,8 @@ export default function FinanceiroPage() {
                             borderRadius: 6,
                             fontSize: 12,
                             fontWeight: 600,
-                            whiteSpace: isMobile ? 'normal' : 'nowrap',
-                            maxWidth: isMobile ? 220 : undefined,
+                            whiteSpace: 'normal',
+                            maxWidth: 220,
                             zIndex: 5000,
                             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                           }}
@@ -760,9 +753,9 @@ export default function FinanceiroPage() {
                           <div
                             style={{
                               position: 'absolute',
-                              left: isMobile ? 'auto' : '50%',
-                              right: isMobile ? 10 : 'auto',
-                              transform: isMobile ? 'none' : 'translateX(-50%)',
+                              left: 'auto',
+                              right: 10,
+                              transform: 'none',
                               width: 0,
                               height: 0,
                               borderLeft: '6px solid transparent',
@@ -816,14 +809,7 @@ export default function FinanceiroPage() {
                         <div
                           style={{
                             position: 'absolute',
-                            ...(isMobile
-                              ? {
-                                  right: 0
-                                }
-                              : {
-                                  left: '50%',
-                                  transform: 'translateX(-50%)'
-                                }),
+                            right: 0,
                             top: '100%',
                             marginTop: 8,
                             background: '#1f2937',
@@ -832,8 +818,8 @@ export default function FinanceiroPage() {
                             borderRadius: 6,
                             fontSize: 12,
                             fontWeight: 600,
-                            whiteSpace: isMobile ? 'normal' : 'nowrap',
-                            maxWidth: isMobile ? 220 : undefined,
+                            whiteSpace: 'normal',
+                            maxWidth: 220,
                             zIndex: 5000,
                             boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                           }}
@@ -842,9 +828,9 @@ export default function FinanceiroPage() {
                           <div
                             style={{
                               position: 'absolute',
-                              left: isMobile ? 'auto' : '50%',
-                              right: isMobile ? 10 : 'auto',
-                              transform: isMobile ? 'none' : 'translateX(-50%)',
+                              left: 'auto',
+                              right: 10,
+                              transform: 'none',
                               width: 0,
                               height: 0,
                               borderLeft: '6px solid transparent',

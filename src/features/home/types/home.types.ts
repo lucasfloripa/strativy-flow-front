@@ -9,6 +9,37 @@ export type DashboardSummary = {
   }
 }
 
+export type DashboardConversationFilter =
+  | 'all'
+  | 'new'
+  | 'today'
+  | 'noResponse24h'
+
+export type DashboardConversationStatus =
+  | 'new'
+  | 'today'
+  | 'noResponse24h'
+
+export type DashboardConversation = {
+  leadId: string
+  leadName: string
+  source: string | null
+  leadCreatedAt: string | Date
+  lastMessageAt: string | Date
+  lastMessage: string | null
+  lastMessageDirection: 'INBOUND' | 'OUTBOUND'
+  lastMessageType: string
+  isNew: boolean
+  status: DashboardConversationStatus | null
+  runtimeMode: 'HUMAN' | 'AUTOMATION'
+}
+
+export type DashboardConversationsResponse = {
+  filter: DashboardConversationFilter
+  counts: Record<DashboardConversationFilter, number>
+  items: DashboardConversation[]
+}
+
 export type UserNotification = {
   id: string
   organizationId: string | null

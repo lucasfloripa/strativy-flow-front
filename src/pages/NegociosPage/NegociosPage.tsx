@@ -1257,6 +1257,18 @@ export default function NegociosPage() {
     }
   }
 
+  const openBusinessOwnerChat = (leadId: string) => {
+    if (!leadId.trim()) {
+      return
+    }
+
+    navigate(`/leads/${leadId}${location.search}`, {
+      state: {
+        initialLeadTab: 'chat'
+      }
+    })
+  }
+
   const handleCreateBusiness = async () => {
     const trimmedTitle = businessCreateDraft.title.trim()
     const trimmedLeadId = businessCreateDraft.leadId.trim()
@@ -2056,6 +2068,27 @@ export default function NegociosPage() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                    <button
+                      type="button"
+                      aria-label="Abrir conversa do dono do negócio"
+                      onClick={() => openBusinessOwnerChat(negocio.leadId)}
+                      style={{
+                        height: 34,
+                        width: 34,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        color: '#4b5563',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                    </button>
+
                     <button
                       type="button"
                       aria-label="Excluir negócio"
@@ -2877,6 +2910,28 @@ export default function NegociosPage() {
                       onClick={(event) => event.stopPropagation()}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          aria-label="Abrir conversa do dono do negócio"
+                          onClick={() => openBusinessOwnerChat(negocio.leadId)}
+                          style={{
+                            height: 24,
+                            width: 24,
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 4,
+                            background: '#ffffff',
+                            color: '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <MessageCircle size={14} />
+                        </button>
+
                         <button
                           type="button"
                           aria-label="Excluir negócio"

@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage'
 import LeadsPage from './pages/LeadsPage'
 import LeadsArquivadosPage from './pages/LeadsArquivadosPage'
 import NegociosPage from './pages/NegociosPage'
+import ConversasPage from './pages/ConversasPage'
 import ArquivosPage from './pages/ArquivosPage'
 import FinanceiroPage from './pages/FinanceiroPage'
 import AgendaPage from './pages/AgendaPage'
@@ -95,6 +96,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/negocios" element={<NegociosPage />} />
         <Route path="/negocios/new" element={<NegociosPage />} />
         <Route path="/negocios/:leadId" element={<NegociosPage />} />
+        <Route path="/conversas" element={<ConversasPage />} />
+        <Route path="/conversas/:leadId" element={<ConversasPage />} />
         <Route path="/arquivos" element={<ArquivosPage />} />
         <Route path="/financeiro" element={<FinanceiroPage />} />
         <Route path="/agenda" element={<AgendaPage />} />

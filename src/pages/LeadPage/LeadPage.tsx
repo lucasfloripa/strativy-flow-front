@@ -3,7 +3,6 @@ import {
   CalendarDays,
   CheckCircle2,
   BriefcaseBusiness,
-  Brush,
   ArrowLeft,
   BadgeCheck,
   ChevronDown,
@@ -367,26 +366,6 @@ function FollowUpDateTimeInput({
         }}
         aria-label="Selecionar horário do follow-up"
       />
-
-      <button
-        type="button"
-        onClick={() => onChange('')}
-        disabled={!value}
-        style={{
-          width: 34,
-          height: isMobile ? 46 : 42,
-          border: '1px solid #d7dce4',
-          borderRadius: 10,
-          background: '#ffffff',
-          color: '#475569',
-          cursor: value ? 'pointer' : 'not-allowed',
-          opacity: value ? 1 : 0.5,
-          fontWeight: 700
-        }}
-        aria-label="Limpar data e hora do follow-up"
-      >
-        X
-      </button>
 
       {isPickerOpen ? (
         <div
@@ -1054,6 +1033,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     ? '/negocios'
     : location.pathname.startsWith('/agenda')
       ? '/agenda'
+      : location.pathname.startsWith('/conversas')
+        ? '/conversas'
       : location.pathname.startsWith('/arquivados')
         ? '/arquivados'
       : '/leads'
@@ -4667,28 +4648,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <button
                           type="button"
-                          aria-label="Editar follow-up"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setConfirmingDeleteBusinessFollowUpId(null)
-                            setIsCreatingBusinessFollowUp(false)
-                            setViewingBusinessFollowUpId(null)
-                            setNewBusinessFollowUpDraft({
-                              title: followUp.title ?? '',
-                              templateId: followUp.templateId ?? '',
-                              templateVariables: normalizeTemplateVariableDraft(followUp.templateVariables),
-                              dueAt: followUp.dueAt ?? '',
-                              status: followUp.status ?? 'pending'
-                            })
-                            setEditingBusinessFollowUpId(followUp.id)
-                          }}
-                          style={{ height: 34, width: 34, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Brush size={16} />
-                        </button>
-
-                        <button
-                          type="button"
                           aria-label="Excluir follow-up"
                           onClick={(event) => {
                             event.stopPropagation()
@@ -4932,42 +4891,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     </span>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
-                      <button
-                        type="button"
-                        aria-label="Editar follow-up"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setConfirmingDeleteBusinessFollowUpId(null)
-                          setIsCreatingBusinessFollowUp(false)
-                          setViewingBusinessFollowUpId(null)
-                          setNewBusinessFollowUpDraft({
-                            title: followUp.title ?? '',
-                            templateId: followUp.templateId ?? '',
-                            templateVariables: normalizeTemplateVariableDraft(followUp.templateVariables),
-                            dueAt: followUp.dueAt ?? '',
-                            status: followUp.status ?? 'pending'
-                          })
-                          setEditingBusinessFollowUpId(followUp.id)
-                        }}
-                        onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
-                        onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
-                        style={{
-                          height: 24,
-                          width: 24,
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 4,
-                          background: '#ffffff',
-                          color: '#4b5563',
-                          padding: 0,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        <Brush size={14} />
-                      </button>
-
                       <button
                         type="button"
                         aria-label="Excluir follow-up"
@@ -5457,6 +5380,22 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         value: formatLeadValueInputField(business.value),
         notes: formatNegotiationNotes(business.notes)
       })
+    }
+
+    const openBusinessFromList = (businessId: string) => {
+      setIsCreatingBusiness(false)
+      setIsEditingBusiness(false)
+      setIsConfirmingBusinessDelete(false)
+      setIsConfirmingBusinessClose(false)
+      setIsBusinessActionsOpen(false)
+      setViewingBusinessFollowUpId(null)
+      setEditingBusinessFollowUpId(null)
+      setConfirmingDeleteBusinessFollowUpId(null)
+      setHoveredBusinessFollowUpId(null)
+      requestedBusinessTabRef.current = null
+      requestedBusinessFollowUpIdRef.current = null
+      setSelectedBusinessId(businessId)
+      setActiveBusinessTab('informacoes')
     }
 
     if (selectedBusiness) {
@@ -7757,7 +7696,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   <article
                     key={business.id}
                     onClick={() => {
-                      setSelectedBusinessId(business.id)
+                      openBusinessFromList(business.id)
                     }}
                     onMouseEnter={() => setHoveredBusinessId(business.id)}
                     onMouseLeave={() => setHoveredBusinessId(null)}
@@ -7840,7 +7779,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 <article
                   key={business.id}
                   onClick={() => {
-                    setSelectedBusinessId(business.id)
+                    openBusinessFromList(business.id)
                   }}
                   style={{
                     display: 'grid',

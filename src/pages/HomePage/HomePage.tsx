@@ -1,10 +1,12 @@
 import {
   Bell,
+  CalendarCheck,
   CalendarClock,
-  CalendarDays,
-  Clock3,
-  Clock4,
+  Clock,
+  Facebook,
+  Handshake,
   MessageCircle,
+  Search,
   TimerReset,
   TriangleAlert,
   UserPlus,
@@ -21,14 +23,14 @@ import type { AuthenticatedLayoutOutletContext } from '../../app/layouts/Authent
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import {
-  formatDateTime,
-  formatElapsedHoursAndMinutes,
-  parseApiDateToBrowserDate
+  formatChatMessageTimestamp,
+  formatElapsedHoursAndMinutes
 } from '../../core/utils/dateTime'
 import { HomeService } from '../../features/home/services/HomeService'
 import type {
+  DashboardConversation,
+  DashboardConversationFilter,
   DashboardSummary,
-  HomeHighlightedLead,
   UserNotification
 } from '../../features/home/types/home.types'
 
@@ -55,136 +57,17 @@ type NotificationNavigation = {
   }
 }
 
-type HighlightedLead = {
-  id: string
-  initials: string
-  initialsColor: string
-  name: string
-  phone: string
-  status: 'Ativo' | 'Arquivado'
-  createdAt: string | Date | null
-  lastMessageAt: string | Date | null
-  nextFollowUpDueAt: string | Date | null
-  nextFollowUpNegotiationId: string | null
-  topFollowUpStatus: 'overdue' | 'today' | 'scheduled' | 'completed' | null
-  hasFollowUpOverdue: boolean
-  hasFollowUpToday: boolean
-  hasFollowUpScheduled: boolean
-}
+type ConversationFilter = DashboardConversationFilter
 
 const cardBackground = '#fcfdff'
 const cardBorder = '1px solid #f4f6fa'
 const cardShadow = '0 6px 14px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.016)'
-const topSummaryCardHeight = 120
+const homeHeroImages = ['/cara.png', '/galega.png', '/doisnote.png'] as const
 
-const INITIAL_DASHBOARD_SUMMARY: DashboardSummary = {
-  activeLeads: 0,
-  newToday: 0,
-  withoutConversation24h: 0,
-  followUps: {
-    overdue: 0,
-    today: 0,
-    scheduled: 0
-  }
-}
-
-const normalizeNumber = (value: unknown): number => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-const normalizeDashboardSummary = (payload: unknown): DashboardSummary => {
-  if (!payload || typeof payload !== 'object') {
-    return INITIAL_DASHBOARD_SUMMARY
-  }
-
-  const source = payload as Partial<DashboardSummary> & {
-    followUps?: Partial<DashboardSummary['followUps']>
-  }
-
-  return {
-    activeLeads: normalizeNumber(source.activeLeads),
-    newToday: normalizeNumber(source.newToday),
-    withoutConversation24h: normalizeNumber(source.withoutConversation24h),
-    followUps: {
-      overdue: normalizeNumber(source.followUps?.overdue),
-      today: normalizeNumber(source.followUps?.today),
-      scheduled: normalizeNumber(source.followUps?.scheduled)
-    }
-  }
-}
-
-const initialsPalette = [
-  '#7c3aed',
-  '#f59e0b',
-  '#3b82f6',
-  '#16a34a',
-  '#0ea5e9',
-  '#e11d48',
-  '#0f766e'
-]
-
-const getInitials = (name: string): string => {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-
-  if (!parts.length) {
-    return 'LD'
-  }
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-
-  return `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`.toUpperCase()
-}
-
-const getInitialsColor = (id: string): string => {
-  const hash = [...id].reduce((accumulator, char) => accumulator + char.charCodeAt(0), 0)
-  return initialsPalette[hash % initialsPalette.length]
-}
-
-const formatPhone = (value?: string): string => {
-  const phone = (value ?? '').trim()
-  if (!phone) {
-    return '-'
-  }
-
-  const digits = phone.replace(/\D/g, '')
-  const normalizedDigits = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits
-  const phoneMatch = normalizedDigits.match(/^(\d{2})(\d{4,5})(\d{4})$/)
-
-  if (!phoneMatch) {
-    return phone
-  }
-
-  const [, ddd, firstPart, secondPart] = phoneMatch
-  return `(${ddd}) ${firstPart}-${secondPart}`
-}
-
-const getStatusLabel = (value?: string): 'Ativo' | 'Arquivado' => {
-  const normalized = (value ?? '').trim().toLowerCase()
-  return normalized === 'archived' ? 'Arquivado' : 'Ativo'
-}
-
-const formatRelativeTime = (value?: string | Date | null): string => {
-  return formatElapsedHoursAndMinutes(value)
-}
-
-const isNewLead = (createdAt: string | Date | null): boolean => {
-  if (!createdAt) {
-    return true
-  }
-
-  const parsedCreatedAt = parseApiDateToBrowserDate(createdAt)
-  if (!parsedCreatedAt) {
-    return true
-  }
-
-  const ageInHours = (Date.now() - parsedCreatedAt.getTime()) / (1000 * 60 * 60)
-  return ageInHours <= 24
+type TagPresentation = {
+  label: string
+  textColor: string
+  icon?: ReactNode
 }
 
 const tagContentStyle = {
@@ -204,118 +87,68 @@ const tagIconStyle = {
   verticalAlign: 'middle' as const
 }
 
-const getInteractionTagPresentation = (
-  lastMessageAt: string | Date | null,
-  createdAt: string | Date | null
-) => {
-  const referenceValue = lastMessageAt ?? createdAt
+const getSourceTagPresentation = (source: string): TagPresentation => {
+  const normalizedSource = source
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
 
-  return {
-    label: referenceValue ? formatDateTime(referenceValue) : '-',
-    textColor: '#6b7280',
-    icon: <Clock3 size={12} />
-  }
-}
-
-const formatAgendaDateTime = (value?: string | Date | null): string => {
-  if (!value) {
-    return '-'
-  }
-
-  return formatDateTime(value)
-}
-
-const resolveNextAgendaStatus = (
-  lead: HighlightedLead
-): HighlightedLead['topFollowUpStatus'] => {
-  if (lead.nextFollowUpDueAt) {
-    const dueDate = parseApiDateToBrowserDate(lead.nextFollowUpDueAt)
-
-    if (dueDate) {
-      const now = new Date()
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-
-      if (dueDate < startOfToday) {
-        return 'overdue'
-      }
-
-      if (dueDate <= endOfToday) {
-        return 'today'
-      }
-
-      return 'scheduled'
+  if (normalizedSource === 'metaads') {
+    return {
+      label: 'Meta Ads',
+      textColor: '#1877f2',
+      icon: <Facebook size={12} />
     }
   }
 
-  if (lead.hasFollowUpOverdue) {
-    return 'overdue'
-  }
-
-  if (lead.hasFollowUpToday) {
-    return 'today'
-  }
-
-  if (lead.hasFollowUpScheduled) {
-    return 'scheduled'
-  }
-
-  return lead.topFollowUpStatus
-}
-
-const getNextAgendaTagColors = (
-  status?: HighlightedLead['topFollowUpStatus']
-): { textColor: string; background: string } => {
-  if (status === 'overdue') {
+  if (normalizedSource === 'googleads') {
     return {
-      textColor: '#b91c1c',
-      background: '#fee2e2'
+      label: 'Google Ads',
+      textColor: '#FBBC04',
+      icon: <Search size={12} />
     }
   }
 
-  if (status === 'today') {
+  if (normalizedSource === 'whatsapp') {
     return {
-      textColor: '#b45309',
-      background: '#fef3c7'
+      label: 'WhatsApp',
+      textColor: '#15803d',
+      icon: <MessageCircle size={12} />
     }
   }
 
-  if (status === 'completed') {
+  if (normalizedSource === 'indicacao') {
     return {
-      textColor: '#166534',
-      background: '#dcfce7'
+      label: 'Indicação',
+      textColor: '#7c3aed',
+      icon: <Handshake size={12} />
     }
   }
 
   return {
-    textColor: '#1d4ed8',
-    background: '#dbeafe'
+    label: source,
+    textColor: '#6b7280'
   }
 }
 
-const getNextAgendaIcon = () => {
-  return <CalendarDays size={12} />
+const getGreetingLabel = (): 'Bom dia' | 'Boa tarde' | 'Boa noite' => {
+  const currentHour = new Date().getHours()
+
+  if (currentHour >= 6 && currentHour < 12) {
+    return 'Bom dia'
+  }
+
+  if (currentHour >= 12 && currentHour < 18) {
+    return 'Boa tarde'
+  }
+
+  return 'Boa noite'
 }
 
-const mapApiLeadToHighlightedLead = (lead: HomeHighlightedLead): HighlightedLead => {
-  const name = (lead.name ?? '').trim() || 'Lead sem nome'
-
-  return {
-    id: lead.id,
-    initials: getInitials(name),
-    initialsColor: getInitialsColor(lead.id),
-    name,
-    phone: formatPhone(lead.phone),
-    status: getStatusLabel(lead.state),
-    createdAt: lead.createdAt ?? null,
-    lastMessageAt: lead.lastMessageAt ?? null,
-    nextFollowUpDueAt: lead.nextFollowUpDueAt ?? null,
-    nextFollowUpNegotiationId: lead.nextFollowUpNegotiationId ?? null,
-    topFollowUpStatus: lead.topFollowUpStatus ?? null,
-    hasFollowUpOverdue: lead.hasFollowUpOverdue ?? false,
-    hasFollowUpToday: lead.hasFollowUpToday ?? false,
-    hasFollowUpScheduled: lead.hasFollowUpScheduled ?? false
-  }
+const formatRelativeTime = (value?: string | Date | null): string => {
+  return formatElapsedHoursAndMinutes(value)
 }
 
 const mapApiNotification = (notification: UserNotification): Notification => {
@@ -476,57 +309,87 @@ export default function HomePage() {
   const {
     isMobileHomeNotificationsOpen,
     setIsMobileHomeNotificationsOpen,
-    setMobileHomeNotificationsCount
+    setMobileHomeNotificationsCount,
+    userFirstName
   } = useOutletContext<AuthenticatedLayoutOutletContext>()
-  const [hoveredHighlightedLeadId, setHoveredHighlightedLeadId] = useState<string | null>(null)
-  const [hoveredHighlightedNextAgendaLeadId, setHoveredHighlightedNextAgendaLeadId] = useState<string | null>(null)
   const [hoveredNotificationId, setHoveredNotificationId] = useState<string | null>(null)
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
   const [isClearNotificationsHovered, setIsClearNotificationsHovered] = useState<boolean>(false)
-  const [hoveredSummaryCardKey, setHoveredSummaryCardKey] = useState<string | null>(null)
-  const [hoveredFollowUpMetricKey, setHoveredFollowUpMetricKey] = useState<string | null>(null)
-  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary>(
-    INITIAL_DASHBOARD_SUMMARY
-  )
-  const [highlightedLeads, setHighlightedLeads] = useState<HighlightedLead[]>([])
+  const [selectedConversationFilter, setSelectedConversationFilter] = useState<ConversationFilter>('all')
+  const [hoveredConversationFilter, setHoveredConversationFilter] = useState<ConversationFilter | null>(null)
+  const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null)
+  const [conversations, setConversations] = useState<DashboardConversation[]>([])
+  const [conversationCounts, setConversationCounts] = useState<Record<ConversationFilter, number>>({
+    all: 0,
+    new: 0,
+    today: 0,
+    noResponse24h: 0
+  })
+  const [heroImageSrc] = useState<string>(() => {
+    const randomIndex = Math.floor(Math.random() * homeHeroImages.length)
+    return homeHeroImages[randomIndex]
+  })
+  const greetingLabel = getGreetingLabel()
 
   useEffect(() => {
     let isActive = true
 
-    const loadDashboardSummary = async () => {
-      const [summaryResult, highlightedResult, notificationsResult] =
-        await Promise.allSettled([
-          HomeService.getDashboardSummary(),
-          HomeService.getHighlightedLeads(),
-          HomeService.getNotifications()
-        ])
+    const loadHomeData = async () => {
+      const [notificationsRequest, summaryRequest] = await Promise.allSettled([
+        HomeService.getNotifications(),
+        HomeService.getDashboardSummary()
+      ])
 
       if (!isActive) {
         return
       }
 
-      if (summaryResult.status === 'fulfilled') {
-        setDashboardSummary(normalizeDashboardSummary(summaryResult.value))
+      if (notificationsRequest.status === 'fulfilled') {
+        setNotifications(groupUnreadNotifications(notificationsRequest.value))
       }
 
-      if (highlightedResult.status === 'fulfilled') {
-        setHighlightedLeads(
-          highlightedResult.value.map(mapApiLeadToHighlightedLead)
-        )
-      }
-
-      if (notificationsResult.status === 'fulfilled') {
-        setNotifications(groupUnreadNotifications(notificationsResult.value))
+      if (summaryRequest.status === 'fulfilled') {
+        setDashboardSummary(summaryRequest.value)
       }
     }
 
-    void loadDashboardSummary()
+    void loadHomeData()
 
     return () => {
       isActive = false
     }
   }, [])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadConversations = async () => {
+      try {
+        const response = await HomeService.getDashboardConversations(
+          selectedConversationFilter
+        )
+
+        if (!isActive) {
+          return
+        }
+
+        setConversations(response.items)
+        setConversationCounts(response.counts)
+      } catch {
+        if (isActive) {
+          setConversations([])
+        }
+      }
+    }
+
+    void loadConversations()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedConversationFilter])
 
   useEffect(() => {
     setMobileHomeNotificationsCount(notifications.length)
@@ -535,10 +398,6 @@ export default function HomePage() {
       setMobileHomeNotificationsCount(0)
     }
   }, [notifications.length, setMobileHomeNotificationsCount])
-
-  const summaryFollowUps = dashboardSummary.followUps
-  const summaryNewToday = dashboardSummary.newToday
-  const summaryWithoutConversation24h = dashboardSummary.withoutConversation24h
 
   const handleNotificationClick = async (notification: Notification) => {
     setSelectedNotificationId(notification.id)
@@ -618,32 +477,380 @@ export default function HomePage() {
     }
   }
 
-  const priorities = [
-    {
-      key: 'overdue',
-      title: 'Atrasados',
-      value: summaryFollowUps.overdue,
-      color: '#ef4444',
-      background: '#fff7f7',
-      icon: <Clock4 size={20} color="#ef4444" />
-    },
-    {
-      key: 'today',
-      title: 'Para hoje',
-      value: summaryFollowUps.today,
-      color: '#f59e0b',
-      background: '#fffaf0',
-      icon: <CalendarClock size={20} color="#f59e0b" />
-    },
-    {
-      key: 'scheduled',
-      title: 'Agendados',
-      value: summaryFollowUps.scheduled,
-      color: '#2563eb',
-      background: '#f5f9ff',
-      icon: <CalendarDays size={20} color="#2563eb" />
-    }
-  ]
+  const renderWaitingResponseContainer = () => {
+    const cellFontSize = isMobile ? 13 : 14
+
+    return (
+      <article
+        style={{
+          background: cardBackground,
+          border: cardBorder,
+          borderRadius: 12,
+          boxShadow: cardShadow,
+          padding: '10px 10px 8px',
+          minHeight: 0,
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+              Últimas Conversas
+            </h3>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 10,
+            padding: '0 8px',
+            display: 'flex',
+            flexWrap: isMobile ? 'wrap' : 'nowrap',
+            alignItems: 'center',
+            gap: 8
+          }}
+        >
+          {[
+            { key: 'all', label: 'Todas' },
+            { key: 'new', label: 'Novos' },
+            { key: 'today', label: 'Para hoje' },
+            { key: 'noResponse24h', label: 'Sem respostas 24h+' }
+          ].map((filterOption) => {
+            const filterKey = filterOption.key as ConversationFilter
+            const isActive = selectedConversationFilter === filterKey
+            const isHovered = hoveredConversationFilter === filterKey
+            const count = filterOption.key === 'all' ? null : conversationCounts[filterKey]
+
+            return (
+              <button
+                key={filterOption.key}
+                type="button"
+                onClick={() => setSelectedConversationFilter(filterKey)}
+                onMouseEnter={() => setHoveredConversationFilter(filterKey)}
+                onMouseLeave={() => setHoveredConversationFilter(null)}
+                style={{
+                  border: 'none',
+                  borderRadius: 10,
+                  background:
+                    isActive
+                      ? '#e8f4ec'
+                      : isHovered
+                        ? interactionTheme.sidebarItemHoverBackground
+                        : '#f1f5f9',
+                  color: isActive ? interactionTheme.sidebarItemActiveColor : '#475569',
+                  fontSize: 12,
+                  fontWeight: isActive ? 700 : 600,
+                  lineHeight: 1,
+                  padding: '7px 12px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s ease, color 0.15s ease',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  minHeight: 32,
+                  minWidth: 88,
+                  flex: isMobile ? '0 0 calc(50% - 4px)' : undefined
+                }}
+              >
+                <span>{filterOption.label}</span>
+                {count !== null ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 20,
+                      height: 20,
+                      borderRadius: 999,
+                      padding: '0 6px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: isActive || isHovered ? '#d9f7e5' : '#e2e8f0',
+                      color: isActive || isHovered ? interactionTheme.sidebarItemActiveColor : '#475569'
+                    }}
+                  >
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 8px' }}>
+          {conversations.map((item, index) => {
+            const sourceTagPresentation = getSourceTagPresentation(item.source ?? 'Não informada')
+            const lastContactLabel = formatChatMessageTimestamp(item.lastMessageAt)
+            const messageContent = item.lastMessage?.trim() || 'Mensagem sem texto'
+            const lastMessageLabel = item.lastMessageDirection === 'OUTBOUND'
+              ? `Você: ${messageContent}`
+              : messageContent
+
+            return (
+              <button
+                key={item.leadId}
+                type="button"
+                onMouseEnter={() => setHoveredConversationId(item.leadId)}
+                onMouseLeave={() => setHoveredConversationId(null)}
+                onClick={() => {
+                  navigate(`/conversas/${item.leadId}`, {
+                    state: { initialLeadTab: 'chat' }
+                  })
+                }}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile
+                    ? 'minmax(0, 1fr) 132px'
+                    : 'minmax(0, 1fr) 76px 168px',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: '10px 8px',
+                  marginBottom: index < conversations.length - 1 ? 6 : 0,
+                  border: 'none',
+                  borderRadius: 8,
+                  background:
+                    hoveredConversationId === item.leadId
+                      ? interactionTheme.clickableCardHoverBackground
+                      : 'transparent',
+                  width: '100%',
+                  textAlign: 'left',
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  transition: 'background-color 120ms ease'
+                }}
+              >
+                <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                  <span style={{ color: '#0f172a', fontSize: cellFontSize, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {item.leadName}
+                  </span>
+                  <span style={{ color: '#64748b', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {lastMessageLabel}
+                  </span>
+                </span>
+
+                {!isMobile ? (
+                  <span style={{ justifySelf: 'end', alignSelf: 'end', minHeight: 1, width: '100%', display: 'inline-flex', justifyContent: 'flex-end', alignItems: 'flex-end', transform: 'translateX(40px)' }}>
+                    {item.isNew ? (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: '#eab308',
+                          whiteSpace: 'nowrap',
+                          background: '#fef3c7',
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1
+                        }}
+                      >
+                        Novo
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
+
+                <span style={{ justifySelf: 'end', width: '100%', maxWidth: '100%', display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {isMobile && item.isNew ? (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#eab308',
+                        whiteSpace: 'nowrap',
+                        background: '#fef3c7',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1
+                      }}
+                    >
+                      Novo
+                    </span>
+                  ) : (
+                    <span style={{ color: '#475569', fontSize: 12, fontWeight: 700, lineHeight: 1.1, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      {lastContactLabel}
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: sourceTagPresentation.textColor,
+                      whiteSpace: 'nowrap',
+                      background: `${sourceTagPresentation.textColor}44`,
+                      borderRadius: 6,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '7px 12px',
+                      lineHeight: 1.1,
+                      maxWidth: '100%'
+                    }}
+                  >
+                    {sourceTagPresentation.icon ? (
+                      <span style={tagIconStyle}>
+                        {sourceTagPresentation.icon}
+                      </span>
+                    ) : null}
+                    <span style={tagContentStyle}>{sourceTagPresentation.label}</span>
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+
+          {conversations.length === 0 ? (
+            <div style={{ padding: '16px 8px', color: '#64748b', fontSize: 13, fontWeight: 600 }}>
+              Nenhuma conversa encontrada neste filtro.
+            </div>
+          ) : null}
+        </div>
+
+        <div style={{ marginTop: 'auto', padding: '10px 8px 2px', borderTop: '1px solid #eef2f7', background: cardBackground }}>
+          <button
+            type="button"
+            onClick={() => {
+              navigate(
+                selectedConversationFilter === 'all'
+                  ? '/conversas'
+                  : `/conversas?filter=${selectedConversationFilter}`
+              )
+            }}
+            style={{
+              width: '100%',
+              border: 'none',
+              borderRadius: 10,
+              background: '#f1f5f9',
+              color: '#475569',
+              fontSize: 13,
+              fontWeight: 700,
+              lineHeight: 1,
+              padding: '10px 12px',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease, color 0.15s ease'
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = interactionTheme.sidebarItemHoverBackground
+              event.currentTarget.style.color = interactionTheme.sidebarItemActiveColor
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = '#f1f5f9'
+              event.currentTarget.style.color = '#475569'
+            }}
+          >
+            Ver todas as conversas
+          </button>
+        </div>
+      </article>
+    )
+  }
+
+  const renderUpcomingAgendasContainer = () => {
+    const agendaFilterOptions = [
+      {
+        key: 'scheduled',
+        label: 'Agendados',
+        count: dashboardSummary?.followUps.scheduled ?? 0,
+        icon: <CalendarCheck size={28} strokeWidth={2} />,
+        color: '#1d4ed8'
+      },
+      {
+        key: 'today',
+        label: 'Hoje',
+        count: dashboardSummary?.followUps.today ?? 0,
+        icon: <Clock size={28} strokeWidth={2} />,
+        color: '#b45309'
+      },
+      {
+        key: 'overdue',
+        label: 'Atrasados',
+        count: dashboardSummary?.followUps.overdue ?? 0,
+        icon: <TriangleAlert size={28} strokeWidth={2} />,
+        color: '#b91c1c'
+      }
+    ] as const
+
+    return (
+      <article
+        style={{
+          background: cardBackground,
+          border: cardBorder,
+          borderRadius: 12,
+          boxShadow: cardShadow,
+          padding: '10px',
+          minHeight: 0,
+          flex: '0 0 auto',
+          width: '100%',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <h3 style={{ margin: 0, color: '#0f172a', fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+            Agenda
+          </h3>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', padding: '18px 4px 8px' }}>
+          {agendaFilterOptions.map((filterOption, index) => (
+            <button
+              key={filterOption.key}
+              type="button"
+              onClick={() => navigate(`/agenda?followUp=${filterOption.key}`)}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'transparent'
+              }}
+              onFocus={(event) => {
+                event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+              }}
+              onBlur={(event) => {
+                event.currentTarget.style.background = 'transparent'
+              }}
+              style={{
+                minWidth: 0,
+                minHeight: 112,
+                padding: '10px 8px',
+                border: 'none',
+                borderLeft: index === 0 ? 'none' : '1px solid #e5e7eb',
+                borderRadius: 10,
+                background: 'transparent',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease'
+              }}
+            >
+              <span style={{ display: 'inline-flex', color: filterOption.color }}>
+                {filterOption.icon}
+              </span>
+              <strong style={{ marginTop: 7, color: filterOption.color, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+                {filterOption.count}
+              </strong>
+              <span style={{ marginTop: 5, color: '#0f172a', fontSize: 12, fontWeight: 700, lineHeight: 1.1 }}>
+                {filterOption.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </article>
+    )
+  }
 
   const renderNotificationsList = (title: string, titleIcon?: ReactNode) => {
     const visibleNotifications = notifications
@@ -653,7 +860,7 @@ export default function HomePage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {titleIcon ?? null}
-          <h3 style={{ margin: 0, color: '#0f172a', fontSize: 28, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</h3>
+          <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em' }}>{title}</h3>
         </div>
         <button
           type="button"
@@ -796,237 +1003,10 @@ export default function HomePage() {
           overflow: 'hidden'
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-          <article
-            onClick={() => navigate('/leads?newLeads=true')}
-            onMouseEnter={() => setHoveredSummaryCardKey('new')}
-            onMouseLeave={() => setHoveredSummaryCardKey(null)}
-            style={{
-              background: hoveredSummaryCardKey === 'new' ? interactionTheme.clickableCardHoverBackground : cardBackground,
-              border: cardBorder,
-              borderRadius: 12,
-              padding: '6px 7px',
-              boxShadow: cardShadow,
-              minHeight: topSummaryCardHeight,
-              height: topSummaryCardHeight,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s ease'
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
-              <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Novos</p>
-              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ height: 44, width: 44, borderRadius: 12, background: '#e9f9ef', color: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <UserPlus size={23} />
-                </span>
-                <strong style={{ color: '#16a34a', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryNewToday}</strong>
-              </div>
-            </div>
-          </article>
-
-          <article
-            onClick={() => navigate('/leads?withoutConversation24h=true')}
-            onMouseEnter={() => setHoveredSummaryCardKey('idle')}
-            onMouseLeave={() => setHoveredSummaryCardKey(null)}
-            style={{
-              background: hoveredSummaryCardKey === 'idle' ? interactionTheme.clickableCardHoverBackground : cardBackground,
-              border: cardBorder,
-              borderRadius: 12,
-              padding: '6px 7px',
-              boxShadow: cardShadow,
-              minHeight: topSummaryCardHeight,
-              height: topSummaryCardHeight,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s ease'
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
-              <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Sem conversa 24h+</p>
-              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ height: 44, width: 44, borderRadius: 12, background: '#fff6ec', color: '#f97316', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Clock3 size={23} />
-                </span>
-                <strong style={{ color: '#f97316', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryWithoutConversation24h}</strong>
-              </div>
-            </div>
-          </article>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+          {renderUpcomingAgendasContainer()}
+          {renderWaitingResponseContainer()}
         </div>
-
-        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '4px 5px', display: 'flex', flexDirection: 'column', minHeight: topSummaryCardHeight, flexShrink: 0, justifyContent: 'center' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-            {priorities.map((priority) => (
-              <div
-                key={priority.key}
-                onClick={() => navigate(`/agenda?followUp=${priority.key}`)}
-                onMouseEnter={() => setHoveredFollowUpMetricKey(priority.key)}
-                onMouseLeave={() => setHoveredFollowUpMetricKey(null)}
-                style={{
-                  borderRadius: 8,
-                  padding: '8px 2px',
-                  background: hoveredFollowUpMetricKey === priority.key ? interactionTheme.clickableCardHoverBackground : 'transparent',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 102,
-                  cursor: 'pointer'
-                }}
-              >
-                <p style={{ margin: 0, color: '#0f172a', fontSize: 16, lineHeight: 1.2, fontWeight: 600, textAlign: 'center' }}>{priority.title}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{priority.key === 'overdue' ? <Clock4 size={28} color="#ef4444" /> : priority.key === 'today' ? <CalendarClock size={28} color="#f59e0b" /> : <CalendarDays size={28} color="#2563eb" />}</span>
-                  <strong style={{ color: priority.color, fontSize: 26, lineHeight: 1, fontWeight: 700 }}>{priority.value}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <header style={{ padding: '12px 14px 6px' }}>
-            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Em Destaque</h3>
-          </header>
-
-          <div style={{ padding: '0 14px 14px', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
-            <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
-              {highlightedLeads.map((highlightedLead) => {
-                const isArchivedLead = highlightedLead.status === 'Arquivado'
-                const shouldShowNewTag = isNewLead(highlightedLead.createdAt) && !highlightedLead.lastMessageAt
-                const interactionTagPresentation = getInteractionTagPresentation(
-                  highlightedLead.lastMessageAt,
-                  highlightedLead.createdAt
-                )
-                const nextAgendaLabel = formatAgendaDateTime(highlightedLead.nextFollowUpDueAt)
-                const nextAgendaStatus = resolveNextAgendaStatus(highlightedLead)
-                const nextAgendaTagColors = getNextAgendaTagColors(nextAgendaStatus)
-                const nextAgendaIcon = getNextAgendaIcon()
-
-                const navigateToFollowUps = () => {
-                  if (!highlightedLead.nextFollowUpNegotiationId) {
-                    return
-                  }
-
-                  navigate(`/leads/${highlightedLead.id}`, {
-                    state: {
-                      initialLeadTab: 'negocios',
-                      initialBusinessId: highlightedLead.nextFollowUpNegotiationId,
-                      initialBusinessTab: 'followups'
-                    }
-                  })
-                }
-
-                return (
-                  <div
-                    key={highlightedLead.id}
-                    onClick={() => navigate(`/leads/${highlightedLead.id}`)}
-                    onMouseEnter={() => setHoveredHighlightedLeadId(highlightedLead.id)}
-                    onMouseLeave={() => {
-                      setHoveredHighlightedLeadId(null)
-                      setHoveredHighlightedNextAgendaLeadId(null)
-                    }}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                      alignItems: 'center',
-                      gap: 12,
-                      padding: '10px 12px',
-                      border: '1px solid #f1f5f9',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      background: hoveredHighlightedLeadId === highlightedLead.id ? interactionTheme.clickableCardHoverBackground : '#ffffff',
-                      transition: 'background 120ms ease',
-                      width: '100%',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{highlightedLead.name}</p>
-                      <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{highlightedLead.phone}</p>
-                    </div>
-
-                    <div style={{ display: 'grid', gap: 6, justifyItems: 'center', minWidth: 0 }}>
-                      {isArchivedLead ? (
-                        <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
-                      ) : (
-                        <span
-                          style={{
-                            maxWidth: '100%',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: shouldShowNewTag ? '#eab308' : interactionTagPresentation.textColor,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            background: shouldShowNewTag ? '#fef3c7' : `${interactionTagPresentation.textColor}44`,
-                            border: '1px solid transparent',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            padding: '6px 9px',
-                            cursor: 'default',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          {!shouldShowNewTag && interactionTagPresentation.icon ? (
-                            <span style={tagIconStyle}>
-                              {interactionTagPresentation.icon}
-                            </span>
-                          ) : null}
-                          <span style={tagContentStyle}>
-                            {shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
-                          </span>
-                        </span>
-                      )}
-
-                      {isArchivedLead || nextAgendaLabel === '-' ? (
-                        <span style={{ color: '#9ca3af', fontSize: 12 }}>-</span>
-                      ) : (
-                        <span
-                          onMouseEnter={() => setHoveredHighlightedNextAgendaLeadId(highlightedLead.id)}
-                          onMouseLeave={() => setHoveredHighlightedNextAgendaLeadId(null)}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            navigateToFollowUps()
-                          }}
-                          style={{
-                            maxWidth: '100%',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: nextAgendaTagColors.textColor,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            background: nextAgendaTagColors.background,
-                            border: hoveredHighlightedNextAgendaLeadId === highlightedLead.id
-                              ? '1px solid #16a34a'
-                              : '1px solid transparent',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            padding: '6px 9px',
-                            cursor: highlightedLead.nextFollowUpNegotiationId ? 'pointer' : 'default',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          <span style={tagIconStyle}>{nextAgendaIcon}</span>
-                          <span style={tagContentStyle}>{nextAgendaLabel}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </article>
 
       </section>
     )
@@ -1045,253 +1025,63 @@ export default function HomePage() {
         overflow: 'hidden'
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 6fr) minmax(0, 4fr)', gap: 8, minHeight: 0, flex: 1, alignItems: 'stretch' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, height: '100%' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-
-            <article
-              onClick={() => navigate('/leads?newLeads=true')}
-              onMouseEnter={() => setHoveredSummaryCardKey('new')}
-              onMouseLeave={() => setHoveredSummaryCardKey(null)}
-              style={{
-                background: hoveredSummaryCardKey === 'new' ? interactionTheme.clickableCardHoverBackground : cardBackground,
-                border: cardBorder,
-                borderRadius: 12,
-                padding: '6px 7px',
-                boxShadow: cardShadow,
-                minHeight: topSummaryCardHeight,
-                height: topSummaryCardHeight,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
-                <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Novos</p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <span style={{ height: 44, width: 44, borderRadius: 12, background: '#e9f9ef', color: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <UserPlus size={23} />
-                  </span>
-                  <strong style={{ color: '#16a34a', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryNewToday}</strong>
-                </div>
-              </div>
-            </article>
-
-            <article
-              onClick={() => navigate('/leads?withoutConversation24h=true')}
-              onMouseEnter={() => setHoveredSummaryCardKey('idle')}
-              onMouseLeave={() => setHoveredSummaryCardKey(null)}
-              style={{
-                background: hoveredSummaryCardKey === 'idle' ? interactionTheme.clickableCardHoverBackground : cardBackground,
-                border: cardBorder,
-                borderRadius: 12,
-                padding: '6px 7px',
-                boxShadow: cardShadow,
-                minHeight: topSummaryCardHeight,
-                height: topSummaryCardHeight,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center' }}>
-                <p style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>Sem conversa 24h+</p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <span style={{ height: 44, width: 44, borderRadius: 12, background: '#fff6ec', color: '#f97316', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Clock3 size={23} />
-                  </span>
-                  <strong style={{ color: '#f97316', fontSize: 34, lineHeight: 1, fontWeight: 700 }}>{summaryWithoutConversation24h}</strong>
-                </div>
-              </div>
-            </article>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          alignItems: 'center',
+          height: 'min(20vh, 140px)',
+          padding: '0 12px 10px',
+          marginBottom: 10,
+          flexShrink: 0,
+          gap: 20
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 0, paddingRight: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', maxWidth: 420 }}>
+            <p style={{ margin: 0, color: '#0f172a', fontSize: 28, lineHeight: 1.1, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+              {greetingLabel}, {userFirstName || 'Usuário'}! <span aria-hidden="true">👋</span>
+            </p>
+            <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 16, lineHeight: 1.25, fontWeight: 500 }}>
+              Pronto para transformar conversas em grandes negócios hoje?
+            </p>
           </div>
+        </div>
 
-          <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <header style={{ padding: '12px 14px 6px' }}>
-              <h3 style={{ margin: 0, color: '#0f172a', fontSize: 28, fontWeight: 700, letterSpacing: '-0.01em' }}>Em Destaque</h3>
-            </header>
+        <div style={{ display: 'flex', justifyContent: 'flex-start', minWidth: 0, paddingLeft: 10 }}>
+          <img
+          src={heroImageSrc}
+            alt="Avatar"
+            style={{
+              height: 'min(20vh, 140px)',
+              width: 'auto',
+              display: 'block',
+              transform: 'scale(1.52)',
+              transformOrigin: 'center left'
+            }}
+          />
+        </div>
+      </div>
 
-            <div style={{ padding: '0 14px', minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
-              <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1.9fr) minmax(120px, 1fr) minmax(220px, 1.8fr)', color: '#64748b', fontSize: 14, fontWeight: 600, padding: '10px 0 12px', borderBottom: '1px solid #eef2f7', width: '100%' }}>
-                    <span>Lead</span>
-                    <span style={{ textAlign: 'center' }}>Último contato</span>
-                    <span style={{ textAlign: 'center' }}>Próxima agenda</span>
-                  </div>
-
-                  {highlightedLeads.map((highlightedLead) => {
-                  const isArchivedLead = highlightedLead.status === 'Arquivado'
-                  const shouldShowNewTag = isNewLead(highlightedLead.createdAt) && !highlightedLead.lastMessageAt
-                  const interactionTagPresentation = getInteractionTagPresentation(
-                    highlightedLead.lastMessageAt,
-                    highlightedLead.createdAt
-                  )
-                  const nextAgendaLabel = formatAgendaDateTime(highlightedLead.nextFollowUpDueAt)
-                  const nextAgendaStatus = resolveNextAgendaStatus(highlightedLead)
-                  const nextAgendaTagColors = getNextAgendaTagColors(nextAgendaStatus)
-                  const nextAgendaIcon = getNextAgendaIcon()
-
-                  const navigateToFollowUps = () => {
-                    if (!highlightedLead.nextFollowUpNegotiationId) {
-                      return
-                    }
-
-                    navigate(`/leads/${highlightedLead.id}`, {
-                      state: {
-                        initialLeadTab: 'negocios',
-                        initialBusinessId: highlightedLead.nextFollowUpNegotiationId,
-                        initialBusinessTab: 'followups'
-                      }
-                    })
-                  }
-
-                    return (
-                      <div
-                        key={highlightedLead.id}
-                        onClick={() => navigate(`/leads/${highlightedLead.id}`)}
-                        onMouseEnter={() => setHoveredHighlightedLeadId(highlightedLead.id)}
-                        onMouseLeave={() => {
-                          setHoveredHighlightedLeadId(null)
-                          setHoveredHighlightedNextAgendaLeadId(null)
-                        }}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'minmax(180px, 1.9fr) minmax(120px, 1fr) minmax(220px, 1.8fr)',
-                          alignItems: 'center',
-                          gap: 12,
-                          padding: '10px 0',
-                          borderBottom: '1px solid #f1f5f9',
-                          cursor: 'pointer',
-                          background: hoveredHighlightedLeadId === highlightedLead.id ? interactionTheme.clickableCardHoverBackground : 'transparent',
-                          transition: 'background 120ms ease',
-                          width: '100%'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                          <span style={{ height: 38, width: 38, borderRadius: '50%', background: highlightedLead.initialsColor, color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
-                            {highlightedLead.initials}
-                          </span>
-
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ margin: 0, color: '#0f172a', fontSize: 17, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{highlightedLead.name}</p>
-                            <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: 14 }}>{highlightedLead.phone}</p>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', textAlign: 'center' }}>
-                          {isArchivedLead ? (
-                            <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                          ) : (
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: shouldShowNewTag ? '#eab308' : interactionTagPresentation.textColor,
-                                whiteSpace: 'nowrap',
-                                background: shouldShowNewTag ? '#fef3c7' : `${interactionTagPresentation.textColor}44`,
-                                border: '1px solid transparent',
-                                borderRadius: 6,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '7px 12px',
-                                cursor: 'default',
-                                lineHeight: 1.1
-                              }}
-                            >
-                              {!shouldShowNewTag && interactionTagPresentation.icon ? (
-                                <span style={tagIconStyle}>
-                                  {interactionTagPresentation.icon}
-                                </span>
-                              ) : null}
-                              <span style={tagContentStyle}>
-                                {shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
-                              </span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                          {isArchivedLead || nextAgendaLabel === '-' ? (
-                            <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                          ) : (
-                            <span
-                              onMouseEnter={() => setHoveredHighlightedNextAgendaLeadId(highlightedLead.id)}
-                              onMouseLeave={() => setHoveredHighlightedNextAgendaLeadId(null)}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                navigateToFollowUps()
-                              }}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: nextAgendaTagColors.textColor,
-                                whiteSpace: 'nowrap',
-                                background: nextAgendaTagColors.background,
-                                border: hoveredHighlightedNextAgendaLeadId === highlightedLead.id
-                                  ? '1px solid #16a34a'
-                                  : '1px solid transparent',
-                                borderRadius: 6,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '7px 12px',
-                                cursor: highlightedLead.nextFollowUpNegotiationId ? 'pointer' : 'default',
-                                lineHeight: 1.1
-                              }}
-                            >
-                              <span style={tagIconStyle}>{nextAgendaIcon}</span>
-                              <span style={tagContentStyle}>{nextAgendaLabel}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </article>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 6fr) minmax(0, 4fr)', gap: 8, minHeight: 0, flex: 1, alignItems: 'stretch' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, height: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+            {renderWaitingResponseContainer()}
+          </div>
 
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, height: '100%' }}>
-          <article style={{ background: cardBackground, border: cardBorder, borderRadius: 12, boxShadow: cardShadow, padding: '4px 5px', display: 'flex', flexDirection: 'column', minHeight: topSummaryCardHeight, height: topSummaryCardHeight, flexShrink: 0, justifyContent: 'center' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-              {priorities.map((priority) => (
-                <div
-                  key={priority.key}
-                  onClick={() => navigate(`/agenda?followUp=${priority.key}`)}
-                  onMouseEnter={() => setHoveredFollowUpMetricKey(priority.key)}
-                  onMouseLeave={() => setHoveredFollowUpMetricKey(null)}
-                  style={{
-                    borderRadius: 8,
-                    padding: '8px 2px',
-                    background: hoveredFollowUpMetricKey === priority.key ? interactionTheme.clickableCardHoverBackground : 'transparent',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: 102,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <p style={{ margin: 0, color: '#0f172a', fontSize: 16, lineHeight: 1.2, fontWeight: 600, textAlign: 'center' }}>{priority.title}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{priority.key === 'overdue' ? <Clock4 size={28} color="#ef4444" /> : priority.key === 'today' ? <CalendarClock size={28} color="#f59e0b" /> : <CalendarDays size={28} color="#2563eb" />}</span>
-                    <strong style={{ color: priority.color, fontSize: 26, lineHeight: 1, fontWeight: 700 }}>{priority.value}</strong>
-                  </div>
-                </div>
-              ))}
+          {!isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+              <div style={{ minHeight: 0, flex: 1, display: 'flex', overflow: 'hidden' }}>
+                {renderNotificationsList('Notificações')}
+              </div>
+              <div style={{ minHeight: 0, flex: '0 0 auto', display: 'flex', overflow: 'hidden' }}>
+                {renderUpcomingAgendasContainer()}
+              </div>
             </div>
-          </article>
-
-          {!isMobile ? renderNotificationsList('Notificações') : null}
+          ) : null}
 
         </div>
       </div>
