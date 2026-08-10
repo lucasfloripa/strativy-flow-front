@@ -64,33 +64,31 @@ export function LeadChatTab({
   const isUploadingAudio = mediaUploader.isUploading && mediaUploader.uploadingType === 'audio'
   const isAnyUploadActive = mediaUploader.isUploading
 
-  const lastInboundMessage = messages
-    .filter((msg) => msg.direction === 'inbound')
-    .sort((a, b) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
-      return bTime - aTime
-    })[0]
-
-  const hasNeverConversed = messages.filter((msg) => msg.direction === 'inbound').length === 0
+  const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
+  const inboundMessageTimes = inboundMessages
+    .map((msg) => msg.createdAt ? new Date(msg.createdAt).getTime() : Number.NaN)
+    .filter(Number.isFinite)
+  const firstInboundTime = inboundMessageTimes.length > 0
+    ? Math.min(...inboundMessageTimes)
+    : null
+  const lastInboundTime = inboundMessageTimes.length > 0
+    ? Math.max(...inboundMessageTimes)
+    : null
+  const hasNeverConversed = inboundMessages.length === 0
 
   const shouldShowReopenButton = (() => {
-    const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
-    
-    // Se não há nenhuma mensagem inbound, mostrar botão
-    if (inboundMessages.length === 0) {
+    if (firstInboundTime === null || lastInboundTime === null) {
       return true
     }
-    
-    // Se há mensagens inbound, verificar se a última foi há mais de 24h
-    if (lastInboundMessage?.createdAt) {
-      const lastInboundTime = new Date(lastInboundMessage.createdAt).getTime()
-      const now = Date.now()
-      const hoursSinceLastInbound = (now - lastInboundTime) / (1000 * 60 * 60)
-      return hoursSinceLastInbound > 24
+
+    const now = Date.now()
+    const hasCompletedFirst72Hours = now - firstInboundTime >= 72 * 60 * 60 * 1000
+
+    if (!hasCompletedFirst72Hours) {
+      return false
     }
-    
-    return false
+
+    return now - lastInboundTime >= 24 * 60 * 60 * 1000
   })()
 
   const buildTemplateDescription = (): string => {

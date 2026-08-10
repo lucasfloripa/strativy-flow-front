@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, CircleHelp, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -1381,6 +1381,24 @@ export function AuthenticatedLayout() {
               >
                 <Archive size={16} />
                 {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Leads Arquivados</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/informacoes"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'informacoes',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('informacoes')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <CircleHelp size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Informações</span> : null}
               </NavLink>
             </li>
           </ul>
@@ -3159,6 +3177,25 @@ export function AuthenticatedLayout() {
                 >
                   <CircleDollarSign size={18} />
                   <span style={{ marginLeft: 10 }}>Financeiro</span>
+                </NavLink>
+
+                <NavLink
+                  to="/informacoes"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false)
+                    setIsSettingsPanelOpen(false)
+                  }}
+                  style={({ isActive }) => ({
+                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'informacoes-mobile', false),
+                    justifyContent: 'flex-start',
+                    minHeight: 48,
+                    padding: '12px 14px'
+                  })}
+                  onMouseEnter={() => setHoveredNavKey('informacoes-mobile')}
+                  onMouseLeave={() => setHoveredNavKey(null)}
+                >
+                  <CircleHelp size={18} />
+                  <span style={{ marginLeft: 10 }}>Informações</span>
                 </NavLink>
 
                 <button

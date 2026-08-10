@@ -13,6 +13,7 @@ import ConversasPage from './pages/ConversasPage'
 import ArquivosPage from './pages/ArquivosPage'
 import FinanceiroPage from './pages/FinanceiroPage'
 import AgendaPage from './pages/AgendaPage'
+import InformacoesPage from './pages/InformacoesPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
 
@@ -104,6 +105,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/agenda/:leadId" element={<AgendaPage />} />
         <Route path="/arquivados" element={<LeadsArquivadosPage />} />
         <Route path="/arquivados/:leadId" element={<LeadsArquivadosPage />} />
+        <Route path="/informacoes" element={<InformacoesPage />} />
       </Route>
     </Routes>
   </BrowserRouter>,

@@ -1601,7 +1601,7 @@ export default function LeadsPage() {
           padding: '4px 2px'
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 18, color: '#111827', lineHeight: 1.2 }}>Leads</h1>
+        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>Leads</h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input

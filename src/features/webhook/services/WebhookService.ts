@@ -27,9 +27,9 @@ export const WebhookService = {
       id: message.id,
       content: message.content ?? null,
       direction:
-        String(message.direction ?? '')
-          .trim()
-          .toUpperCase() === 'OUTBOUND'
+        ['OUTBOUND', 'AUTOMATIC'].includes(
+          String(message.direction ?? '').trim().toUpperCase()
+        )
           ? 'outbound'
           : 'inbound',
       type:

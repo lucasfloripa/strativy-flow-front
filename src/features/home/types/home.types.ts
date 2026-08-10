@@ -12,11 +12,13 @@ export type DashboardSummary = {
 export type DashboardConversationFilter =
   | 'all'
   | 'new'
+  | 'last72h'
   | 'today'
   | 'noResponse24h'
 
 export type DashboardConversationStatus =
   | 'new'
+  | 'last72h'
   | 'today'
   | 'noResponse24h'
 
@@ -27,7 +29,7 @@ export type DashboardConversation = {
   leadCreatedAt: string | Date
   lastMessageAt: string | Date
   lastMessage: string | null
-  lastMessageDirection: 'INBOUND' | 'OUTBOUND'
+  lastMessageDirection: 'INBOUND' | 'OUTBOUND' | 'AUTOMATIC'
   lastMessageType: string
   isNew: boolean
   status: DashboardConversationStatus | null

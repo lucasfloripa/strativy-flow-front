@@ -54,9 +54,11 @@ const normalizeSearchValue = (value: string): string => {
 
 const getLastMessageLabel = (conversation: DashboardConversation): string => {
   const content = conversation.lastMessage?.trim() || 'Mensagem sem texto'
-  return conversation.lastMessageDirection === 'OUTBOUND'
-    ? `Você: ${content}`
-    : content
+  return conversation.lastMessageDirection === 'INBOUND'
+    ? content
+    : conversation.lastMessageDirection === 'AUTOMATIC'
+      ? `Sistema: ${content}`
+      : `Você: ${content}`
 }
 
 const getSourceTagPresentation = (source?: string | null): SourceTagPresentation => {
@@ -134,11 +136,13 @@ const SourceTag = ({ source }: { source?: string | null }) => {
 const StatusTag = ({ status }: { status: DashboardConversationStatus | null }) => {
   const presentation = status === 'new'
     ? { label: 'Novo', color: '#eab308', background: '#fef3c7' }
-    : status === 'today'
-      ? { label: 'Para Hoje', color: '#1d4ed8', background: '#dbeafe' }
-      : status === 'noResponse24h'
-        ? { label: '24h+', color: '#b91c1c', background: '#fee2e2' }
-        : { label: '-', color: '#6b7280', background: '#f3f4f6' }
+    : status === 'last72h'
+      ? { label: '72h', color: '#047857', background: '#d1fae5' }
+      : status === 'today'
+        ? { label: 'Para Hoje', color: '#1d4ed8', background: '#dbeafe' }
+        : status === 'noResponse24h'
+          ? { label: '24h+', color: '#b91c1c', background: '#fee2e2' }
+          : { label: '-', color: '#6b7280', background: '#f3f4f6' }
 
   return (
     <span
@@ -510,7 +514,7 @@ export default function ConversasPage() {
   return (
     <section style={{ height: '100vh', padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 16, background: '#f3f4f6', boxSizing: 'border-box', position: 'relative', overflow: 'hidden' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '4px 2px' }}>
-        <h1 style={{ margin: 0, fontSize: 18, color: '#111827', lineHeight: 1.2 }}>Conversas</h1>
+        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>Conversas</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {searchInput}
           {filterButton}

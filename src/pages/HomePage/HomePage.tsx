@@ -315,7 +315,7 @@ export default function HomePage() {
   const [hoveredNotificationId, setHoveredNotificationId] = useState<string | null>(null)
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
   const [isClearNotificationsHovered, setIsClearNotificationsHovered] = useState<boolean>(false)
-  const [selectedConversationFilter, setSelectedConversationFilter] = useState<ConversationFilter>('all')
+  const [selectedConversationFilter, setSelectedConversationFilter] = useState<ConversationFilter>('new')
   const [hoveredConversationFilter, setHoveredConversationFilter] = useState<ConversationFilter | null>(null)
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -324,6 +324,7 @@ export default function HomePage() {
   const [conversationCounts, setConversationCounts] = useState<Record<ConversationFilter, number>>({
     all: 0,
     new: 0,
+    last72h: 0,
     today: 0,
     noResponse24h: 0
   })
@@ -514,15 +515,15 @@ export default function HomePage() {
           }}
         >
           {[
-            { key: 'all', label: 'Todas' },
+            { key: 'today', label: 'Para Hoje' },
             { key: 'new', label: 'Novos' },
-            { key: 'today', label: 'Para hoje' },
-            { key: 'noResponse24h', label: 'Sem respostas 24h+' }
+            { key: 'last72h', label: '72h' },
+            { key: 'noResponse24h', label: 'Sem resposta 24h+' }
           ].map((filterOption) => {
             const filterKey = filterOption.key as ConversationFilter
             const isActive = selectedConversationFilter === filterKey
             const isHovered = hoveredConversationFilter === filterKey
-            const count = filterOption.key === 'all' ? null : conversationCounts[filterKey]
+            const count = conversationCounts[filterKey]
 
             return (
               <button
@@ -586,9 +587,11 @@ export default function HomePage() {
             const sourceTagPresentation = getSourceTagPresentation(item.source ?? 'Não informada')
             const lastContactLabel = formatChatMessageTimestamp(item.lastMessageAt)
             const messageContent = item.lastMessage?.trim() || 'Mensagem sem texto'
-            const lastMessageLabel = item.lastMessageDirection === 'OUTBOUND'
-              ? `Você: ${messageContent}`
-              : messageContent
+            const lastMessageLabel = item.lastMessageDirection === 'INBOUND'
+              ? messageContent
+              : item.lastMessageDirection === 'AUTOMATIC'
+                ? `Sistema: ${messageContent}`
+                : `Você: ${messageContent}`
 
             return (
               <button
@@ -718,13 +721,7 @@ export default function HomePage() {
         <div style={{ marginTop: 'auto', padding: '10px 8px 2px', borderTop: '1px solid #eef2f7', background: cardBackground }}>
           <button
             type="button"
-            onClick={() => {
-              navigate(
-                selectedConversationFilter === 'all'
-                  ? '/conversas'
-                  : `/conversas?filter=${selectedConversationFilter}`
-              )
-            }}
+            onClick={() => navigate('/conversas')}
             style={{
               width: '100%',
               border: 'none',
