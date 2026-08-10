@@ -71,6 +71,14 @@ const cardBackground = '#fcfdff'
 const cardBorder = '1px solid #f4f6fa'
 const cardShadow = '0 6px 14px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.016)'
 const homeHeroImages = ['/cara.png', '/galega.png', '/doisnote.png'] as const
+const homeGreetingMessages = [
+  'Tudo pronto para você começar mais um dia de resultados.',
+  'Tudo sob controle para você focar no que realmente importa.',
+  'Mais organização para sua rotina, mais tempo para seus clientes.',
+  'Pronto para mais um dia de boas conversas e bons negócios?',
+  'Vamos transformar as oportunidades de hoje em resultados?',
+  'Organize sua rotina e aproveite cada oportunidade.'
+] as const
 
 type TagPresentation = {
   label: string
@@ -340,6 +348,10 @@ export default function HomePage() {
   const [heroImageSrc] = useState<string>(() => {
     const randomIndex = Math.floor(Math.random() * homeHeroImages.length)
     return homeHeroImages[randomIndex]
+  })
+  const [greetingMessage] = useState<string>(() => {
+    const randomIndex = Math.floor(Math.random() * homeGreetingMessages.length)
+    return homeGreetingMessages[randomIndex]
   })
   const greetingLabel = getGreetingLabel()
 
@@ -1064,7 +1076,7 @@ export default function HomePage() {
               {greetingLabel}, {userFirstName || 'Usuário'}! <span aria-hidden="true">👋</span>
             </p>
             <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 16, lineHeight: 1.25, fontWeight: 500 }}>
-              Pronto para transformar conversas em grandes negócios hoje?
+              {greetingMessage}
             </p>
           </div>
         </div>
