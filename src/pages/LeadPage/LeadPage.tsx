@@ -5355,40 +5355,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 })}
               </div>
 
-              {!isEditingBusiness && !isMobile ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedBusinessId(null)
-                      setIsBusinessActionsOpen(false)
-                      setIsConfirmingBusinessDelete(false)
-                      setIsConfirmingBusinessClose(false)
-                      setIsEditingBusiness(false)
-                      setActiveBusinessTab('informacoes')
-                    }}
-                    style={{
-                      height: 28,
-                      minWidth: 28,
-                      border: 'none',
-                      borderRadius: 6,
-                      background: 'transparent',
-                      color: '#6b7280',
-                      padding: '0 8px',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      lineHeight: 1,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    aria-label="Voltar para a lista de negócios"
-                  >
-                    <ArrowLeft size={16} />
-                  </button>
-                </div>
-              ) : null}
             </div>
 
             {!isMobile ? (
@@ -5398,7 +5364,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           ) : null}
 
           <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, boxSizing: 'border-box' }}>
-            {!isMobile ? (
+            {!isMobile && !selectedHeaderBusiness ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               {activeBusinessTab === 'informacoes' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -7500,6 +7466,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               const temperatureTagPresentation = getTemperatureTagPresentation(
                 business.temperature ?? ''
               )
+              const hasBusinessTemperature = Boolean(business.temperature?.trim())
+              const formattedBusinessValue = formatLeadValue(business.value)
+              const hasBusinessValue = formattedBusinessValue !== '-'
+              const desktopBusinessMetadataColumnCount =
+                3 + Number(hasBusinessTemperature) + Number(hasBusinessValue)
               const businessLifecycleTagPresentation = getBusinessLifecycleTagPresentation(
                 business.stage,
                 business.closedAt ?? null
@@ -7659,7 +7630,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                          gridTemplateColumns: `repeat(${desktopBusinessMetadataColumnCount}, minmax(0, 1fr))`,
                           gap: 10,
                           width: '100%'
                         }}
@@ -7750,92 +7721,56 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         )}
                       </div>
 
+                      {hasBusinessTemperature ? (
                       <div style={{ display: 'grid', gap: 4 }}>
                         <span style={{ color: '#6b7280', fontSize: 12, fontWeight: 700 }}>Temperatura</span>
-                        {temperatureTagPresentation.label === '-' ? (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#9ca3af',
-                              background: '#f3f4f6',
-                              borderRadius: 6,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '7px 12px',
-                              lineHeight: 1.1,
-                              width: '100%'
-                            }}
-                          >
-                            -
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: temperatureTagPresentation.textColor,
-                              whiteSpace: 'nowrap',
-                              background: `${temperatureTagPresentation.textColor}44`,
-                              borderRadius: 6,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '7px 12px',
-                              lineHeight: 1.1,
-                              width: '100%'
-                            }}
-                          >
-                            {temperatureTagPresentation.icon ? (
-                              <span style={tagIconStyle}>{temperatureTagPresentation.icon}</span>
-                            ) : null}
-                            <span style={tagContentStyle}>{temperatureTagPresentation.label}</span>
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: temperatureTagPresentation.textColor,
+                            whiteSpace: 'nowrap',
+                            background: `${temperatureTagPresentation.textColor}44`,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1,
+                            width: '100%'
+                          }}
+                        >
+                          {temperatureTagPresentation.icon ? (
+                            <span style={tagIconStyle}>{temperatureTagPresentation.icon}</span>
+                          ) : null}
+                          <span style={tagContentStyle}>{temperatureTagPresentation.label}</span>
+                        </span>
                       </div>
+                      ) : null}
 
+                      {hasBusinessValue ? (
                       <div style={{ display: 'grid', gap: 4 }}>
                         <span style={{ color: '#6b7280', fontSize: 12, fontWeight: 700 }}>Valor</span>
-                        {formatLeadValue(business.value) === '-' ? (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#b45309',
-                              background: '#fef3c7',
-                              borderRadius: 6,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '7px 12px',
-                              lineHeight: 1.1,
-                              width: '100%'
-                            }}
-                          >
-                            Valor não informado
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#166534',
-                              whiteSpace: 'nowrap',
-                              background: '#dcfce7',
-                              borderRadius: 6,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '7px 12px',
-                              lineHeight: 1.1,
-                              width: '100%'
-                            }}
-                          >
-                            <span style={tagContentStyle}>{formatLeadValue(business.value)}</span>
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: '#166534',
+                            whiteSpace: 'nowrap',
+                            background: '#dcfce7',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1,
+                            width: '100%'
+                          }}
+                        >
+                          <span style={tagContentStyle}>{formattedBusinessValue}</span>
+                        </span>
                       </div>
+                      ) : null}
                     </div>
                   </div>
                   </div>
@@ -9054,11 +8989,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     leadData?.state?.trim().toLowerCase() === 'archived' ? 'Arquivado' : 'Ativo'
   const isMobileLeadArchived = mobileLeadStateLabel === 'Arquivado'
   const isMobileLeadFavorite = Boolean(leadData?.isFavorite)
-  const mobileSelectedBusiness = isMobile && activeTab === 'negocios' && selectedBusinessId
+  const selectedHeaderBusiness = activeTab === 'negocios' && selectedBusinessId
     ? leadNegotiations.find((business) => business.id === selectedBusinessId) ?? null
     : null
-  const isMobileSelectedBusinessClosed = mobileSelectedBusiness
-    ? formatDateOnly(mobileSelectedBusiness.closedAt) !== '-'
+  const mobileSelectedBusiness = isMobile ? selectedHeaderBusiness : null
+  const isSelectedHeaderBusinessClosed = selectedHeaderBusiness
+    ? formatDateOnly(selectedHeaderBusiness.closedAt) !== '-'
     : false
 
   return (
@@ -9086,12 +9022,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          {isMobile ? (
+          {isMobile || selectedHeaderBusiness ? (
             <button
               type="button"
-              aria-label={mobileSelectedBusiness ? 'Voltar para o lead' : 'Voltar para listagem de leads'}
+              aria-label={selectedHeaderBusiness ? 'Voltar para o lead' : 'Voltar para listagem de leads'}
               onClick={() => {
-                if (mobileSelectedBusiness) {
+                if (selectedHeaderBusiness) {
                   setSelectedBusinessId(null)
                   setIsBusinessActionsOpen(false)
                   setIsConfirmingBusinessDelete(false)
@@ -9134,9 +9070,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               textOverflow: 'ellipsis'
             }}
           >
-            {mobileSelectedBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
+            {selectedHeaderBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
           </h1>
-          {!mobileSelectedBusiness && isMobileLeadFavorite ? (
+          {!selectedHeaderBusiness && isMobileLeadFavorite ? (
             <span
               style={{
                 width: 24,
@@ -9158,7 +9094,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {mobileSelectedBusiness ? (
+          {selectedHeaderBusiness ? (
             <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
               <button
                 type="button"
@@ -9198,7 +9134,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     gap: 4
                   }}
                 >
-                  {isMobileSelectedBusinessClosed ? (
+                  {isSelectedHeaderBusinessClosed ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -9241,16 +9177,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
                   <button
                     type="button"
-                    disabled={isMobileSelectedBusinessClosed}
+                    disabled={isSelectedHeaderBusinessClosed}
                     onClick={() => {
-                      if (isMobileSelectedBusinessClosed) return
+                      if (isSelectedHeaderBusinessClosed) return
                       setIsEditingBusiness(true)
                       setIsConfirmingBusinessDelete(false)
                       setIsConfirmingBusinessClose(false)
                       setActiveBusinessTab('informacoes')
                       setIsBusinessActionsOpen(false)
                     }}
-                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: isMobileSelectedBusinessClosed ? '#94a3b8' : '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: isMobileSelectedBusinessClosed ? 'not-allowed' : 'pointer' }}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: isSelectedHeaderBusinessClosed ? '#94a3b8' : '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: isSelectedHeaderBusinessClosed ? 'not-allowed' : 'pointer' }}
                   >
                     Editar
                   </button>
