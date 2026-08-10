@@ -2060,8 +2060,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const renderGeneralTab = () => {
     const leadStateLabel =
       leadData?.state?.trim().toLowerCase() === 'archived' ? 'Arquivado' : 'Ativo'
-    const isLeadArchived = leadStateLabel === 'Arquivado'
-    const isLeadFavorite = Boolean(leadData?.isFavorite)
     const leadStateStyle =
       leadStateLabel === 'Arquivado'
         ? {
@@ -2130,184 +2128,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           boxSizing: 'border-box'
         }}
       >
-        {!isMobile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <h2
-                  style={{
-                    margin: 0,
-                    color: '#0f172a',
-                    fontSize: 26,
-                    fontWeight: 700,
-                    lineHeight: 1
-                  }}
-                >
-                  {leadData?.name?.trim() || '-'}
-                </h2>
-                {isLeadFavorite ? (
-                  <span
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 999,
-                      background: '#fef9c3',
-                      color: '#f59e0b',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    aria-label="Lead favoritado"
-                    title="Lead favoritado"
-                  >
-                    <Star size={13} fill="#f59e0b" />
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <div ref={generalActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => setIsGeneralActionsOpen((current) => !current)}
-                style={{
-                  height: 28,
-                  minWidth: 28,
-                  border: 'none',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  color: '#6b7280',
-                  padding: '0 8px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  lineHeight: 1
-                }}
-                aria-label="Abrir ações do lead"
-              >
-                <MoreVertical size={16} />
-              </button>
-
-              {isGeneralActionsOpen ? (
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 34,
-                    minWidth: 188,
-                    background: '#ffffff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 10,
-                    boxShadow: '0 8px 24px rgba(2, 6, 23, 0.12)',
-                    padding: 6,
-                    zIndex: 2,
-                    display: 'grid',
-                    gap: 4
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={handleStartLeadInfoEdit}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 8,
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      padding: '10px 12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Editar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleToggleLeadFavorite()
-                    }}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 8,
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      padding: '10px 12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {isLeadFavorite ? 'Desfavoritar' : 'Favoritar'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleLeadTabChange('geral')
-
-                      if (isLeadArchived) {
-                        void handleToggleLeadArchive()
-                        return
-                      }
-
-                      setIsConfirmingLeadArchive(true)
-                      setIsConfirmingLeadDelete(false)
-                      setIsEditingLeadInfo(false)
-                      setIsGeneralActionsOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 8,
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      padding: '10px 12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {isLeadArchived ? 'Desarquivar' : 'Arquivar'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleLeadTabChange('geral')
-                      setIsConfirmingLeadDelete(true)
-                      setIsEditingLeadInfo(false)
-                      setIsGeneralActionsOpen(false)
-                    }}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      borderRadius: 8,
-                      color: '#dc2626',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                      padding: '10px 12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Deletar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
           {isConfirmingLeadDelete ? (
             <article
               style={{
@@ -9246,7 +9066,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       style={{
         height: '100%',
         minHeight: 0,
-        padding: isMobile ? '18px 0 0' : '40px',
+        padding: isMobile ? '18px 0 0' : '20px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
@@ -9254,18 +9074,19 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         background: '#ffffff'
       }}
     >
-      {isMobile ? (
-        <header
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) auto',
-            alignItems: 'center',
-            gap: 12,
-            padding: '0 12px 18px',
-            boxSizing: 'border-box'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <header
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) auto',
+          alignItems: 'center',
+          gap: 12,
+          padding: isMobile ? '0 12px 18px' : '0 0 6px',
+          boxSizing: 'border-box',
+          flexShrink: 0
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {isMobile ? (
             <button
               type="button"
               aria-label={mobileSelectedBusiness ? 'Voltar para o lead' : 'Voltar para listagem de leads'}
@@ -9299,159 +9120,49 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             >
               <ArrowLeft size={22} />
             </button>
+          ) : null}
 
-            <h1
+          <h1
+            style={{
+              margin: 0,
+              color: '#111827',
+              fontSize: 20,
+              fontWeight: 800,
+              lineHeight: 1.15,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {mobileSelectedBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
+          </h1>
+          {!mobileSelectedBusiness && isMobileLeadFavorite ? (
+            <span
               style={{
-                margin: 0,
-                color: '#111827',
-                fontSize: 20,
-                fontWeight: 800,
-                lineHeight: 1.15,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                width: 24,
+                height: 24,
+                borderRadius: 999,
+                background: '#fef9c3',
+                color: '#f59e0b',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
               }}
+              aria-label="Lead favoritado"
+              title="Lead favoritado"
             >
-              {mobileSelectedBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
-            </h1>
-            {!mobileSelectedBusiness && isMobileLeadFavorite ? (
-              <span
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 999,
-                  background: '#fef9c3',
-                  color: '#f59e0b',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-                aria-label="Lead favoritado"
-                title="Lead favoritado"
-              >
-                <Star size={14} fill="#f59e0b" />
-              </span>
-            ) : null}
-          </div>
+              <Star size={14} fill="#f59e0b" />
+            </span>
+          ) : null}
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {mobileSelectedBusiness ? (
-              <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsBusinessActionsOpen((current) => !current)}
-                  style={{
-                    height: 32,
-                    width: 32,
-                    border: 'none',
-                    borderRadius: 8,
-                    background: 'transparent',
-                    color: '#111827',
-                    padding: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                  aria-label="Abrir ações do negócio"
-                >
-                  <MoreVertical size={20} />
-                </button>
-
-                {isBusinessActionsOpen ? (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 38,
-                      minWidth: 188,
-                      background: '#ffffff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 10,
-                      boxShadow: '0 8px 24px rgba(2, 6, 23, 0.12)',
-                      padding: 6,
-                      zIndex: 10,
-                      display: 'grid',
-                      gap: 4
-                    }}
-                  >
-                    {isMobileSelectedBusinessClosed ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedBusinessId) return
-
-                          void (async () => {
-                            try {
-                              await WebhookService.updateNegotiation(selectedBusinessId, {
-                                stage: 'NEW',
-                                closedAt: null
-                              })
-                              await refreshLeadNegotiations(leadId ?? '')
-                              onLeadUpdated?.()
-                              setActiveBusinessTab('informacoes')
-                              setIsBusinessActionsOpen(false)
-                              setIsConfirmingBusinessClose(false)
-                            } catch (exception: unknown) {
-                              const message = exception instanceof Error ? exception.message : 'Falha ao reabrir negócio.'
-                              setBusinessesError(message)
-                            }
-                          })()
-                        }}
-                        style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
-                      >
-                        Reabrir Negócio
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsConfirmingBusinessClose(true)
-                          setIsConfirmingBusinessDelete(false)
-                          setIsBusinessActionsOpen(false)
-                        }}
-                        style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
-                      >
-                        Fechar Negócio
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      disabled={isMobileSelectedBusinessClosed}
-                      onClick={() => {
-                        if (isMobileSelectedBusinessClosed) return
-                        setIsEditingBusiness(true)
-                        setIsConfirmingBusinessDelete(false)
-                        setIsConfirmingBusinessClose(false)
-                        setActiveBusinessTab('informacoes')
-                        setIsBusinessActionsOpen(false)
-                      }}
-                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: isMobileSelectedBusinessClosed ? '#94a3b8' : '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: isMobileSelectedBusinessClosed ? 'not-allowed' : 'pointer' }}
-                    >
-                      Editar
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsConfirmingBusinessDelete(true)
-                        setIsConfirmingBusinessClose(false)
-                        setIsBusinessActionsOpen(false)
-                      }}
-                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#dc2626', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
-                    >
-                      Deletar
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-            <div ref={generalActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {mobileSelectedBusiness ? (
+            <div ref={businessActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
               <button
                 type="button"
-                onClick={() => setIsGeneralActionsOpen((current) => !current)}
+                onClick={() => setIsBusinessActionsOpen((current) => !current)}
                 style={{
                   height: 32,
                   width: 32,
@@ -9465,12 +9176,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   justifyContent: 'center',
                   cursor: 'pointer'
                 }}
-                aria-label="Abrir ações do lead"
+                aria-label="Abrir ações do negócio"
               >
                 <MoreVertical size={20} />
               </button>
 
-              {isGeneralActionsOpen ? (
+              {isBusinessActionsOpen ? (
                 <div
                   style={{
                     position: 'absolute',
@@ -9487,49 +9198,69 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     gap: 4
                   }}
                 >
+                  {isMobileSelectedBusinessClosed ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedBusinessId) return
+
+                        void (async () => {
+                          try {
+                            await WebhookService.updateNegotiation(selectedBusinessId, {
+                              stage: 'NEW',
+                              closedAt: null
+                            })
+                            await refreshLeadNegotiations(leadId ?? '')
+                            onLeadUpdated?.()
+                            setActiveBusinessTab('informacoes')
+                            setIsBusinessActionsOpen(false)
+                            setIsConfirmingBusinessClose(false)
+                          } catch (exception: unknown) {
+                            const message = exception instanceof Error ? exception.message : 'Falha ao reabrir negócio.'
+                            setBusinessesError(message)
+                          }
+                        })()
+                      }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                    >
+                      Reabrir Negócio
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsConfirmingBusinessClose(true)
+                        setIsConfirmingBusinessDelete(false)
+                        setIsBusinessActionsOpen(false)
+                      }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                    >
+                      Fechar Negócio
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={handleStartLeadInfoEdit}
-                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                    disabled={isMobileSelectedBusinessClosed}
+                    onClick={() => {
+                      if (isMobileSelectedBusinessClosed) return
+                      setIsEditingBusiness(true)
+                      setIsConfirmingBusinessDelete(false)
+                      setIsConfirmingBusinessClose(false)
+                      setActiveBusinessTab('informacoes')
+                      setIsBusinessActionsOpen(false)
+                    }}
+                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: isMobileSelectedBusinessClosed ? '#94a3b8' : '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: isMobileSelectedBusinessClosed ? 'not-allowed' : 'pointer' }}
                   >
                     Editar
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => void handleToggleLeadFavorite()}
-                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
-                  >
-                    {isMobileLeadFavorite ? 'Desfavoritar' : 'Favoritar'}
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => {
-                      handleLeadTabChange('geral')
-
-                      if (isMobileLeadArchived) {
-                        void handleToggleLeadArchive()
-                        return
-                      }
-
-                      setIsConfirmingLeadArchive(true)
-                      setIsConfirmingLeadDelete(false)
-                      setIsEditingLeadInfo(false)
-                      setIsGeneralActionsOpen(false)
-                    }}
-                    style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
-                  >
-                    {isMobileLeadArchived ? 'Desarquivar' : 'Arquivar'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleLeadTabChange('geral')
-                      setIsConfirmingLeadDelete(true)
-                      setIsEditingLeadInfo(false)
-                      setIsGeneralActionsOpen(false)
+                      setIsConfirmingBusinessDelete(true)
+                      setIsConfirmingBusinessClose(false)
+                      setIsBusinessActionsOpen(false)
                     }}
                     style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#dc2626', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
                   >
@@ -9538,10 +9269,100 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 </div>
               ) : null}
             </div>
-            )}
+          ) : (
+          <div ref={generalActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setIsGeneralActionsOpen((current) => !current)}
+              style={{
+                height: 32,
+                width: 32,
+                border: 'none',
+                borderRadius: 8,
+                background: 'transparent',
+                color: '#111827',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              aria-label="Abrir ações do lead"
+            >
+              <MoreVertical size={20} />
+            </button>
+
+            {isGeneralActionsOpen ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 38,
+                  minWidth: 188,
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(2, 6, 23, 0.12)',
+                  padding: 6,
+                  zIndex: 10,
+                  display: 'grid',
+                  gap: 4
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleStartLeadInfoEdit}
+                  style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                >
+                  Editar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleToggleLeadFavorite()}
+                  style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                >
+                  {isMobileLeadFavorite ? 'Desfavoritar' : 'Favoritar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLeadTabChange('geral')
+
+                    if (isMobileLeadArchived) {
+                      void handleToggleLeadArchive()
+                      return
+                    }
+
+                    setIsConfirmingLeadArchive(true)
+                    setIsConfirmingLeadDelete(false)
+                    setIsEditingLeadInfo(false)
+                    setIsGeneralActionsOpen(false)
+                  }}
+                  style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#0f172a', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                >
+                  {isMobileLeadArchived ? 'Desarquivar' : 'Arquivar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLeadTabChange('geral')
+                    setIsConfirmingLeadDelete(true)
+                    setIsEditingLeadInfo(false)
+                    setIsGeneralActionsOpen(false)
+                  }}
+                  style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 8, color: '#dc2626', fontSize: 14, fontWeight: 600, textAlign: 'left', padding: '10px 12px', cursor: 'pointer' }}
+                >
+                  Deletar
+                </button>
+              </div>
+            ) : null}
           </div>
-        </header>
-      ) : null}
+          )}
+        </div>
+      </header>
 
       {mobileSelectedBusiness ? (
         <div style={{ display: 'grid', gap: 0 }}>
@@ -9666,28 +9487,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   </button>
                 ))}
               </div>
-              {!isMobile ? (
-                <button
-                  type="button"
-                  aria-label="Fechar lead"
-                  onClick={() => navigate(closeLeadPath)}
-                  style={{
-                    height: 28,
-                    minWidth: 28,
-                    border: 'none',
-                    borderRadius: 6,
-                    background: 'transparent',
-                    color: '#6b7280',
-                    padding: '0 8px',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    lineHeight: 1
-                  }}
-                >
-                  X
-                </button>
-              ) : null}
             </div>
           </nav>
 
