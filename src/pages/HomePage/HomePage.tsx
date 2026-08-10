@@ -15,6 +15,7 @@ import {
 import {
   type ReactNode,
   useEffect,
+  useRef,
   useState
 } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
@@ -58,6 +59,13 @@ type NotificationNavigation = {
 }
 
 type ConversationFilter = DashboardConversationFilter
+
+const conversationFilterPriority: ConversationFilter[] = [
+  'today',
+  'new',
+  'last72h',
+  'noResponse24h'
+]
 
 const cardBackground = '#fcfdff'
 const cardBorder = '1px solid #f4f6fa'
@@ -315,7 +323,8 @@ export default function HomePage() {
   const [hoveredNotificationId, setHoveredNotificationId] = useState<string | null>(null)
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null)
   const [isClearNotificationsHovered, setIsClearNotificationsHovered] = useState<boolean>(false)
-  const [selectedConversationFilter, setSelectedConversationFilter] = useState<ConversationFilter>('new')
+  const [selectedConversationFilter, setSelectedConversationFilter] = useState<ConversationFilter>('today')
+  const hasResolvedInitialConversationFilterRef = useRef(false)
   const [hoveredConversationFilter, setHoveredConversationFilter] = useState<ConversationFilter | null>(null)
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -376,8 +385,20 @@ export default function HomePage() {
           return
         }
 
-        setConversations(response.items)
         setConversationCounts(response.counts)
+
+        if (!hasResolvedInitialConversationFilterRef.current) {
+          hasResolvedInitialConversationFilterRef.current = true
+          const initialConversationFilter =
+            conversationFilterPriority.find((filter) => response.counts[filter] > 0) ?? 'today'
+
+          if (initialConversationFilter !== selectedConversationFilter) {
+            setSelectedConversationFilter(initialConversationFilter)
+            return
+          }
+        }
+
+        setConversations(response.items)
       } catch {
         if (isActive) {
           setConversations([])
@@ -529,7 +550,10 @@ export default function HomePage() {
               <button
                 key={filterOption.key}
                 type="button"
-                onClick={() => setSelectedConversationFilter(filterKey)}
+                onClick={() => {
+                  hasResolvedInitialConversationFilterRef.current = true
+                  setSelectedConversationFilter(filterKey)
+                }}
                 onMouseEnter={() => setHoveredConversationFilter(filterKey)}
                 onMouseLeave={() => setHoveredConversationFilter(null)}
                 style={{
