@@ -4,25 +4,25 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 
 const rules = [
   {
-    title: 'Primeiras 72 horas',
+    title: 'Abertura da conversa',
     description:
-      'A contagem começa na primeira mensagem enviada pelo cliente. Durante esse período, o campo de mensagem permanece disponível para a equipe conversar normalmente.',
-    icon: Clock3,
+      'A conversa pode começar quando o cliente envia uma mensagem para o app. Se o primeiro contato partir do app, a abertura deve ser feita por meio de um template aprovado.',
+    icon: MessageCircle,
     color: '#047857',
     background: '#ecfdf5'
   },
   {
-    title: 'Cliente respondeu nas últimas 24 horas',
+    title: 'Janela de atendimento de 24 horas',
     description:
-      'Depois das 72 horas iniciais, uma nova mensagem do cliente mantém a conversa aberta por 24 horas a partir dessa última mensagem.',
-    icon: MessageCircle,
+      'A partir da última mensagem do cliente, a equipe tem 24 horas para enviar mensagens livres. Cada nova mensagem do cliente renova essa janela.',
+    icon: Clock3,
     color: '#1d4ed8',
     background: '#eff6ff'
   },
   {
-    title: 'Sem resposta há 24 horas ou mais',
+    title: 'Após 24 horas sem mensagem do cliente',
     description:
-      'Quando as 72 horas iniciais já terminaram e o cliente não enviou mensagem nas últimas 24 horas, o campo de texto é substituído pela opção de reabrir a conversa.',
+      'A janela de atendimento é encerrada e mensagens livres não podem mais ser enviadas. Para retomar a conversa, é necessário usar um template aprovado.',
     icon: TimerReset,
     color: '#b45309',
     background: '#fffbeb'
@@ -85,7 +85,7 @@ export default function InformacoesPage() {
             Ciclo da conversa
           </h2>
           <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
-            O acesso ao campo de mensagem considera a primeira e a última mensagem enviadas pelo cliente.
+            Entenda como uma conversa é aberta, mantida ativa e retomada no WhatsApp.
           </p>
 
           <div
@@ -169,7 +169,7 @@ export default function InformacoesPage() {
               Envio de template
             </h2>
             <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>
-              Fora da janela de conversa, mensagens livres não podem ser enviadas. Selecione um template aprovado para entrar em contato. Quando o cliente responder, o campo de mensagem será liberado novamente por 24 horas.
+              O template precisa ser aprovado previamente pela Meta e seu envio possui custo. Quando o cliente responder, a janela de atendimento de 24 horas será aberta e as mensagens livres serão liberadas.
             </p>
           </div>
         </section>

@@ -63,7 +63,6 @@ type ConversationFilter = DashboardConversationFilter
 const conversationFilterPriority: ConversationFilter[] = [
   'today',
   'new',
-  'last72h',
   'noResponse24h'
 ]
 
@@ -341,7 +340,6 @@ export default function HomePage() {
   const [conversationCounts, setConversationCounts] = useState<Record<ConversationFilter, number>>({
     all: 0,
     new: 0,
-    last72h: 0,
     today: 0,
     noResponse24h: 0
   })
@@ -550,7 +548,6 @@ export default function HomePage() {
           {[
             { key: 'today', label: 'Para Hoje' },
             { key: 'new', label: 'Novos' },
-            { key: 'last72h', label: '72h' },
             { key: 'noResponse24h', label: 'Sem resposta 24h+' }
           ].map((filterOption) => {
             const filterKey = filterOption.key as ConversationFilter

@@ -12,7 +12,6 @@ export type DashboardSummary = {
 export type DashboardConversationFilter =
   | 'all'
   | 'new'
-  | 'last72h'
   | 'today'
   | 'noResponse24h'
 

@@ -21,6 +21,8 @@ type LeadChatTabProps = {
   onToggleRuntimeMode?: () => void
 }
 
+const conversationWindowDurationInMs = 24 * 60 * 60 * 1000
+
 export function LeadChatTab({
   leadId,
   runtimeMode = 'AUTOMATION',
@@ -54,6 +56,7 @@ export function LeadChatTab({
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplateResponse[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
+  const [conversationWindowNow, setConversationWindowNow] = useState<number>(() => Date.now())
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -68,28 +71,34 @@ export function LeadChatTab({
   const inboundMessageTimes = inboundMessages
     .map((msg) => msg.createdAt ? new Date(msg.createdAt).getTime() : Number.NaN)
     .filter(Number.isFinite)
-  const firstInboundTime = inboundMessageTimes.length > 0
-    ? Math.min(...inboundMessageTimes)
-    : null
   const lastInboundTime = inboundMessageTimes.length > 0
     ? Math.max(...inboundMessageTimes)
     : null
   const hasNeverConversed = inboundMessages.length === 0
+  const shouldShowTemplateButton =
+    lastInboundTime === null ||
+    conversationWindowNow - lastInboundTime >= conversationWindowDurationInMs
 
-  const shouldShowReopenButton = (() => {
-    if (firstInboundTime === null || lastInboundTime === null) {
-      return true
+  useEffect(() => {
+    if (lastInboundTime === null) {
+      return
     }
 
-    const now = Date.now()
-    const hasCompletedFirst72Hours = now - firstInboundTime >= 72 * 60 * 60 * 1000
+    const remainingWindowTime =
+      lastInboundTime + conversationWindowDurationInMs - Date.now()
 
-    if (!hasCompletedFirst72Hours) {
-      return false
+    if (remainingWindowTime <= 0) {
+      return
     }
 
-    return now - lastInboundTime >= 24 * 60 * 60 * 1000
-  })()
+    const timeoutId = window.setTimeout(() => {
+      setConversationWindowNow(Date.now())
+    }, remainingWindowTime)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [lastInboundTime])
 
   const buildTemplateDescription = (): string => {
     if (!selectedTemplate?.description) return ''
@@ -819,7 +828,7 @@ export function LeadChatTab({
           </div>
         )}
 
-        {!isReopeningConversation && shouldShowReopenButton && (
+        {!isReopeningConversation && shouldShowTemplateButton && (
           <div
             style={{
               display: 'flex',
@@ -874,7 +883,7 @@ export function LeadChatTab({
           </div>
         )}
 
-        {!isReopeningConversation && !shouldShowReopenButton && (
+        {!isReopeningConversation && !shouldShowTemplateButton && (
         <>
           {audioRecorder.isRecording ? (
             <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center', minWidth: 0 }}>
