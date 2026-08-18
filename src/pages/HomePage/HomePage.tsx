@@ -3,26 +3,20 @@ import {
   CalendarCheck,
   CalendarClock,
   Clock,
-  Facebook,
-  Handshake,
   MessageCircle,
-  Search,
   TimerReset,
   TriangleAlert,
   UserPlus,
   X
 } from 'lucide-react'
-import {
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 
 import type { AuthenticatedLayoutOutletContext } from '../../app/layouts/AuthenticatedLayout'
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import {
   formatChatMessageTimestamp,
   formatElapsedHoursAndMinutes
@@ -79,12 +73,6 @@ const homeGreetingMessages = [
   'Organize sua rotina e aproveite cada oportunidade.'
 ] as const
 
-type TagPresentation = {
-  label: string
-  textColor: string
-  icon?: ReactNode
-}
-
 const tagContentStyle = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -100,52 +88,6 @@ const tagIconStyle = {
   marginRight: 4,
   lineHeight: 0,
   verticalAlign: 'middle' as const
-}
-
-const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\s_-]+/g, '')
-
-  if (normalizedSource === 'metaads') {
-    return {
-      label: 'Meta Ads',
-      textColor: '#1877f2',
-      icon: <Facebook size={12} />
-    }
-  }
-
-  if (normalizedSource === 'googleads') {
-    return {
-      label: 'Google Ads',
-      textColor: '#FBBC04',
-      icon: <Search size={12} />
-    }
-  }
-
-  if (normalizedSource === 'whatsapp') {
-    return {
-      label: 'WhatsApp',
-      textColor: '#15803d',
-      icon: <MessageCircle size={12} />
-    }
-  }
-
-  if (normalizedSource === 'indicacao') {
-    return {
-      label: 'Indicação',
-      textColor: '#7c3aed',
-      icon: <Handshake size={12} />
-    }
-  }
-
-  return {
-    label: source,
-    textColor: '#6b7280'
-  }
 }
 
 const getGreetingLabel = (): 'Bom dia' | 'Boa tarde' | 'Boa noite' => {
@@ -615,9 +557,12 @@ export default function HomePage() {
           })}
         </div>
 
-        <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 8px' }}>
+        <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 8px', marginTop: 4 }}>
           {conversations.map((item, index) => {
-            const sourceTagPresentation = getSourceTagPresentation(item.source ?? 'Não informada')
+            const sourceTagPresentation = getLeadSourceTagPresentation(
+              item.source,
+              'Não informada'
+            )
             const lastContactLabel = formatChatMessageTimestamp(item.lastMessageAt)
             const messageContent = item.lastMessage?.trim() || 'Mensagem sem texto'
             const lastMessageLabel = item.lastMessageDirection === 'INBOUND'
@@ -722,7 +667,8 @@ export default function HomePage() {
                       fontWeight: 700,
                       color: sourceTagPresentation.textColor,
                       whiteSpace: 'nowrap',
-                      background: `${sourceTagPresentation.textColor}44`,
+                      background: sourceTagPresentation.backgroundColor,
+                      border: `1px solid ${sourceTagPresentation.borderColor}`,
                       borderRadius: 6,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -840,15 +786,19 @@ export default function HomePage() {
               onClick={() => navigate(`/agenda?followUp=${filterOption.key}`)}
               onMouseEnter={(event) => {
                 event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                event.currentTarget.style.borderRadius = '10px'
               }}
               onMouseLeave={(event) => {
                 event.currentTarget.style.background = 'transparent'
+                event.currentTarget.style.borderRadius = '0'
               }}
               onFocus={(event) => {
                 event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
+                event.currentTarget.style.borderRadius = '10px'
               }}
               onBlur={(event) => {
                 event.currentTarget.style.background = 'transparent'
+                event.currentTarget.style.borderRadius = '0'
               }}
               style={{
                 minWidth: 0,
@@ -856,7 +806,7 @@ export default function HomePage() {
                 padding: '10px 8px',
                 border: 'none',
                 borderLeft: index === 0 ? 'none' : '1px solid #e5e7eb',
-                borderRadius: 10,
+                borderRadius: 0,
                 background: 'transparent',
                 display: 'flex',
                 flexDirection: 'column',

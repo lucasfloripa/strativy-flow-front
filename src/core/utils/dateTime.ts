@@ -96,6 +96,16 @@ export const parseApiDateToBrowserDate = (
     return null
   }
 
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalizedValue)) {
+    const parsedDate = new Date(normalizedValue)
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null
+    }
+
+    return parsedDate
+  }
+
   const match = normalizedValue.match(
     /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?)?/i
   )

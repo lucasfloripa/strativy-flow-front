@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
 
 import './app/global.css'
 import { AuthenticatedLayout } from './app/layouts/AuthenticatedLayout'
@@ -13,6 +12,7 @@ import ConversasPage from './pages/ConversasPage'
 import ArquivosPage from './pages/ArquivosPage'
 import FinanceiroPage from './pages/FinanceiroPage'
 import AgendaPage from './pages/AgendaPage'
+import ContatosPage from './pages/ContatosPage'
 import InformacoesPage from './pages/InformacoesPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
@@ -67,24 +67,6 @@ export function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <Toaster
-      position="top-right"
-      toastOptions={{
-        duration: 3500,
-        success: {
-          style: {
-            background: '#16a34a',
-            color: '#ffffff'
-          }
-        },
-        error: {
-          style: {
-            background: '#dc2626',
-            color: '#ffffff'
-          }
-        }
-      }}
-    />
     <Routes>
       <Route path="/" element={<Navigate to="/inicio" replace />} />
       <Route path="/home" element={<Navigate to="/inicio" replace />} />
@@ -103,6 +85,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/financeiro" element={<FinanceiroPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agenda/:leadId" element={<AgendaPage />} />
+        <Route path="/contatos" element={<ContatosPage />} />
+        <Route path="/contatos/:contactId" element={<ContatosPage />} />
         <Route path="/arquivados" element={<LeadsArquivadosPage />} />
         <Route path="/arquivados/:leadId" element={<LeadsArquivadosPage />} />
         <Route path="/informacoes" element={<InformacoesPage />} />

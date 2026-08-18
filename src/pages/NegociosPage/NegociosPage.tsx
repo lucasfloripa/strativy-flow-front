@@ -1,12 +1,10 @@
 import {
   ChevronDown,
-  Facebook,
   Flame,
-  Handshake,
   ListFilter,
   MessageCircle,
   Plus,
-  Search,
+  Save,
   Snowflake,
   Sun,
   Trash2
@@ -17,6 +15,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import { getApiDateTimestamp } from '../../core/utils/dateTime'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
@@ -30,7 +30,7 @@ import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import LeadPage from '../LeadPage'
 
 type NegociosLocationState = {
-  initialLeadTab?: 'negocios'
+  initialLeadTab?: 'negocios' | 'chat'
   initialBusinessId?: string
   initialBusinessTab?: 'informacoes' | 'followups'
 }
@@ -61,7 +61,7 @@ type BusinessFilterSection = 'type' | 'stage' | 'status' | 'temperature' | 'sour
 type BusinessTypeFilterValue = 'service' | 'product' | 'none'
 type BusinessStatusFilterValue = 'open' | 'won' | 'lost'
 type BusinessTemperatureFilterValue = 'hot' | 'warm' | 'cold' | 'none'
-type BusinessSourceFilterValue = 'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other'
+type BusinessSourceFilterValue = 'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other'
 
 const isBusinessStatusFilterValue = (value: string): value is BusinessStatusFilterValue => {
   return value === 'open' || value === 'won' || value === 'lost'
@@ -72,7 +72,7 @@ const isBusinessTemperatureFilterValue = (value: string): value is BusinessTempe
 }
 
 const isBusinessSourceFilterValue = (value: string): value is BusinessSourceFilterValue => {
-  return value === 'whatsapp' || value === 'metaads' || value === 'googleads' || value === 'indicacao' || value === 'other'
+  return value === 'whatsapp' || value === 'direct' || value === 'metaads' || value === 'googleads' || value === 'indicacao' || value === 'other'
 }
 
 const NEGOCIOS_TABLE_ROW_HEIGHT_PX = 60
@@ -194,6 +194,7 @@ const getBusinessTemperatureFilterLabel = (value: BusinessTemperatureFilterValue
 
 const getBusinessSourceFilterLabel = (value: BusinessSourceFilterValue): string => {
   if (value === 'whatsapp') return 'WhatsApp'
+  if (value === 'direct') return 'Direct'
   if (value === 'metaads') return 'Meta Ads'
   if (value === 'googleads') return 'Google Ads'
   if (value === 'indicacao') return 'Indicação'
@@ -206,9 +207,18 @@ const normalizeBusinessSourceFilterValue = (source: string | null | undefined): 
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_-]+/g, '')
 
   if (normalizedSource === 'whatsapp') {
     return 'whatsapp'
+  }
+
+  if (
+    normalizedSource === 'direct' ||
+    normalizedSource === 'instagram' ||
+    normalizedSource === 'instagramdirect'
+  ) {
+    return 'direct'
   }
 
   if (normalizedSource === 'metaads') {
@@ -418,32 +428,6 @@ const tagIconStyle = {
   verticalAlign: 'middle' as const
 }
 
-const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  if (normalizedSource === 'metaads') {
-    return { label: 'Meta Ads', textColor: '#1877f2', icon: <Facebook size={12} /> }
-  }
-
-  if (normalizedSource === 'googleads') {
-    return { label: 'Google Ads', textColor: '#FBBC04', icon: <Search size={12} /> }
-  }
-
-  if (normalizedSource === 'whatsapp') {
-    return { label: 'WhatsApp', textColor: '#15803d', icon: <MessageCircle size={12} /> }
-  }
-
-  if (normalizedSource === 'indicacao') {
-    return { label: 'Indicação', textColor: '#7c3aed', icon: <Handshake size={12} /> }
-  }
-
-  return { label: source || '-', textColor: '#6b7280' }
-}
-
 const initialBusinessCreateDraft: BusinessCreateDraft = {
   leadId: '',
   negotiationType: '',
@@ -645,7 +629,7 @@ export default function NegociosPage() {
   const selectedBusinessId = isCreateBusinessMode
     ? null
     : ((location.state as NegociosLocationState | null)?.initialBusinessId ?? null)
-  const isBusinessPanelOpen = isCreateBusinessMode || Boolean(selectedBusinessId)  
+  const isBusinessPanelOpen = isCreateBusinessMode || Boolean(leadId)
 
   const activeLeads = useMemo(
     () =>
@@ -888,7 +872,7 @@ export default function NegociosPage() {
   )
 
   const availableSourceFilterValues = useMemo(() => {
-    const orderedSources: BusinessSourceFilterValue[] = ['whatsapp', 'metaads', 'googleads', 'indicacao', 'other']
+    const orderedSources: BusinessSourceFilterValue[] = ['whatsapp', 'direct', 'metaads', 'googleads', 'indicacao', 'other']
 
     return orderedSources.filter((source) =>
       filteredNegocios.some((negocio) => normalizeBusinessSourceFilterValue(leadSourceById.get(negocio.leadId) ?? '') === source)
@@ -1262,7 +1246,7 @@ export default function NegociosPage() {
       return
     }
 
-    navigate(`/leads/${leadId}${location.search}`, {
+    navigate(`/negocios/${leadId}${location.search}`, {
       state: {
         initialLeadTab: 'chat'
       }
@@ -1318,6 +1302,33 @@ export default function NegociosPage() {
   const canCreateBusiness = Boolean(
     businessCreateDraft.leadId.trim() && businessCreateDraft.title.trim()
   )
+  const businessCreateFieldLabelStyle = {
+    color: '#1f2937',
+    fontSize: isMobile ? 17 / 1.3 : 13,
+    fontWeight: 700
+  } as const
+  const businessCreateInputStyle = {
+    width: '100%',
+    height: isMobile ? 46 : 42,
+    border: '1px solid #d7dce4',
+    borderRadius: 10,
+    padding: '0 14px',
+    color: '#111827',
+    fontSize: isMobile ? 17 / 1.2 : 14,
+    boxSizing: 'border-box',
+    background: '#ffffff'
+  } as const
+  const businessCreateSelectStyle = {
+    ...businessCreateInputStyle,
+    fontWeight: 600
+  } as const
+  const businessCreateTextareaStyle = {
+    ...businessCreateInputStyle,
+    height: 'auto',
+    minHeight: 132,
+    padding: '12px 14px',
+    resize: 'vertical'
+  } as const
 
   const mobileCreateBusinessSheet = isCreateBusinessMode ? (
     <>
@@ -1366,31 +1377,32 @@ export default function NegociosPage() {
         >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'grid', gap: 4 }}>
-            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700, lineHeight: 1 }}>
               Novo negócio
             </h2>
           </div>
 
-          <button
-            type="button"
-            aria-label="Fechar criação de negócio"
-            onClick={() => navigate(`/negocios${location.search}`)}
-            style={{
-              height: 28,
-              minWidth: 28,
-              border: 'none',
-              borderRadius: 6,
-              background: 'transparent',
-              color: '#6b7280',
-              padding: '0 8px',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 600,
-              lineHeight: 1
-            }}
-          >
-            X
-          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              aria-label="Salvar negócio"
+              title="Salvar negócio"
+              onClick={() => void handleCreateBusiness()}
+              disabled={!canCreateBusiness}
+              style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateBusiness ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateBusiness ? 'pointer' : 'not-allowed' }}
+            >
+              <Save size={18} />
+            </button>
+            <button
+              type="button"
+              aria-label="Fechar criação de negócio"
+              title="Fechar criação"
+              onClick={() => navigate(`/negocios${location.search}`)}
+              style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+            >
+              X
+            </button>
+          </div>
         </div>
 
         {businessCreateError ? (
@@ -1400,7 +1412,7 @@ export default function NegociosPage() {
         <div
           style={{
             display: 'grid',
-            gap: 14,
+            gap: 10,
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
@@ -1410,7 +1422,7 @@ export default function NegociosPage() {
           }}
         >
           <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Lead</label>
+            <label style={businessCreateFieldLabelStyle}>Lead</label>
             <select
               value={businessCreateDraft.leadId}
               onChange={(event) =>
@@ -1419,18 +1431,7 @@ export default function NegociosPage() {
                   leadId: event.target.value
                 }))
               }
-              style={{
-                width: '100%',
-                height: 46,
-                border: '1px solid #d7dce4',
-                borderRadius: 10,
-                padding: '0 14px',
-                color: businessCreateDraft.leadId ? '#111827' : '#6b7280',
-                fontSize: 17 / 1.2,
-                fontWeight: 600,
-                boxSizing: 'border-box',
-                background: '#ffffff'
-              }}
+              style={{ ...businessCreateSelectStyle, color: businessCreateDraft.leadId ? '#111827' : '#6b7280' }}
             >
               <option value="">Selecione</option>
               {activeLeads.map((lead, index) => (
@@ -1444,7 +1445,7 @@ export default function NegociosPage() {
           {businessCreateDraft.leadId ? (
             <>
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Tipo</label>
+                <label style={businessCreateFieldLabelStyle}>Tipo</label>
                 <select
                   value={businessCreateDraft.negotiationType}
                   onChange={(event) =>
@@ -1453,18 +1454,7 @@ export default function NegociosPage() {
                       negotiationType: event.target.value as '' | NegotiationType
                     }))
                   }
-                  style={{
-                    width: '100%',
-                    height: 46,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: businessCreateDraft.negotiationType ? '#111827' : '#6b7280',
-                    fontSize: 17 / 1.2,
-                    fontWeight: 600,
-                    boxSizing: 'border-box',
-                    background: '#ffffff'
-                  }}
+                  style={{ ...businessCreateSelectStyle, color: businessCreateDraft.negotiationType ? '#111827' : '#6b7280' }}
                 >
                   <option value="">Selecione</option>
                   <option value="service">Serviço</option>
@@ -1473,7 +1463,7 @@ export default function NegociosPage() {
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Nome</label>
+                <label style={businessCreateFieldLabelStyle}>Nome</label>
                 <input
                   type="text"
                   placeholder="Nome"
@@ -1481,20 +1471,12 @@ export default function NegociosPage() {
                   onChange={(event) =>
                     setBusinessCreateDraft((current) => ({ ...current, title: event.target.value }))
                   }
-                  style={{
-                    height: 46,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#111827',
-                    fontSize: 17 / 1.2,
-                    boxSizing: 'border-box'
-                  }}
+                  style={businessCreateInputStyle}
                 />
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Etapa</label>
+                <label style={businessCreateFieldLabelStyle}>Etapa</label>
                 <select
                   value={businessCreateDraft.stage}
                   onChange={(event) =>
@@ -1503,18 +1485,7 @@ export default function NegociosPage() {
                       stage: event.target.value as LeadStage
                     }))
                   }
-                  style={{
-                    width: '100%',
-                    height: 46,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#111827',
-                    fontSize: 17 / 1.2,
-                    fontWeight: 700,
-                    boxSizing: 'border-box',
-                    background: '#ffffff'
-                  }}
+                  style={businessCreateSelectStyle}
                 >
                   <option value="NEW">Novo</option>
                   <option value="CONTACTED">Contatado</option>
@@ -1525,7 +1496,7 @@ export default function NegociosPage() {
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Temperatura</label>
+                <label style={businessCreateFieldLabelStyle}>Temperatura</label>
                 <select
                   value={businessCreateDraft.temperature}
                   onChange={(event) =>
@@ -1534,18 +1505,7 @@ export default function NegociosPage() {
                       temperature: event.target.value as '' | NegotiationTemperature
                     }))
                   }
-                  style={{
-                    width: '100%',
-                    height: 46,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: businessCreateDraft.temperature ? '#111827' : '#6b7280',
-                    fontSize: 17 / 1.2,
-                    fontWeight: 600,
-                    boxSizing: 'border-box',
-                    background: '#ffffff'
-                  }}
+                  style={{ ...businessCreateSelectStyle, color: businessCreateDraft.temperature ? '#111827' : '#6b7280' }}
                 >
                   <option value="">Selecione</option>
                   <option value="hot">Quente</option>
@@ -1555,7 +1515,7 @@ export default function NegociosPage() {
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Valor (R$)</label>
+                <label style={businessCreateFieldLabelStyle}>Valor (R$)</label>
                 <input
                   type="text"
                   value={businessCreateDraft.value}
@@ -1566,37 +1526,19 @@ export default function NegociosPage() {
                     }))
                   }
                   inputMode="decimal"
-                  style={{
-                    height: 46,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#111827',
-                    fontSize: 17 / 1.2,
-                    boxSizing: 'border-box'
-                  }}
+                  style={businessCreateInputStyle}
                 />
               </div>
 
               <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: 17 / 1.3, fontWeight: 700 }}>Notas</label>
+                <label style={businessCreateFieldLabelStyle}>Notas</label>
                 <textarea
                   placeholder="Escreva uma observação..."
                   value={businessCreateDraft.notes}
                   onChange={(event) =>
                     setBusinessCreateDraft((current) => ({ ...current, notes: event.target.value }))
                   }
-                  style={{
-                    width: '100%',
-                    minHeight: 132,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '12px 14px',
-                    color: '#111827',
-                    fontSize: 17 / 1.2,
-                    resize: 'vertical',
-                    boxSizing: 'border-box'
-                  }}
+                  style={businessCreateTextareaStyle}
                 />
               </div>
             </>
@@ -1606,49 +1548,6 @@ export default function NegociosPage() {
             </p>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setBusinessCreateDraft(initialBusinessCreateDraft)
-                setBusinessCreateError(null)
-                navigate(`/negocios${location.search}`)
-              }}
-              style={{
-                minWidth: 120,
-                height: 42,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                background: '#ffffff',
-                color: '#0f172a',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void handleCreateBusiness()
-              }}
-              disabled={!canCreateBusiness}
-              style={{
-                minWidth: 120,
-                height: 42,
-                border: 'none',
-                borderRadius: 8,
-                background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
-              }}
-            >
-              Salvar
-            </button>
-          </div>
         </div>
         </section>
       </aside>
@@ -1670,8 +1569,11 @@ export default function NegociosPage() {
           overflow: 'hidden'
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Negócios</h1>
+          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+            Total {sortedNegocios.length}
+          </span>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
@@ -1988,7 +1890,7 @@ export default function NegociosPage() {
               negocio.closedAt ?? null
             )
             const leadName = leadNameById.get(negocio.leadId) ?? 'Lead sem nome'
-            const leadSourceTag = getSourceTagPresentation(
+            const leadSourceTag = getLeadSourceTagPresentation(
               leadSourceById.get(negocio.leadId) ?? ''
             )
 
@@ -2147,7 +2049,7 @@ export default function NegociosPage() {
                   )}
 
                   {leadSourceTag.label !== '-' ? (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: leadSourceTag.textColor, whiteSpace: 'nowrap', background: `${leadSourceTag.textColor}44`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: leadSourceTag.textColor, whiteSpace: 'nowrap', background: leadSourceTag.backgroundColor, border: `1px solid ${leadSourceTag.borderColor}`, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                       {leadSourceTag.icon ? (
                         <span style={tagIconStyle}>{leadSourceTag.icon}</span>
                       ) : null}
@@ -2568,9 +2470,6 @@ export default function NegociosPage() {
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-                  Origem
-                </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('type')} style={getHeaderSortButtonStyle('type', 'center')}>
                     Tipo <span>{getSortIndicator('type')}</span>
                   </button>
@@ -2591,11 +2490,14 @@ export default function NegociosPage() {
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                  Origem
+                </th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   <button type="button" onClick={() => handleSortToggle('value')} style={getHeaderSortButtonStyle('value', 'center')}>
                     Valor <span>{getSortIndicator('value')}</span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   Ações
                 </th>
               </tr>
@@ -2619,7 +2521,7 @@ export default function NegociosPage() {
                 )
                 const leadName =
                   leadNameById.get(negocio.leadId) ?? 'Lead sem nome'
-                const leadSourceTag = getSourceTagPresentation(
+                const leadSourceTag = getLeadSourceTagPresentation(
                   leadSourceById.get(negocio.leadId) ?? ''
                 )
 
@@ -2738,58 +2640,49 @@ export default function NegociosPage() {
                     onMouseLeave={() => setHoveredNegocioId(null)}
                   >
                     <td style={{ padding: '14px 16px', color: '#111827' }}>
-                      {negocio.title ?? 'Negócio sem nome'}
+                      <DelayedTooltip content={negocio.title ?? 'Negócio sem nome'}>
+                        <span
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'normal',
+                            lineHeight: '18px',
+                            fontSize: 14,
+                            fontWeight: 700
+                          }}
+                        >
+                          {negocio.title ?? 'Negócio sem nome'}
+                        </span>
+                      </DelayedTooltip>
                     </td>
                     <td
                       style={{
                         padding: wrappedBusinessLeadNames[negocio.id]
                           ? '6px 16px'
                           : '14px 16px',
-                        color: '#111827'
+                        color: '#64748b'
                       }}
                     >
-                      <span
-                        ref={(element) => {
-                          setBusinessLeadNameRef(negocio.id, element)
-                        }}
-                        style={{
-                          display: 'inline-block',
-                          maxWidth: '100%',
-                          lineHeight: 1.25,
-                          whiteSpace: 'normal',
-                          wordBreak: 'break-word'
-                        }}
-                      >
-                        {leadName}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {leadSourceTag.label === '-' ? (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                      ) : (
+                      <DelayedTooltip content={leadName}>
                         <span
+                          ref={(element) => {
+                            setBusinessLeadNameRef(negocio.id, element)
+                          }}
                           style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: leadSourceTag.textColor,
+                            display: 'block',
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                            background: `${leadSourceTag.textColor}44`,
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1.1
+                            fontSize: 14
                           }}
                         >
-                          {leadSourceTag.icon ? (
-                            <span style={tagIconStyle}>{leadSourceTag.icon}</span>
-                          ) : null}
-                          <span style={tagContentStyle}>{leadSourceTag.label}</span>
+                          {leadName}
                         </span>
-                      )}
-                      </div>
+                      </DelayedTooltip>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {businessTypeLabel === '-' ? (
@@ -2879,6 +2772,35 @@ export default function NegociosPage() {
                       )}
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {leadSourceTag.label === '-' ? (
+                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: leadSourceTag.textColor,
+                            whiteSpace: 'nowrap',
+                            background: leadSourceTag.backgroundColor,
+                            border: `1px solid ${leadSourceTag.borderColor}`,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1
+                          }}
+                        >
+                          {leadSourceTag.icon ? (
+                            <span style={tagIconStyle}>{leadSourceTag.icon}</span>
+                          ) : null}
+                          <span style={tagContentStyle}>{leadSourceTag.label}</span>
+                        </span>
+                      )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {formatLeadValue(negocio.value) === '-' ? (
                         <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
                       ) : (
@@ -2917,13 +2839,11 @@ export default function NegociosPage() {
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -2938,22 +2858,14 @@ export default function NegociosPage() {
                           onClick={() => {
                             setConfirmingDeleteNegocioId(negocio.id)
                           }}
-                          onMouseEnter={(event) => {
-                            event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                          }}
-                          onMouseLeave={(event) => {
-                            event.currentTarget.style.background = '#ffffff'
-                          }}
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -2989,9 +2901,7 @@ export default function NegociosPage() {
             padding: '0 8px'
           }}
         >
-          <span>
-            {sortedNegocios.length} negócio{sortedNegocios.length === 1 ? '' : 's'}
-          </span>
+          <span>Total {sortedNegocios.length}</span>
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}
@@ -3054,26 +2964,27 @@ export default function NegociosPage() {
                     </h2>
                   </div>
 
-                  <button
-                    type="button"
-                    aria-label="Fechar criação de negócio"
-                    onClick={() => navigate('/negocios')}
-                    style={{
-                      height: 28,
-                      minWidth: 28,
-                      border: 'none',
-                      borderRadius: 6,
-                      background: 'transparent',
-                      color: '#6b7280',
-                      padding: '0 8px',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      lineHeight: 1
-                    }}
-                  >
-                    X
-                  </button>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <button
+                      type="button"
+                      aria-label="Salvar negócio"
+                      title="Salvar negócio"
+                      onClick={() => void handleCreateBusiness()}
+                      disabled={!canCreateBusiness}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateBusiness ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateBusiness ? 'pointer' : 'not-allowed' }}
+                    >
+                      <Save size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Fechar criação de negócio"
+                      title="Fechar criação"
+                      onClick={() => navigate('/negocios')}
+                      style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+                    >
+                      X
+                    </button>
+                  </div>
                 </div>
 
                 {businessCreateError ? (
@@ -3104,12 +3015,12 @@ export default function NegociosPage() {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'minmax(0, 1fr)',
-                      gap: 12,
+                      gap: 10,
                       alignContent: 'start'
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</label>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={businessCreateFieldLabelStyle}>Lead</label>
                       <select
                         value={businessCreateDraft.leadId}
                         onChange={(event) =>
@@ -3118,16 +3029,7 @@ export default function NegociosPage() {
                             leadId: event.target.value
                           }))
                         }
-                        style={{
-                          width: '100%',
-                          height: 36,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 10px',
-                          fontSize: 14,
-                          color: '#111827',
-                          boxSizing: 'border-box'
-                        }}
+                        style={{ ...businessCreateSelectStyle, color: businessCreateDraft.leadId ? '#111827' : '#6b7280' }}
                       >
                         <option value="">Selecione</option>
                         {activeLeads.map((lead, index) => (
@@ -3140,8 +3042,8 @@ export default function NegociosPage() {
 
                   {businessCreateDraft.leadId ? (
                     <>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Tipo</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={businessCreateFieldLabelStyle}>Tipo</label>
                         <select
                           value={businessCreateDraft.negotiationType}
                           onChange={(event) =>
@@ -3150,16 +3052,7 @@ export default function NegociosPage() {
                               negotiationType: event.target.value as '' | NegotiationType
                             }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            fontSize: 14,
-                            color: '#111827',
-                            boxSizing: 'border-box'
-                          }}
+                          style={{ ...businessCreateSelectStyle, color: businessCreateDraft.negotiationType ? '#111827' : '#6b7280' }}
                         >
                           <option value="">Selecione</option>
                           <option value="service">Serviço</option>
@@ -3167,8 +3060,8 @@ export default function NegociosPage() {
                         </select>
                       </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={businessCreateFieldLabelStyle}>Nome</label>
                         <input
                           type="text"
                           placeholder="Nome"
@@ -3176,21 +3069,12 @@ export default function NegociosPage() {
                           onChange={(event) =>
                             setBusinessCreateDraft((current) => ({ ...current, title: event.target.value }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            color: '#111827',
-                            fontSize: 16,
-                            boxSizing: 'border-box'
-                          }}
+                          style={businessCreateInputStyle}
                         />
                       </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Etapa</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={businessCreateFieldLabelStyle}>Etapa</label>
                         <select
                           value={businessCreateDraft.stage}
                           onChange={(event) =>
@@ -3199,16 +3083,7 @@ export default function NegociosPage() {
                               stage: event.target.value as LeadStage
                             }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            fontSize: 14,
-                            color: '#111827',
-                            boxSizing: 'border-box'
-                          }}
+                          style={businessCreateSelectStyle}
                         >
                           <option value="NEW">Novo</option>
                           <option value="CONTACTED">Contatado</option>
@@ -3218,8 +3093,8 @@ export default function NegociosPage() {
                         </select>
                       </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Temperatura</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={businessCreateFieldLabelStyle}>Temperatura</label>
                         <select
                           value={businessCreateDraft.temperature}
                           onChange={(event) =>
@@ -3228,16 +3103,7 @@ export default function NegociosPage() {
                               temperature: event.target.value as '' | NegotiationTemperature
                             }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            fontSize: 14,
-                            color: '#111827',
-                            boxSizing: 'border-box'
-                          }}
+                          style={{ ...businessCreateSelectStyle, color: businessCreateDraft.temperature ? '#111827' : '#6b7280' }}
                         >
                           <option value="">Selecione</option>
                           <option value="hot">Quente</option>
@@ -3246,8 +3112,8 @@ export default function NegociosPage() {
                         </select>
                       </div>
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Valor (R$)</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={businessCreateFieldLabelStyle}>Valor (R$)</label>
                         <input
                           type="text"
                           value={businessCreateDraft.value}
@@ -3258,16 +3124,7 @@ export default function NegociosPage() {
                             }))
                           }
                           inputMode="decimal"
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            color: '#111827',
-                            fontSize: 16,
-                            boxSizing: 'border-box'
-                          }}
+                          style={businessCreateInputStyle}
                         />
                       </div>
                     </>
@@ -3279,72 +3136,19 @@ export default function NegociosPage() {
                   </div>
 
                 {businessCreateDraft.leadId ? (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Notas</label>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <label style={businessCreateFieldLabelStyle}>Notas</label>
                     <textarea
                       placeholder="Escreva uma observação..."
                       value={businessCreateDraft.notes}
                       onChange={(event) =>
                         setBusinessCreateDraft((current) => ({ ...current, notes: event.target.value }))
                       }
-                      style={{
-                        width: '100%',
-                        minHeight: 132,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '12px 10px',
-                        color: '#111827',
-                        fontSize: 16,
-                        resize: 'vertical',
-                        boxSizing: 'border-box'
-                      }}
+                      style={businessCreateTextareaStyle}
                     />
                   </div>
                 ) : null}
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBusinessCreateDraft(initialBusinessCreateDraft)
-                        setBusinessCreateError(null)
-                        navigate('/negocios')
-                      }}
-                      style={{
-                        minWidth: 120,
-                        height: 42,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#0f172a',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleCreateBusiness()
-                      }}
-                      disabled={!canCreateBusiness}
-                      style={{
-                        minWidth: 120,
-                        height: 42,
-                        border: 'none',
-                        borderRadius: 8,
-                        background: canCreateBusiness ? '#1f7a4d' : '#9ca3af',
-                        color: '#ffffff',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        cursor: canCreateBusiness ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      Salvar
-                    </button>
-                  </div>
                 </article>
               </section>
             ) : (

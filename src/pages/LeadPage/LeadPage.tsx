@@ -13,16 +13,15 @@ import {
   Download,
   Facebook,
   Flame,
-  Handshake,
   Mail,
   MapPin,
-  MessageCircle,
   MoreVertical,
   Package,
+  Pencil,
   Phone,
+  Save,
   Link2,
   Instagram,
-  Search,
   Star,
   Snowflake,
   Sun,
@@ -41,6 +40,24 @@ import 'react-day-picker/style.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
+import {
+  fromFollowUpActionResponse,
+  initialFollowUpActionDraft,
+  isFollowUpActionDraftValid,
+  toFollowUpActionPayload
+} from '../../core/components/followUpActionDraft'
+import type { FollowUpActionDraft } from '../../core/components/followUpActionDraft'
+import { getFollowUpStatusPresentation } from '../../core/components/followUpStatusPresentation'
+import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
+import {
+  formatLeadPhoneInput,
+  formatStoredLeadPhoneInput,
+  isLeadPhoneComplete,
+  isLeadPhoneValidForSource,
+  toPersistedLeadPhone
+} from '../../core/utils/leadPhone'
 import {
   formatDate,
   formatDateTime,
@@ -58,7 +75,6 @@ import type {
   LeadSocialLinkKey,
   LeadStage,
   LeadRuntimeMode,
-  MessageTemplateResponse,
   NegotiationFollowUpResponse,
   NegotiationAttachmentResponse,
   NegotiationNote,
@@ -98,9 +114,28 @@ const initialLeadInfoDraft = {
   qualification: '',
   socialLinks: {
     instagram: '',
+    facebook: '',
     url: ''
   },
   selectedSocialLinks: [] as LeadSocialLinkKey[]
+}
+
+const leadSourceOptions = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'messenger', label: 'Messenger' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'Meta Ads', label: 'Meta Ads' },
+  { value: 'googleads', label: 'Google Ads' },
+  { value: 'indicacao', label: 'Indicação' }
+] as const
+
+const createLeadSourceOptions = leadSourceOptions.filter(
+  ({ value }) => value !== 'messenger' && value !== 'direct'
+)
+
+const resolveLeadSourceOptionValue = (source: string): string => {
+  const normalizedSource = source.trim().toLowerCase().replace(/[\s_-]+/g, '')
+  return normalizedSource === 'metaads' ? 'Meta Ads' : source.trim().toLowerCase()
 }
 
 const leadTabs: Array<{ key: LeadTabKey; label: string }> = [
@@ -142,8 +177,7 @@ type NewLeadTabNoteDraft = {
 
 type NewBusinessFollowUpDraft = {
   title: string
-  templateId: string
-  templateVariables: Record<string, string>
+  action: FollowUpActionDraft
   dueAt: string
   status: LeadFollowUpResponse['status']
 }
@@ -151,12 +185,43 @@ type NewBusinessFollowUpDraft = {
 type AgendaFollowUpDraft = {
   negotiationId: string
   title: string
-  templateId: string
-  templateVariables: Record<string, string>
+  action: FollowUpActionDraft
   dueAt: string
 }
 
 type BusinessInnerTabKey = 'informacoes' | 'followups' | 'arquivos' | 'notas'
+
+const getFollowUpChannelTagPresentation = (
+  actions: NegotiationFollowUpResponse['actions']
+) => {
+  const channel = actions.find((action) => action.type === 'send_message')?.channel
+
+  if (channel === 'Agenda') {
+    return {
+      label: 'Agenda',
+      textColor: '#6d28d9',
+      backgroundColor: '#f5f3ff',
+      borderColor: '#ddd6fe',
+      icon: <CalendarClock size={12} />
+    }
+  }
+
+  if (channel) {
+    return getLeadSourceTagPresentation(channel, '')
+  }
+
+  if (actions.some((action) => action.type === 'send_email')) {
+    return {
+      label: 'Email',
+      textColor: '#1d4ed8',
+      backgroundColor: '#eff6ff',
+      borderColor: '#bfdbfe',
+      icon: <Mail size={12} />
+    }
+  }
+
+  return null
+}
 
 const initialNewBusinessDraft: NewBusinessDraft = {
   negotiationType: '',
@@ -180,8 +245,7 @@ const initialNewLeadTabNoteDraft: NewLeadTabNoteDraft = {
 
 const initialNewBusinessFollowUpDraft: NewBusinessFollowUpDraft = {
   title: '',
-  templateId: '',
-  templateVariables: {},
+  action: initialFollowUpActionDraft,
   dueAt: '',
   status: 'pending'
 }
@@ -189,8 +253,7 @@ const initialNewBusinessFollowUpDraft: NewBusinessFollowUpDraft = {
 const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   negotiationId: '',
   title: '',
-  templateId: '',
-  templateVariables: {},
+  action: initialFollowUpActionDraft,
   dueAt: ''
 }
 
@@ -371,7 +434,7 @@ function FollowUpDateTimeInput({
         <div
           style={{
             position: 'absolute',
-            top: 'calc(100% + 8px)',
+            bottom: 'calc(100% + 8px)',
             left: 0,
             border: '1px solid #e2e8f0',
             borderRadius: 12,
@@ -417,71 +480,6 @@ const formatFileSize = (sizeInBytes: number): string => {
   return `${sizeInMb.toFixed(1)} MB`
 }
 
-const normalizeTemplateVariableDraft = (
-  variables?: Record<string, unknown> | null
-): Record<string, string> => {
-  if (!variables) {
-    return {}
-  }
-
-  return Object.fromEntries(
-    Object.entries(variables).map(([key, value]) => [
-      key,
-      typeof value === 'string' ? value : value == null ? '' : String(value)
-    ])
-  )
-}
-
-const buildTemplateVariablesDraft = (
-  template: MessageTemplateResponse | null | undefined,
-  currentVariables?: Record<string, string>
-): Record<string, string> => {
-  if (!template?.variables?.length) {
-    return {}
-  }
-
-  return Object.fromEntries(
-    template.variables.map((variable) => [
-      variable.key,
-      currentVariables?.[variable.key] ?? ''
-    ])
-  )
-}
-
-const hasMissingRequiredTemplateVariables = (
-  template: MessageTemplateResponse | null | undefined,
-  variables: Record<string, string>
-): boolean => {
-  if (!template?.variables?.length) {
-    return false
-  }
-
-  return template.variables.some(
-    (variable) => variable.required && !String(variables[variable.key] ?? '').trim()
-  )
-}
-
-const interpolateTemplateDescription = (
-  description: string | null | undefined,
-  variables?: Record<string, unknown> | null
-): string => {
-  if (!description) {
-    return ''
-  }
-
-  return description.replace(/{{\s*([^{}]+?)\s*}}/g, (_match, rawKey: string) => {
-    const key = rawKey.trim()
-    const value = variables?.[key]
-
-    if (value === null || value === undefined) {
-      return `{{${key}}}`
-    }
-
-    const text = String(value).trim()
-    return text || `{{${key}}}`
-  })
-}
-
 const tagIconStyle = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -499,97 +497,12 @@ const tagContentStyle = {
   verticalAlign: 'middle' as const
 }
 
-const getLeadPhoneLocalDigits = (value: string): string => {
-  const digits = value.replace(/\D/g, '')
-
-  if (!digits) {
-    return ''
-  }
-
-  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
-    return digits.slice(2)
-  }
-
-  return digits.slice(0, 11)
-}
-
-const formatLeadPhoneInput = (value: string): string => {
-  const localDigits = getLeadPhoneLocalDigits(value)
-
-  if (!localDigits) {
-    return ''
-  }
-
-  const ddd = localDigits.slice(0, 2)
-  const numberPart = localDigits.slice(2)
-
-  if (localDigits.length <= 2) {
-    return `(${ddd}`
-  }
-
-  if (numberPart.length <= 4) {
-    return `(${ddd})${numberPart}`
-  }
-
-  if (numberPart.length <= 8) {
-    return `(${ddd})${numberPart.slice(0, 4)}-${numberPart.slice(4)}`
-  }
-
-  return `(${ddd})${numberPart.slice(0, 5)}-${numberPart.slice(5, 9)}`
-}
-
-const isLeadPhoneComplete = (value: string): boolean => {
-  const localDigits = getLeadPhoneLocalDigits(value)
-  return localDigits.length === 10 || localDigits.length === 11
-}
-
-const toPersistedLeadPhone = (value: string): string => {
-  const localDigits = getLeadPhoneLocalDigits(value)
-  return `55${localDigits}`
-}
-
 const formatPhoneNumber = (value: string): string => {
-  const localDigits = getLeadPhoneLocalDigits(value)
-
-  if (!localDigits) {
+  const formattedPhone = formatStoredLeadPhoneInput(value)
+  if (!formattedPhone || !isLeadPhoneValidForSource(formattedPhone, 'whatsapp')) {
     return '-'
   }
-
-  if (localDigits.length !== 10 && localDigits.length !== 11) {
-    return '-'
-  }
-
-  return formatLeadPhoneInput(localDigits)
-}
-
-const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  if (normalizedSource === 'metaads') {
-    return { label: 'Meta Ads', textColor: '#1877f2', icon: <Facebook size={12} /> }
-  }
-
-  if (normalizedSource === 'googleads') {
-    return {
-      label: 'Google Ads',
-      textColor: '#FBBC04',
-      icon: <Search size={12} />
-    }
-  }
-
-  if (normalizedSource === 'whatsapp') {
-    return { label: 'WhatsApp', textColor: '#15803d', icon: <MessageCircle size={12} /> }
-  }
-
-  if (normalizedSource === 'indicacao') {
-    return { label: 'Indicação', textColor: '#0f766e', icon: <Handshake size={12} /> }
-  }
-
-  return { label: source || '-', textColor: '#6b7280' }
+  return formattedPhone
 }
 
 const getTemperatureTagPresentation = (temperature: string): TagPresentation => {
@@ -939,7 +852,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const [followUpsTotalItems, setFollowUpsTotalItems] = useState<number>(0)
   const [statusSortFocus, setStatusSortFocus] = useState<FollowUpSortFocus>('overdue')
   const [dateSortOrder, setDateSortOrder] = useState<FollowUpDateSortOrder>('asc')
-  const [messageTemplates, setMessageTemplates] = useState<MessageTemplateResponse[]>([])
   const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(null)
   const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] = useState<boolean>(false)
   const [agendaFollowUpDraft, setAgendaFollowUpDraft] = useState<AgendaFollowUpDraft>(
@@ -955,6 +867,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     qualification: string
     socialLinks: {
       instagram: string
+      facebook: string
       url: string
     }
     selectedSocialLinks: LeadSocialLinkKey[]
@@ -964,6 +877,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const [isConfirmingLeadDelete, setIsConfirmingLeadDelete] = useState<boolean>(false)
   const [isConfirmingLeadArchive, setIsConfirmingLeadArchive] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<LeadTabKey>('geral')
+  const leadTabBeforeEditRef = useRef<LeadTabKey>('geral')
   const [, setNotesDraft] = useState<string>('')
   const [selectedLeadNotesBusinessId, setSelectedLeadNotesBusinessId] = useState<string>('')
   const [isCreatingBusinessNote, setIsCreatingBusinessNote] = useState<boolean>(false)
@@ -1068,10 +982,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     }
 
     const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
 
-    if (parsedDate < startOfToday) {
+    if (parsedDate < now) {
       return 'overdue'
     }
 
@@ -1080,38 +993,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     }
 
     return 'scheduled'
-  }
-
-  const getFollowUpLifecycleStatusTag = (status: LeadFollowUpResponse['status']) => {
-    if (status === 'done') {
-      return {
-        label: 'Concluído',
-        textColor: '#166534',
-        background: '#dcfce7'
-      }
-    }
-
-    if (status === 'canceled') {
-      return {
-        label: 'Cancelado',
-        textColor: '#b91c1c',
-        background: '#fee2e2'
-      }
-    }
-
-    if (status === 'skipped') {
-      return {
-        label: 'Ignorado',
-        textColor: '#7c2d12',
-        background: '#ffedd5'
-      }
-    }
-
-    return {
-      label: 'Pendente',
-      textColor: '#1d4ed8',
-      background: '#dbeafe'
-    }
   }
 
   const getFollowUpDateTagColors = (status: FollowUpVisualStatus) => {
@@ -1146,8 +1027,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     negotiationId: string,
     title: string,
     dueAt: string,
-    templateId?: string,
-    templateVariables?: Record<string, string>
+    action: FollowUpActionDraft
   ) => {
     if (!leadId) {
       throw new Error('Lead nao informado.')
@@ -1157,13 +1037,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     await WebhookService.createNegotiationFollowUp({
       negotiationId,
       title,
-      templateId: templateId?.trim() || null,
-      templateVariables:
-        templateId?.trim() && templateVariables
-          ? Object.fromEntries(
-              Object.entries(templateVariables).filter(([, value]) => String(value).trim())
-            )
-          : {},
+      actions: [toFollowUpActionPayload(action)],
       dueAt
     })
     await refreshLeadNegotiations(leadId)
@@ -1175,17 +1049,13 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       throw new Error('Lead nao informado.')
     }
 
-    const selectedTemplate = messageTemplates.find(
-      (template) => template.id === agendaFollowUpDraft.templateId
-    ) ?? null
-
-    if (!agendaFollowUpDraft.negotiationId || !agendaFollowUpDraft.title.trim() || !agendaFollowUpDraft.dueAt) {
-      setFollowUpsError('Preencha negócio, título e data/hora.')
-      return
-    }
-
-    if (hasMissingRequiredTemplateVariables(selectedTemplate, agendaFollowUpDraft.templateVariables)) {
-      setFollowUpsError('Preencha as variáveis obrigatórias do template.')
+    if (
+      !agendaFollowUpDraft.negotiationId ||
+      !agendaFollowUpDraft.title.trim() ||
+      !isFollowUpActionDraftValid(agendaFollowUpDraft.action) ||
+      !agendaFollowUpDraft.dueAt
+    ) {
+      setFollowUpsError('Preencha negócio, título, ação e data/hora.')
       return
     }
 
@@ -1194,12 +1064,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
-        templateId: agendaFollowUpDraft.templateId.trim() || null,
-        templateVariables: agendaFollowUpDraft.templateId.trim()
-          ? Object.fromEntries(
-              Object.entries(agendaFollowUpDraft.templateVariables).filter(([, value]) => String(value).trim())
-            )
-          : {},
+        actions: [toFollowUpActionPayload(agendaFollowUpDraft.action)],
         dueAt: agendaFollowUpDraft.dueAt
       })
 
@@ -1209,8 +1074,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setAgendaFollowUpDraft((currentDraft) => ({
         ...currentDraft,
         title: '',
-        templateId: '',
-        templateVariables: {},
+        action: initialFollowUpActionDraft,
         dueAt: ''
       }))
       setIsCreatingAgendaFollowUp(false)
@@ -1230,8 +1094,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     followUpId: string,
     title: string,
     dueAt: string,
-    templateId?: string,
-    templateVariables?: Record<string, string>,
+    action: FollowUpActionDraft,
     status?: LeadFollowUpResponse['status']
   ) => {
     if (!leadId) {
@@ -1242,14 +1105,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setBusinessesError(null)
       await WebhookService.updateNegotiationFollowUp(followUpId, {
         title,
-        templateId: templateId?.trim() || null,
-        templateVariables:
-          templateId?.trim() && templateVariables
-            ? Object.fromEntries(
-                Object.entries(templateVariables).filter(([, value]) => String(value).trim())
-              )
-            : {},
         dueAt,
+        actions: [toFollowUpActionPayload(action)],
         status
       })
       await refreshLeadNegotiations(leadId)
@@ -1415,11 +1272,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
   const syncInfoDraftFromLead = () => {
     const instagramValue = leadData?.socialLinks?.instagram?.trim() ?? ''
+    const facebookValue = leadData?.socialLinks?.facebook?.trim() ?? ''
     const urlValue = leadData?.socialLinks?.url?.trim() ?? ''
     const selectedSocialLinks: LeadSocialLinkKey[] = []
 
     if (instagramValue) {
       selectedSocialLinks.push('instagram')
+    }
+
+    if (facebookValue) {
+      selectedSocialLinks.push('facebook')
     }
 
     if (urlValue) {
@@ -1428,7 +1290,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
     setInfoDraft({
       name: leadData?.name?.trim() ?? '',
-      phone: formatLeadPhoneInput(leadData?.phone?.trim() ?? ''),
+      phone: formatStoredLeadPhoneInput(leadData?.phone?.trim() ?? ''),
       email: leadData?.email?.trim() ?? '',
       source: leadData?.source?.trim() ?? '',
       location: leadData?.location?.trim() ?? '',
@@ -1436,6 +1298,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       qualification: leadData?.initialContext?.trim() ?? '',
       socialLinks: {
         instagram: instagramValue,
+        facebook: facebookValue,
         url: urlValue
       },
       selectedSocialLinks
@@ -1477,14 +1340,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
   const canSaveLeadInfo = Boolean(
     infoDraft.name.trim() &&
-    isLeadPhoneComplete(infoDraft.phone)
+    isLeadPhoneValidForSource(infoDraft.phone, infoDraft.source)
   )
 
   const handleSaveLeadInfo = async () => {
     if (!leadId || !leadData) return
 
     try {
-      if (!isLeadPhoneComplete(infoDraft.phone)) {
+      if (!isLeadPhoneValidForSource(infoDraft.phone, infoDraft.source)) {
         setError('Telefone inválido. Informe DDD + número com 8 ou 9 dígitos.')
         return
       }
@@ -1492,11 +1355,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       const trimmedEmail = infoDraft.email.trim()
       const persistedPhone = toPersistedLeadPhone(infoDraft.phone)
       const trimmedInstagram = infoDraft.socialLinks.instagram.trim()
+      const trimmedFacebook = infoDraft.socialLinks.facebook.trim()
       const trimmedUrl = infoDraft.socialLinks.url.trim()
       const socialLinksPayload: Partial<Record<LeadSocialLinkKey, string>> = {}
 
       if (infoDraft.selectedSocialLinks.includes('instagram') && trimmedInstagram) {
         socialLinksPayload.instagram = trimmedInstagram
+      }
+
+      if (infoDraft.selectedSocialLinks.includes('facebook') && trimmedFacebook) {
+        socialLinksPayload.facebook = trimmedFacebook
       }
 
       if (infoDraft.selectedSocialLinks.includes('url') && trimmedUrl) {
@@ -1536,11 +1404,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const trimmedEmail = infoDraft.email.trim()
     const trimmedSource = infoDraft.source.trim()
     const trimmedInstagram = infoDraft.socialLinks.instagram.trim()
+    const trimmedFacebook = infoDraft.socialLinks.facebook.trim()
     const trimmedUrl = infoDraft.socialLinks.url.trim()
     const socialLinksPayload: Partial<Record<LeadSocialLinkKey, string>> = {}
 
     if (infoDraft.selectedSocialLinks.includes('instagram') && trimmedInstagram) {
       socialLinksPayload.instagram = trimmedInstagram
+    }
+
+    if (infoDraft.selectedSocialLinks.includes('facebook') && trimmedFacebook) {
+      socialLinksPayload.facebook = trimmedFacebook
     }
 
     if (infoDraft.selectedSocialLinks.includes('url') && trimmedUrl) {
@@ -1549,8 +1422,13 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
     const hasSocialLinks = Object.keys(socialLinksPayload).length > 0
 
-    if (!trimmedName || !isLeadPhoneComplete(infoDraft.phone)) {
-      setError('Preencha nome e telefone válido (DDD + 8 ou 9 dígitos).')
+    if (!trimmedName) {
+      setError('Preencha o nome do lead.')
+      return
+    }
+
+    if (!isLeadPhoneComplete(infoDraft.phone)) {
+      setError('Telefone inválido. Informe DDD + número com 8 ou 9 dígitos.')
       return
     }
 
@@ -1576,6 +1454,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }
 
   const handleStartLeadInfoEdit = () => {
+    leadTabBeforeEditRef.current = activeTab
     handleLeadTabChange('geral')
     syncInfoDraftFromLead()
     setIsEditingLeadInfo(true)
@@ -1587,6 +1466,10 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const handleCancelLeadInfoEdit = () => {
     syncInfoDraftFromLead()
     setIsEditingLeadInfo(false)
+
+    if (leadTabBeforeEditRef.current !== activeTab) {
+      handleLeadTabChange(leadTabBeforeEditRef.current)
+    }
   }
 
   const handleDeleteLead = async () => {
@@ -1674,6 +1557,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     setFollowUpsTotalItems(leadRelatedFollowUps.length)
     setBusinessesError(null)
   }
+
+  useEffect(() => {
+    if (!leadId || isCreateLeadMode) return
+
+    const refreshInterval = window.setInterval(() => {
+      void refreshLeadNegotiations(leadId)
+    }, 60_000)
+
+    return () => window.clearInterval(refreshInterval)
+  }, [isCreateLeadMode, leadId])
 
   const handleLeadTabChange = (nextTab: LeadTabKey) => {
     if (nextTab === activeTab) return
@@ -2107,12 +2000,33 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const totalLostValueLabel = formatLeadValue(totalLostValue.toFixed(2))
     const emailLabel = leadData?.email?.trim() || '-'
     const instagramLabel = leadData?.socialLinks?.instagram?.trim() || '-'
+    const facebookLabel = leadData?.socialLinks?.facebook?.trim() || '-'
     const urlLabel = leadData?.socialLinks?.url?.trim() || '-'
     const leadQualificationTagPresentation = getLeadQualificationTagPresentation(
       leadData?.leadQualification ?? null
     )
 
-    const sourceTagPresentation = getSourceTagPresentation(leadData?.source?.trim() || '')
+    const sourceTagPresentation = getLeadSourceTagPresentation(leadData?.source)
+    const leadEditFieldLabelStyle = {
+      color: '#1f2937',
+      fontSize: isMobile ? 17 / 1.3 : 13,
+      fontWeight: 700
+    } as const
+    const leadEditInputStyle = {
+      width: '100%',
+      height: isMobile ? 46 : 42,
+      border: '1px solid #d7dce4',
+      borderRadius: 10,
+      padding: '0 14px',
+      color: '#111827',
+      fontSize: isMobile ? 17 / 1.2 : 14,
+      boxSizing: 'border-box',
+      background: '#ffffff'
+    } as const
+    const leadEditSelectStyle = {
+      ...leadEditInputStyle,
+      fontWeight: 600
+    } as const
 
     return (
       <section
@@ -2121,9 +2035,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 10,
-          height: '100%',
-          minHeight: 0,
-          overflowY: 'auto',
+          height: isMobile ? '100%' : 'auto',
+          width: '100%',
+          minWidth: 0,
+          minHeight: isMobile ? 0 : '100%',
+          overflowY: isMobile ? 'auto' : 'visible',
           paddingRight: isMobile ? 0 : 4,
           boxSizing: 'border-box'
         }}
@@ -2324,30 +2240,30 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 border: 'none',
                 borderRadius: 0,
                 padding: 0,
-                marginTop: 10,
+                marginTop: isEditingLeadInfo ? 0 : 10,
                 background: '#ffffff'
               }}
             >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!isEditingLeadInfo ? <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
                   <CircleUserRound size={15} />
                 </span>
                 <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Informações</h3>
               </div>
-            </div>
+            </div> : null}
 
             {isEditingLeadInfo ? (
               <div
                 style={{
-                  marginTop: 12,
+                  marginTop: 0,
                   display: 'grid',
-                  gap: 14,
-                  maxWidth: 520
+                  gap: 16,
+                  width: '100%'
                 }}
               >
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Nome</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Nome</span>
                   <input
                     type="text"
                     value={infoDraft.name}
@@ -2355,21 +2271,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       setInfoDraft((current) => ({ ...current, name: event.target.value }))
                     }
                     autoComplete="new-password"
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 16,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditInputStyle}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Telefone</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Telefone</span>
                   <input
                     type="text"
                     value={infoDraft.phone}
@@ -2379,21 +2286,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     autoComplete="new-password"
                     maxLength={14}
                     inputMode="numeric"
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 16,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditInputStyle}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Email</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Email</span>
                   <input
                     type="email"
                     value={infoDraft.email}
@@ -2401,46 +2299,29 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       setInfoDraft((current) => ({ ...current, email: event.target.value }))
                     }
                     autoComplete="new-password"
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 16,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditInputStyle}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Origem</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Origem</span>
                   <select
-                    value={infoDraft.source.toLowerCase()}
+                    value={resolveLeadSourceOptionValue(infoDraft.source)}
                     onChange={(event) =>
                       setInfoDraft((current) => ({ ...current, source: event.target.value }))
                     }
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 14,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditSelectStyle}
                   >
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="metaads">MetaAds</option>
-                    <option value="googleads">Google Ads</option>
-                    <option value="indicacao">Indicação</option>
+                      {leadSourceOptions.map((sourceOption) => (
+                        <option key={sourceOption.value} value={sourceOption.value}>
+                          {sourceOption.label}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Localização</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Localização</span>
                   <input
                     type="text"
                     value={infoDraft.location}
@@ -2448,21 +2329,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       setInfoDraft((current) => ({ ...current, location: event.target.value }))
                     }
                     autoComplete="new-password"
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 16,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditInputStyle}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Qualificação</span>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={leadEditFieldLabelStyle}>Qualificação</span>
                   <select
                     value={infoDraft.leadQualification}
                     onChange={(event) =>
@@ -2471,16 +2343,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         leadQualification: event.target.value as '' | 'qualify' | 'not qualify'
                       }))
                     }
-                    style={{
-                      width: '100%',
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      padding: '0 12px',
-                      fontSize: 14,
-                      color: '#111827',
-                      boxSizing: 'border-box'
-                    }}
+                    style={leadEditSelectStyle}
                   >
                     <option value="">Não definido</option>
                     <option value="qualify">Qualificado</option>
@@ -2489,7 +2352,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 </div>
 
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Links</span>
+                  <span style={leadEditFieldLabelStyle}>Links</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
                     <label
                       style={{
@@ -2543,6 +2406,45 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     >
                       <input
                         type="checkbox"
+                        checked={infoDraft.selectedSocialLinks.includes('facebook')}
+                        onChange={() => {
+                          setInfoDraft((current) => {
+                            const isSelected = current.selectedSocialLinks.includes('facebook')
+
+                            if (isSelected) {
+                              return {
+                                ...current,
+                                selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'facebook'),
+                                socialLinks: {
+                                  ...current.socialLinks,
+                                  facebook: ''
+                                }
+                              }
+                            }
+
+                            return {
+                              ...current,
+                              selectedSocialLinks: [...current.selectedSocialLinks, 'facebook']
+                            }
+                          })
+                        }}
+                      />
+                      Facebook
+                    </label>
+
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: '#334155',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
                         checked={infoDraft.selectedSocialLinks.includes('url')}
                         onChange={() => {
                           setInfoDraft((current) => {
@@ -2572,8 +2474,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 </div>
 
                 {infoDraft.selectedSocialLinks.includes('instagram') ? (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Instagram</span>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <span style={leadEditFieldLabelStyle}>Instagram</span>
                     <input
                       type="text"
                       value={infoDraft.socialLinks.instagram}
@@ -2587,23 +2489,35 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         }))
                       }
                       placeholder="@usuario ou link"
-                      style={{
-                        width: '100%',
-                        height: 42,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 12px',
-                        fontSize: 16,
-                        color: '#111827',
-                        boxSizing: 'border-box'
-                      }}
+                      style={leadEditInputStyle}
+                    />
+                  </div>
+                ) : null}
+
+                {infoDraft.selectedSocialLinks.includes('facebook') ? (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <span style={leadEditFieldLabelStyle}>Facebook</span>
+                    <input
+                      type="text"
+                      value={infoDraft.socialLinks.facebook}
+                      onChange={(event) =>
+                        setInfoDraft((current) => ({
+                          ...current,
+                          socialLinks: {
+                            ...current.socialLinks,
+                            facebook: event.target.value
+                          }
+                        }))
+                      }
+                      placeholder="Perfil ou link"
+                      style={leadEditInputStyle}
                     />
                   </div>
                 ) : null}
 
                 {infoDraft.selectedSocialLinks.includes('url') ? (
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>URL</span>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <span style={leadEditFieldLabelStyle}>URL</span>
                     <input
                       type="text"
                       value={infoDraft.socialLinks.url}
@@ -2617,60 +2531,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         }))
                       }
                       placeholder="https://"
-                      style={{
-                        width: '100%',
-                        height: 42,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 12px',
-                        fontSize: 16,
-                        color: '#111827',
-                        boxSizing: 'border-box'
-                      }}
+                      style={leadEditInputStyle}
                     />
                   </div>
                 ) : null}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleCancelLeadInfoEdit}
-                  style={{
-                    minWidth: 100,
-                    height: 36,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSaveLeadInfo()
-                  }}
-                  disabled={!canSaveLeadInfo}
-                  style={{
-                    minWidth: 100,
-                    height: 36,
-                    border: 'none',
-                    borderRadius: 8,
-                    background: canSaveLeadInfo ? '#1f7a4d' : '#9ca3af',
-                    color: '#ffffff',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: canSaveLeadInfo ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  Salvar
-                </button>
-              </div>
               </div>
             ) : (
               <div
@@ -2700,6 +2565,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Facebook size={14} /> Facebook</span>
+                  <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>{facebookLabel}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
                   <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Link2 size={14} /> URL</span>
                   <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>{urlLabel}</span>
                 </div>
@@ -2715,7 +2585,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         fontWeight: 700,
                         color: sourceTagPresentation.textColor,
                         whiteSpace: 'nowrap',
-                        background: `${sourceTagPresentation.textColor}33`,
+                        background: sourceTagPresentation.backgroundColor,
+                        border: `1px solid ${sourceTagPresentation.borderColor}`,
                         borderRadius: 6,
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -2797,16 +2668,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
   const renderFollowUpsTab = () => {
     const businessNameById = new Map(leadNegotiations.map((business) => [business.id, business.title ?? 'Negócio sem nome']))
-    const selectedAgendaTemplate =
-      messageTemplates.find((template) => template.id === agendaFollowUpDraft.templateId) ?? null
     const hasSelectedAgendaBusiness = Boolean(agendaFollowUpDraft.negotiationId)
     const canCreateAgendaFollowUp =
       Boolean(agendaFollowUpDraft.negotiationId) &&
       Boolean(agendaFollowUpDraft.title.trim()) &&
-      !hasMissingRequiredTemplateVariables(
-        selectedAgendaTemplate,
-        agendaFollowUpDraft.templateVariables
-      ) &&
+      isFollowUpActionDraftValid(agendaFollowUpDraft.action) &&
       Boolean(agendaFollowUpDraft.dueAt)
     const shouldShowDesktopCreateOnly = !isMobile && isCreatingAgendaFollowUp
     const visualStatusOrder: FollowUpVisualStatus[] = [
@@ -2935,26 +2801,27 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               Novo follow-up
             </h3>
 
-            <button
-              type="button"
-              aria-label="Fechar criação de follow-up"
-              onClick={handleCancelAgendaFollowUpCreation}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-            >
-              X
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button
+                type="button"
+                aria-label="Salvar follow-up"
+                title="Salvar follow-up"
+                onClick={() => void handleCreateAgendaFollowUp()}
+                disabled={!canCreateAgendaFollowUp}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateAgendaFollowUp ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed' }}
+              >
+                <Save size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Fechar criação de follow-up"
+                title="Fechar criação"
+                onClick={handleCancelAgendaFollowUpCreation}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+              >
+                X
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -2967,10 +2834,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             minHeight: 0,
             overflowY: 'auto',
             overflowX: 'hidden',
-            paddingLeft: 18,
-            paddingRight: 18,
-            paddingTop: isMobile ? 0 : 12,
-            paddingBottom: 28,
+            padding: isMobile ? '0 18px 28px' : 0,
             boxSizing: 'border-box'
           }}
         >
@@ -3032,107 +2896,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               />
             </div>
 
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
-              <select
-                value={agendaFollowUpDraft.templateId}
-                onChange={(event) => {
-                  const templateId = event.target.value
-                  const nextTemplate = messageTemplates.find((template) => template.id === templateId) ?? null
-
-                  setAgendaFollowUpDraft((currentDraft) => ({
-                    ...currentDraft,
-                    templateId,
-                    templateVariables: buildTemplateVariablesDraft(
-                      nextTemplate,
-                      currentDraft.templateVariables
-                    )
-                  }))
-                }}
-                style={{
-                  width: '100%',
-                  height: isMobile ? 46 : 42,
-                  border: '1px solid #d7dce4',
-                  borderRadius: 10,
-                  padding: '0 14px',
-                  color: agendaFollowUpDraft.templateId ? '#111827' : '#6b7280',
-                  fontSize: isMobile ? 17 / 1.2 : 14,
-                  fontWeight: 600,
-                  boxSizing: 'border-box',
-                  background: '#ffffff'
-                }}
-              >
-                <option value="">Sem template</option>
-                {messageTemplates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedAgendaTemplate?.variables?.length ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                {selectedAgendaTemplate.variables.map((variable) => (
-                  <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                      {variable.label}{variable.required ? ' *' : ''}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={`Valor para ${variable.label}`}
-                      value={agendaFollowUpDraft.templateVariables[variable.key] ?? ''}
-                      onChange={(event) =>
-                        setAgendaFollowUpDraft((currentDraft) => ({
-                          ...currentDraft,
-                          templateVariables: {
-                            ...currentDraft.templateVariables,
-                            [variable.key]: event.target.value
-                          }
-                        }))
-                      }
-                      style={{
-                        height: isMobile ? 46 : 42,
-                        border: '1px solid #d7dce4',
-                        borderRadius: 10,
-                        padding: '0 14px',
-                        color: '#111827',
-                        fontSize: isMobile ? 17 / 1.2 : 14,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            {selectedAgendaTemplate ? (
-              <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Descrição do template</label>
-                <textarea
-                  value={interpolateTemplateDescription(
-                    selectedAgendaTemplate.description,
-                    agendaFollowUpDraft.templateVariables
-                  )}
-                  readOnly
-                  disabled
-                  style={{
-                    width: '100%',
-                    minHeight: isMobile ? 96 : 86,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '10px 14px',
-                    color: '#64748b',
-                    fontSize: isMobile ? 17 / 1.2 : 14,
-                    boxSizing: 'border-box',
-                    background: '#f8fafc',
-                    cursor: 'not-allowed',
-                    resize: 'vertical',
-                    lineHeight: 1.4
-                  }}
-                />
-              </div>
-            ) : null}
+            <FollowUpActionFields
+              value={agendaFollowUpDraft.action}
+              onChange={(action) =>
+                setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, action }))
+              }
+              leadSource={leadData?.source}
+              leadEmail={leadData?.email}
+              leadPhone={leadData?.phone}
+              isMobile={isMobile}
+            />
 
             <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
@@ -3148,43 +2921,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-              <button
-                type="button"
-                onClick={handleCancelAgendaFollowUpCreation}
-                style={{
-                  minWidth: 120,
-                  height: 42,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCreateAgendaFollowUp()}
-                disabled={!canCreateAgendaFollowUp}
-                style={{
-                  minWidth: 120,
-                  height: 42,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: canCreateAgendaFollowUp ? '#1f7a4d' : '#9ca3af',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed'
-                }}
-              >
-                Salvar
-              </button>
-            </div>
           </>
         ) : (
           <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
@@ -3256,26 +2992,27 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 Novo follow-up
               </h2>
 
-              <button
-                type="button"
-                onClick={handleCancelAgendaFollowUpCreation}
-                style={{
-                  height: 28,
-                  minWidth: 28,
-                  border: 'none',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  color: '#6b7280',
-                  padding: '0 8px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  lineHeight: 1
-                }}
-                aria-label="Fechar criação de follow-up"
-              >
-                X
-              </button>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  aria-label="Salvar follow-up"
+                  title="Salvar follow-up"
+                  onClick={() => void handleCreateAgendaFollowUp()}
+                  disabled={!canCreateAgendaFollowUp}
+                  style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateAgendaFollowUp ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateAgendaFollowUp ? 'pointer' : 'not-allowed' }}
+                >
+                  <Save size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelAgendaFollowUpCreation}
+                  title="Fechar criação"
+                  style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+                  aria-label="Fechar criação de follow-up"
+                >
+                  X
+                </button>
+              </div>
             </div>
 
             <article
@@ -3602,7 +3339,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }
 
   const renderBusinessFollowUpsTab = (businessId: string) => {
-    const followUpsColumns = 'minmax(0,1fr) 112px 156px 84px'
+    const followUpsColumns = 'minmax(0,1fr) minmax(0,130px) 112px 156px 84px'
     const followUpsRowMinHeight = 50
     const viewedBusinessFollowUp = viewingBusinessFollowUpId
       ? negotiationFollowUps.find((followUp) => followUp.id === viewingBusinessFollowUpId) ?? null
@@ -3615,15 +3352,13 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const shouldShowDesktopCreateOnly = !isMobile && isManagingBusinessFollowUp
     const selectedFollowUpBusiness = leadNegotiations.find((business) => business.id === businessId) ?? null
     const selectedFollowUpBusinessTitle = selectedFollowUpBusiness?.title?.trim() || 'Negócio sem nome'
-    const selectedBusinessTemplate =
-      messageTemplates.find((template) => template.id === newBusinessFollowUpDraft.templateId) ?? null
     const canCreateBusinessFollowUp =
       Boolean(newBusinessFollowUpDraft.title.trim()) &&
-      !hasMissingRequiredTemplateVariables(
-        selectedBusinessTemplate,
-        newBusinessFollowUpDraft.templateVariables
-      ) &&
+      isFollowUpActionDraftValid(newBusinessFollowUpDraft.action) &&
       Boolean(newBusinessFollowUpDraft.dueAt)
+    const viewedBusinessFollowUpAction = fromFollowUpActionResponse(
+      viewedBusinessFollowUp?.actions[0]
+    )
     const businessFollowUps = negotiationFollowUps
       .filter((followUp) => followUp.negotiationId === businessId)
       .sort((firstItem, secondItem) => {
@@ -3652,8 +3387,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setIsConfirmingViewedBusinessFollowUpDelete(false)
       setNewBusinessFollowUpDraft({
         title: viewedBusinessFollowUp.title ?? '',
-        templateId: viewedBusinessFollowUp.templateId ?? '',
-        templateVariables: normalizeTemplateVariableDraft(viewedBusinessFollowUp.templateVariables),
+        action: fromFollowUpActionResponse(viewedBusinessFollowUp.actions[0]),
         dueAt: viewedBusinessFollowUp.dueAt ?? '',
         status: viewedBusinessFollowUp.status ?? 'pending'
       })
@@ -3663,7 +3397,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
     const handleSubmitBusinessFollowUp = async () => {
       if (!canCreateBusinessFollowUp) {
-        setBusinessesError('Preencha o nome do follow-up e a data/hora.')
+        setBusinessesError('Preencha o nome, a ação e a data/hora do follow-up.')
         return
       }
 
@@ -3674,8 +3408,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             editingBusinessFollowUp.id,
             newBusinessFollowUpDraft.title.trim(),
             newBusinessFollowUpDraft.dueAt,
-            newBusinessFollowUpDraft.templateId,
-            newBusinessFollowUpDraft.templateVariables,
+            newBusinessFollowUpDraft.action,
             newBusinessFollowUpDraft.status
           )
         } else {
@@ -3683,8 +3416,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             businessId,
             newBusinessFollowUpDraft.title.trim(),
             newBusinessFollowUpDraft.dueAt,
-            newBusinessFollowUpDraft.templateId,
-            newBusinessFollowUpDraft.templateVariables
+            newBusinessFollowUpDraft.action
           )
         }
         setNewBusinessFollowUpDraft(initialNewBusinessFollowUpDraft)
@@ -3701,59 +3433,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
-          height: '100%',
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
+          height: isMobile ? 'auto' : '100%',
+          minHeight: isMobile ? '100%' : 0,
+          overflowY: isMobile ? 'visible' : 'auto',
+          overflowX: isMobile ? 'visible' : 'hidden',
           paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '0 18px 28px' : 0,
-          overscrollBehavior: 'contain',
+          overscrollBehavior: isMobile ? 'auto' : 'contain',
           WebkitOverflowScrolling: 'touch'
         }}
       >
-        {isMobile ? (
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              background: '#ffffff',
-              paddingTop: 22,
-              paddingBottom: 10,
-            }}
-          >
-            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
-              {editingBusinessFollowUp ? 'Editar follow-up' : 'Novo follow-up'}
-            </h3>
-
-            <button
-              type="button"
-              aria-label="Fechar criação de follow-up"
-              onClick={handleCancelBusinessFollowUpCreation}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-            >
-              X
-            </button>
-          </div>
-        ) : null}
-
         <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Negócio</label>
           <input
@@ -3831,6 +3521,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           />
         </div>
 
+        <FollowUpActionFields
+          value={newBusinessFollowUpDraft.action}
+          onChange={(action) =>
+            setNewBusinessFollowUpDraft((current) => ({ ...current, action }))
+          }
+          leadSource={leadData?.source}
+          leadEmail={leadData?.email}
+          leadPhone={leadData?.phone}
+          isMobile={isMobile}
+        />
+
         <div style={{ display: 'grid', gap: 8 }}>
           <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
           <FollowUpDateTimeInput
@@ -3845,157 +3546,94 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           />
         </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
-          <select
-            value={newBusinessFollowUpDraft.templateId}
-            onChange={(event) => {
-              const templateId = event.target.value
-              const nextTemplate = messageTemplates.find((template) => template.id === templateId) ?? null
-
-              setNewBusinessFollowUpDraft((current) => ({
-                ...current,
-                templateId,
-                templateVariables: buildTemplateVariablesDraft(
-                  nextTemplate,
-                  current.templateVariables
-                )
-              }))
-            }}
-            style={{
-              width: '100%',
-              height: isMobile ? 46 : 42,
-              border: '1px solid #d7dce4',
-              borderRadius: 10,
-              padding: '0 14px',
-              color: newBusinessFollowUpDraft.templateId ? '#111827' : '#6b7280',
-              fontSize: isMobile ? 17 / 1.2 : 14,
-              fontWeight: 600,
-              boxSizing: 'border-box',
-              background: '#ffffff'
-            }}
-          >
-            <option value="">Sem template</option>
-            {messageTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedBusinessTemplate?.variables?.length ? (
-          <div style={{ display: 'grid', gap: 12 }}>
-            {selectedBusinessTemplate.variables.map((variable) => (
-              <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                  {variable.label}{variable.required ? ' *' : ''}
-                </label>
-                <input
-                  type="text"
-                  placeholder={`Valor para ${variable.label}`}
-                  value={newBusinessFollowUpDraft.templateVariables[variable.key] ?? ''}
-                  onChange={(event) =>
-                    setNewBusinessFollowUpDraft((current) => ({
-                      ...current,
-                      templateVariables: {
-                        ...current.templateVariables,
-                        [variable.key]: event.target.value
-                      }
-                    }))
-                  }
-                  style={{
-                    height: isMobile ? 46 : 42,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '0 14px',
-                    color: '#111827',
-                    fontSize: isMobile ? 17 / 1.2 : 14,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {selectedBusinessTemplate ? (
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-              Descrição do template
-            </label>
-            <textarea
-              value={interpolateTemplateDescription(
-                selectedBusinessTemplate.description,
-                newBusinessFollowUpDraft.templateVariables
-              )}
-              readOnly
-              disabled
-              style={{
-                width: '100%',
-                minHeight: isMobile ? 96 : 86,
-                border: '1px solid #d7dce4',
-                borderRadius: 10,
-                padding: '10px 14px',
-                color: '#64748b',
-                fontSize: isMobile ? 17 / 1.2 : 14,
-                boxSizing: 'border-box',
-                background: '#f8fafc',
-                cursor: 'not-allowed',
-                resize: 'vertical',
-                lineHeight: 1.4
-              }}
-            />
-          </div>
-        ) : null}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={handleCancelBusinessFollowUpCreation}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: '1px solid #d1d5db',
-              borderRadius: 8,
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSubmitBusinessFollowUp()}
-            disabled={!canCreateBusinessFollowUp}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: 'none',
-              borderRadius: 8,
-              background: canCreateBusinessFollowUp ? '#1f7a4d' : '#9ca3af',
-              color: '#ffffff',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: canCreateBusinessFollowUp ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Salvar
-          </button>
-        </div>
       </section>
     )
 
-    const viewedBusinessTemplate = viewedBusinessFollowUp?.templateId
-      ? messageTemplates.find((template) => template.id === viewedBusinessFollowUp.templateId) ?? null
-      : null
-
     const viewedBusinessFollowUpStatusTag = viewedBusinessFollowUp
-      ? getFollowUpLifecycleStatusTag(viewedBusinessFollowUp.status)
+      ? getFollowUpStatusPresentation(viewedBusinessFollowUp.status, viewedBusinessFollowUp.actions)
       : null
+    const mobileBusinessFollowUpHeader = isMobile ? (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          background: '#ffffff',
+          padding: '22px 18px 10px',
+          flexShrink: 0
+        }}
+      >
+        <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
+          {viewedBusinessFollowUp
+            ? 'Follow-up'
+            : editingBusinessFollowUp
+              ? 'Editar follow-up'
+              : 'Novo follow-up'}
+        </h3>
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {viewedBusinessFollowUp && !isConfirmingViewedBusinessFollowUpDelete ? (
+            <>
+              <button
+                type="button"
+                aria-label="Editar follow-up"
+                title="Editar follow-up"
+                onClick={handleStartEditingViewedBusinessFollowUp}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}
+              >
+                <Pencil size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Excluir follow-up"
+                title="Excluir follow-up"
+                onClick={() => {
+                  setIsConfirmingViewedBusinessFollowUpDelete(true)
+                  setBusinessesError(null)
+                }}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}
+              >
+                <Trash2 size={18} />
+              </button>
+            </>
+          ) : null}
+          {editingBusinessFollowUp || isCreatingBusinessFollowUp ? (
+            <button
+              type="button"
+              aria-label="Salvar follow-up"
+              title="Salvar follow-up"
+              onClick={() => void handleSubmitBusinessFollowUp()}
+              disabled={!canCreateBusinessFollowUp}
+              style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateBusinessFollowUp ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateBusinessFollowUp ? 'pointer' : 'not-allowed' }}
+            >
+              <Save size={18} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-label={viewedBusinessFollowUp ? 'Fechar visualização de follow-up' : 'Fechar criação de follow-up'}
+            title={editingBusinessFollowUp ? 'Cancelar edição' : 'Fechar'}
+            onClick={handleCancelBusinessFollowUpCreation}
+            style={{
+              width: 32,
+              height: 32,
+              border: 'none',
+              borderRadius: 6,
+              background: 'transparent',
+              color: '#6b7280',
+              padding: 0,
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+              lineHeight: 1
+            }}
+          >
+            X
+          </button>
+        </div>
+      </div>
+    ) : null
 
     const businessFollowUpViewContent = viewedBusinessFollowUp ? (
       <section
@@ -4003,59 +3641,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           display: 'grid',
           alignContent: 'start',
           gap: 16,
-          height: '100%',
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
+          height: isMobile ? 'auto' : '100%',
+          minHeight: isMobile ? '100%' : 0,
+          overflowY: isMobile ? 'visible' : 'auto',
+          overflowX: isMobile ? 'visible' : 'hidden',
           paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '0 18px 28px' : 0,
-          overscrollBehavior: 'contain',
+          overscrollBehavior: isMobile ? 'auto' : 'contain',
           WebkitOverflowScrolling: 'touch'
         }}
       >
-        {isMobile ? (
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              background: '#ffffff',
-              paddingTop: 22,
-              paddingBottom: 10,
-            }}
-          >
-            <h3 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 700 }}>
-              Follow-up
-            </h3>
-
-            <button
-              type="button"
-              aria-label="Fechar visualização de follow-up"
-              onClick={handleCancelBusinessFollowUpCreation}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-            >
-              X
-            </button>
-          </div>
-        ) : null}
-
         {isConfirmingViewedBusinessFollowUpDelete ? (
           <article
             style={{
@@ -4123,81 +3719,25 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             </div>
 
             <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Status</label>
+              <input type="text" value={viewedBusinessFollowUpStatusTag?.label ?? ''} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
+            </div>
+
+            <FollowUpActionFields
+              value={viewedBusinessFollowUpAction}
+              onChange={() => undefined}
+              leadSource={leadData?.source}
+              leadEmail={leadData?.email}
+              leadPhone={leadData?.phone}
+              isMobile={isMobile}
+              readOnly
+            />
+
+            <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Data/Hora</label>
               <input type="text" value={formatFollowUpDate(viewedBusinessFollowUp.dueAt)} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
             </div>
 
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>Template</label>
-              <input type="text" value={viewedBusinessTemplate?.name ?? 'Sem template'} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-            </div>
-
-            {viewedBusinessTemplate?.variables?.length ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                {viewedBusinessTemplate.variables.map((variable) => (
-                  <div key={variable.key} style={{ display: 'grid', gap: 8 }}>
-                    <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                      {variable.label}{variable.required ? ' *' : ''}
-                    </label>
-                    <input type="text" value={String(viewedBusinessFollowUp.templateVariables?.[variable.key] ?? '')} readOnly disabled style={{ height: isMobile ? 46 : 42, border: '1px solid #d7dce4', borderRadius: 10, padding: '0 14px', color: '#64748b', fontSize: isMobile ? 17 / 1.2 : 14, boxSizing: 'border-box', background: '#f8fafc', cursor: 'not-allowed' }} />
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            {viewedBusinessTemplate ? (
-              <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ color: '#1f2937', fontSize: isMobile ? 17 / 1.3 : 13, fontWeight: 700 }}>
-                  Descrição do template
-                </label>
-                <textarea
-                  value={interpolateTemplateDescription(
-                    viewedBusinessTemplate.description,
-                    viewedBusinessFollowUp.templateVariables
-                  )}
-                  readOnly
-                  disabled
-                  style={{
-                    width: '100%',
-                    minHeight: isMobile ? 96 : 86,
-                    border: '1px solid #d7dce4',
-                    borderRadius: 10,
-                    padding: '10px 14px',
-                    color: '#64748b',
-                    fontSize: isMobile ? 17 / 1.2 : 14,
-                    boxSizing: 'border-box',
-                    background: '#f8fafc',
-                    cursor: 'not-allowed',
-                    resize: 'vertical',
-                    lineHeight: 1.4
-                  }}
-                />
-              </div>
-            ) : null}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsConfirmingViewedBusinessFollowUpDelete(true)
-                  setBusinessesError(null)
-                }}
-                style={{
-                  minWidth: 120,
-                  height: 42,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Excluir
-              </button>
-              <button type="button" onClick={handleStartEditingViewedBusinessFollowUp} style={{ minWidth: 120, height: 42, border: 'none', borderRadius: 8, background: '#1f7a4d', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Editar</button>
-            </div>
           </>
         )}
       </section>
@@ -4296,26 +3836,66 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 </h2>
               )}
 
-            <button
-              type="button"
-              onClick={handleCancelBusinessFollowUpCreation}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-              aria-label="Fechar criação de follow-up"
-            >
-              X
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {viewedBusinessFollowUp && !isConfirmingViewedBusinessFollowUpDelete ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Editar follow-up"
+                    title="Editar follow-up"
+                    onClick={handleStartEditingViewedBusinessFollowUp}
+                    style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Excluir follow-up"
+                    title="Excluir follow-up"
+                    onClick={() => {
+                      setIsConfirmingViewedBusinessFollowUpDelete(true)
+                      setBusinessesError(null)
+                    }}
+                    style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </>
+              ) : null}
+              {editingBusinessFollowUp || isCreatingBusinessFollowUp ? (
+                <button
+                  type="button"
+                  aria-label="Salvar follow-up"
+                  title="Salvar follow-up"
+                  onClick={() => void handleSubmitBusinessFollowUp()}
+                  disabled={!canCreateBusinessFollowUp}
+                  style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateBusinessFollowUp ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateBusinessFollowUp ? 'pointer' : 'not-allowed' }}
+                >
+                  <Save size={18} />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleCancelBusinessFollowUpCreation}
+                title="Fechar"
+                style={{
+                  width: 32,
+                  height: 32,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: '#6b7280',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  lineHeight: 1
+                }}
+                aria-label="Fechar criação de follow-up"
+              >
+                X
+              </button>
+            </div>
             </div>
 
             <article
@@ -4372,7 +3952,19 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
               }}
             >
-              {viewedBusinessFollowUp ? businessFollowUpViewContent : businessFollowUpCreateForm}
+              {mobileBusinessFollowUpHeader}
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  overscrollBehavior: 'contain',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {viewedBusinessFollowUp ? businessFollowUpViewContent : businessFollowUpCreateForm}
+              </div>
             </aside>
           </>
         ) : null}
@@ -4389,8 +3981,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   ...followUp,
                   leadId: leadId ?? ''
                 })
-                const lifecycleStatusTag = getFollowUpLifecycleStatusTag(followUp.status)
+                const lifecycleStatusTag = getFollowUpStatusPresentation(followUp.status, followUp.actions)
                 const followUpDateTagColors = getFollowUpDateTagColors(visualStatus)
+                const channelTagPresentation = getFollowUpChannelTagPresentation(followUp.actions)
                 const isHovered = hoveredBusinessFollowUpId === followUp.id
 
                 if (editingBusinessFollowUpId === followUp.id) {
@@ -4500,6 +4093,17 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formatFollowUpDate(followUp.dueAt)}</span>
                       </span>
 
+                      {channelTagPresentation ? (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: channelTagPresentation.textColor, whiteSpace: 'nowrap', background: channelTagPresentation.backgroundColor, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
+                          {channelTagPresentation.icon ? (
+                            <span style={{ display: 'inline-flex', marginRight: 4, lineHeight: 0 }}>
+                              {channelTagPresentation.icon}
+                            </span>
+                          ) : null}
+                          {channelTagPresentation.label}
+                        </span>
+                      ) : null}
+
                       <span style={{ fontSize: 12, fontWeight: 700, color: lifecycleStatusTag.textColor, whiteSpace: 'nowrap', background: lifecycleStatusTag.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
                         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
                       </span>
@@ -4537,9 +4141,10 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             }}
           >
             <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Título</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'center' }}>Canal</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Status</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Data/Hora</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'start' }}>Ações</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4b5563', justifySelf: 'center' }}>Ações</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
@@ -4553,8 +4158,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   ...followUp,
                   leadId: leadId ?? ''
                 })
-                const lifecycleStatusTag = getFollowUpLifecycleStatusTag(followUp.status)
+                const lifecycleStatusTag = getFollowUpStatusPresentation(followUp.status, followUp.actions)
                 const followUpDateTagColors = getFollowUpDateTagColors(visualStatus)
+                const channelTagPresentation = getFollowUpChannelTagPresentation(followUp.actions)
                 const rowBorder = '1px solid #f0f0f0'
                 const rowBackground =
                   hoveredBusinessFollowUpId === followUp.id
@@ -4589,7 +4195,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       </p>
                       <span />
                       <span />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
+                      <span />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'center' }}>
                         <button
                           type="button"
                           aria-label="Cancelar exclusão de follow-up"
@@ -4657,20 +4264,51 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     onMouseEnter={() => setHoveredBusinessFollowUpId(followUp.id)}
                     onMouseLeave={() => setHoveredBusinessFollowUpId(null)}
                   >
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        lineHeight: 1.2,
-                        color: '#2f2f2f',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {followUp.title}
-                    </p>
+                    <div style={{ minWidth: 0, width: '100%' }}>
+                      <DelayedTooltip content={followUp.title}>
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            lineHeight: 1.2,
+                            color: '#2f2f2f',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {followUp.title}
+                        </span>
+                      </DelayedTooltip>
+                    </div>
+
+                    <div style={{ minWidth: 0, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                      {channelTagPresentation ? (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: channelTagPresentation.textColor,
+                            whiteSpace: 'nowrap',
+                            background: channelTagPresentation.backgroundColor,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1
+                          }}
+                        >
+                          {channelTagPresentation.icon ? (
+                            <span style={{ display: 'inline-flex', marginRight: 4, lineHeight: 0 }}>
+                              {channelTagPresentation.icon}
+                            </span>
+                          ) : null}
+                          {channelTagPresentation.label}
+                        </span>
+                      ) : null}
+                    </div>
 
                     <span
                       style={{
@@ -4710,7 +4348,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       {formatFollowUpDate(followUp.dueAt)}
                     </span>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifySelf: 'center' }}>
                       <button
                         type="button"
                         aria-label="Excluir follow-up"
@@ -4720,14 +4358,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                           setEditingBusinessFollowUpId(null)
                           setConfirmingDeleteBusinessFollowUpId(followUp.id)
                         }}
-                        onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
-                        onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
                         style={{
                           height: 24,
                           width: 24,
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 4,
-                          background: '#ffffff',
+                          border: 'none',
+                          background: 'transparent',
                           color: '#4b5563',
                           padding: 0,
                           cursor: 'pointer',
@@ -4752,9 +4387,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                         style={{
                           height: 24,
                           width: 24,
-                          border: followUp.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
-                          borderRadius: 4,
-                          background: followUp.status === 'done' ? '#ecfdf3' : '#ffffff',
+                          border: 'none',
+                          background: 'transparent',
                           color: followUp.status === 'done' ? '#16a34a' : '#4b5563',
                           padding: 0,
                           cursor: 'pointer'
@@ -5135,14 +4769,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     aria-label="Baixar arquivo"
                     disabled={downloadingBusinessAttachmentId === file.id}
                     onClick={() => void handleDownloadBusinessAttachment(file.id)}
-                    onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
-                    onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
                     style={{
                       height: 24,
                       width: 24,
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 4,
-                      background: '#ffffff',
+                      border: 'none',
+                      background: 'transparent',
                       color: '#4b5563',
                       padding: 0,
                       cursor: 'pointer',
@@ -5158,14 +4789,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     onClick={() => {
                       setConfirmingDeleteBusinessAttachmentId(file.id)
                     }}
-                    onMouseEnter={(event) => applyActionHoverBackground(true, event.currentTarget)}
-                    onMouseLeave={(event) => applyActionHoverBackground(false, event.currentTarget)}
                     style={{
                       height: 24,
                       width: 24,
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 4,
-                      background: '#ffffff',
+                      border: 'none',
+                      background: 'transparent',
                       color: '#4b5563',
                       padding: 0,
                       cursor: 'pointer'
@@ -5260,20 +4888,90 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             : '-'
       const selectedBusinessTypeTagPresentation = getBusinessTypeTagPresentation(selectedBusinessType)
       const temperatureTagPresentation = getTemperatureTagPresentation(selectedBusinessTemperature)
+      const businessLeadSourceTagPresentation = getLeadSourceTagPresentation(leadData?.source)
       const shouldShowBusinessInformationTab = isEditingBusiness || activeBusinessTab === 'informacoes'
       const shouldShowDeleteBusinessConfirmation = isConfirmingBusinessDelete
       const shouldShowCloseBusinessConfirmation = isConfirmingBusinessClose
+      const businessEditFieldLabelStyle = {
+        color: '#1f2937',
+        fontSize: isMobile ? 17 / 1.3 : 13,
+        fontWeight: 700
+      } as const
+      const businessEditInputStyle = {
+        width: '100%',
+        height: isMobile ? 46 : 42,
+        border: '1px solid #d7dce4',
+        borderRadius: 10,
+        padding: '0 14px',
+        color: '#111827',
+        fontSize: isMobile ? 17 / 1.2 : 14,
+        boxSizing: 'border-box',
+        background: '#ffffff'
+      } as const
+      const businessEditSelectStyle = {
+        ...businessEditInputStyle,
+        padding: '0 36px 0 14px',
+        fontWeight: 600,
+        appearance: 'none'
+      } as const
+      const canSaveBusiness = Boolean(businessDetailDraft?.title.trim())
+
+      const handleCancelBusinessEdit = () => {
+        resetBusinessDetailDraft(selectedBusiness)
+        setIsEditingBusiness(false)
+      }
+
+      const handleSaveBusinessEdit = async () => {
+        if (!selectedBusinessId || !businessDetailDraft) return
+
+        const payload: UpdateNegotiationPayload = {
+          title: businessDetailDraft.title,
+          negotiationType: businessDetailDraft.negotiationType || null,
+          stage: businessDetailDraft.stage,
+          temperature: (businessDetailDraft.temperature || null) as NegotiationTemperature | null,
+          value: parseLeadValueInput(businessDetailDraft.value),
+          notes: businessDetailDraft.notes.trim()
+            ? businessDetailDraft.notes.trim() === formatNegotiationNotes(selectedBusiness.notes).trim()
+              ? (selectedBusiness.notes ?? []).map((note) => ({
+                  title: note.title,
+                  description: note.description,
+                  createdAt: note.createdAt ?? new Date().toISOString()
+                }))
+              : [{
+                  title: 'Nota',
+                  description: businessDetailDraft.notes.trim(),
+                  createdAt: selectedBusiness.notes?.[0]?.createdAt ?? new Date().toISOString()
+                }]
+            : []
+        }
+
+        try {
+          await WebhookService.updateNegotiation(selectedBusinessId, payload)
+          await refreshLeadNegotiations(leadId ?? '')
+          onLeadUpdated?.()
+          setIsEditingBusiness(false)
+          setBusinessesError(null)
+        } catch (exception: unknown) {
+          const message =
+            exception instanceof Error
+              ? exception.message
+              : 'Falha ao atualizar negócio.'
+          setBusinessesError(message)
+        }
+      }
 
       return (
         <section
           style={{
             display: 'grid',
             alignContent: 'start',
-            gap: 8,
+            gap: 0,
             height: '100%',
             minHeight: 0,
             overflowY:
-              !isMobile &&
+              isEditingBusiness
+                ? 'hidden'
+                : !isMobile &&
               (activeBusinessTab === 'followups' ||
                 activeBusinessTab === 'arquivos' ||
                 activeBusinessTab === 'notas')
@@ -5284,86 +4982,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             boxSizing: 'border-box'
           }}
         >
-          {!isMobile ? (
-          <div style={{ display: 'grid', gap: 0 }}>
-            <div
-              className={isMobile ? 'mobile-tabs-scrollbar-hidden' : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 16,
-                overflowX: isMobile ? 'auto' : 'visible'
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: isMobile ? 10 : 4,
-                  minWidth: 0
-                }}
-              >
-                {[
-                  { key: 'informacoes' as const, label: 'Informações' },
-                  { key: 'followups' as const, label: 'FollowUps' },
-                  { key: 'arquivos' as const, label: 'Arquivos' },
-                  { key: 'notas' as const, label: 'Notas' }
-                ].map((tab) => {
-                  const isActive = activeBusinessTab === tab.key
-
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => {
-                        if (selectedBusiness) {
-                          resetBusinessDetailDraft(selectedBusiness)
-                        }
-                        setIsEditingBusiness(false)
-                        setIsConfirmingBusinessDelete(false)
-                        setIsConfirmingBusinessClose(false)
-                        setActiveBusinessTab(tab.key)
-                        setIsBusinessActionsOpen(false)
-                      }}
-                      onMouseEnter={() => setHoveredBusinessTab(tab.key)}
-                      onMouseLeave={() => setHoveredBusinessTab(null)}
-                      style={{
-                        border: 'none',
-                        background:
-                          isActive || hoveredBusinessTab === tab.key
-                            ? isMobile
-                              ? '#dcfce7'
-                              : interactionTheme.clickableCardHoverBackground
-                            : 'transparent',
-                        borderRadius: isMobile ? 8 : 6,
-                        fontSize: isMobile ? 13 : 14,
-                        fontWeight: isActive ? 700 : 600,
-                        padding: isMobile ? '12px 16px' : '8px 12px',
-                        cursor: 'pointer',
-                        color:
-                          isActive || hoveredBusinessTab === tab.key
-                            ? isMobile
-                              ? '#1f7a4d'
-                              : interactionTheme.activeIconColor
-                            : '#6b7280'
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-            </div>
-
-            {!isMobile ? (
-              <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
-            ) : null}
-          </div>
-          ) : null}
-
-          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', minWidth: 0, minHeight: 0, boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isEditingBusiness ? 16 : 0, width: '100%', minWidth: 0, minHeight: 0, overflow: isEditingBusiness ? 'hidden' : 'visible', boxSizing: 'border-box' }}>
             {!isMobile && !selectedHeaderBusiness ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               {activeBusinessTab === 'informacoes' ? (
@@ -5537,6 +5156,36 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   </div>
               ) : null}
             </div>
+            ) : null}
+
+            {isEditingBusiness ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#ffffff', flexShrink: 0 }}>
+                <h2 style={{ margin: 0, color: '#0f172a', fontSize: isMobile ? 24 : 26, fontWeight: isMobile ? 700 : 800, lineHeight: 1 }}>
+                  Editar negócio
+                </h2>
+
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    aria-label="Salvar negócio"
+                    title="Salvar negócio"
+                    onClick={() => void handleSaveBusinessEdit()}
+                    disabled={!canSaveBusiness}
+                    style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canSaveBusiness ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canSaveBusiness ? 'pointer' : 'not-allowed' }}
+                  >
+                    <Save size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cancelar edição do negócio"
+                    title="Cancelar edição"
+                    onClick={handleCancelBusinessEdit}
+                    style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+                  >
+                    X
+                  </button>
+                </div>
+              </div>
             ) : null}
 
             {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
@@ -5758,28 +5407,25 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     padding: 0,
                     background: 'transparent',
                     display: 'grid',
-                    marginTop: 8
+                    marginTop: 0,
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    paddingRight: isMobile ? 2 : 6,
+                    boxSizing: 'border-box'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
-                        <CircleUserRound size={15} />
-                      </span>
-                      <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Visão Geral</h3>
-                    </div>
-                  </div>
-
                   <div
                     style={{
-                      marginTop: 12,
+                      marginTop: 0,
                       display: 'grid',
-                      gap: 14,
-                      maxWidth: 520
+                      gap: 16,
+                      width: '100%'
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Nome</span>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <span style={businessEditFieldLabelStyle}>Nome</span>
                       <input
                         type="text"
                         value={businessDetailDraft?.title ?? ''}
@@ -5794,21 +5440,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                           )
                         }
                         autoComplete="new-password"
-                        style={{
-                          width: '100%',
-                          height: 42,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 12px',
-                          fontSize: 16,
-                          color: '#111827',
-                          boxSizing: 'border-box'
-                        }}
+                        style={businessEditInputStyle}
                       />
                     </div>
 
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Tipo</span>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <span style={businessEditFieldLabelStyle}>Tipo</span>
                       <div style={{ position: 'relative', width: '100%' }}>
                         <select
                           value={selectedBusinessType}
@@ -5822,19 +5459,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                                 : current
                             )
                           }
-                          style={{
-                            width: '100%',
-                            height: 42,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 36px 0 12px',
-                            color: selectedBusinessType ? '#111827' : '#6b7280',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            appearance: 'none',
-                            background: '#ffffff',
-                            boxSizing: 'border-box'
-                          }}
+                          style={{ ...businessEditSelectStyle, color: selectedBusinessType ? '#111827' : '#6b7280' }}
                         >
                           <option value="">Selecione</option>
                           <option value="service">Serviço</option>
@@ -5855,8 +5480,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Etapa</span>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <span style={businessEditFieldLabelStyle}>Etapa</span>
                       <div style={{ position: 'relative', width: '100%' }}>
                         <select
                           value={businessDetailDraft?.stage ?? selectedBusiness.stage}
@@ -5870,19 +5495,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                                 : current
                             )
                           }
-                          style={{
-                            width: '100%',
-                            height: 42,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 36px 0 12px',
-                            color: '#111827',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            appearance: 'none',
-                            background: '#ffffff',
-                            boxSizing: 'border-box'
-                          }}
+                          style={businessEditSelectStyle}
                         >
                           {leadStageOptions.map((stage) => (
                             <option key={stage} value={stage}>
@@ -5905,8 +5518,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Temperatura</span>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <span style={businessEditFieldLabelStyle}>Temperatura</span>
                       <div style={{ position: 'relative', width: '100%' }}>
                         <select
                           value={businessDetailDraft?.temperature ?? selectedBusiness.temperature ?? ''}
@@ -5920,19 +5533,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                                 : current
                             )
                           }
-                          style={{
-                            width: '100%',
-                            height: 42,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 36px 0 12px',
-                            color: '#111827',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            appearance: 'none',
-                            background: '#ffffff',
-                            boxSizing: 'border-box'
-                          }}
+                          style={businessEditSelectStyle}
                         >
                           <option value="">Sem temperatura</option>
                           <option value="hot">Quente</option>
@@ -5954,8 +5555,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Valor</span>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <span style={businessEditFieldLabelStyle}>Valor</span>
                       <input
                         type="text"
                         value={businessDetailDraft?.value ?? ''}
@@ -5970,114 +5571,30 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                           )
                         }
                         autoComplete="new-password"
-                        style={{
-                          width: '100%',
-                          height: 42,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          padding: '0 12px',
-                          fontSize: 16,
-                          color: '#111827',
-                          boxSizing: 'border-box'
-                        }}
+                        style={businessEditInputStyle}
                       />
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedBusiness) return
-                          resetBusinessDetailDraft(selectedBusiness)
-                          setIsEditingBusiness(false)
-                        }}
-                        style={{
-                          minWidth: 100,
-                          height: 36,
-                          border: '1px solid #d1d5db',
-                          borderRadius: 8,
-                          background: '#ffffff',
-                          color: '#0f172a',
-                          fontSize: 14,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Cancelar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedBusinessId || !businessDetailDraft) return
-
-                          const payload: UpdateNegotiationPayload = {
-                            title: businessDetailDraft.title,
-                            negotiationType: businessDetailDraft.negotiationType || null,
-                            stage: businessDetailDraft.stage,
-                            temperature: (businessDetailDraft.temperature || null) as NegotiationTemperature | null,
-                            value: parseLeadValueInput(businessDetailDraft.value),
-                            notes: businessDetailDraft.notes.trim()
-                              ? businessDetailDraft.notes.trim() === formatNegotiationNotes(selectedBusiness.notes).trim()
-                                ? (selectedBusiness.notes ?? []).map((note) => ({
-                                    title: note.title,
-                                    description: note.description,
-                                    createdAt: note.createdAt ?? new Date().toISOString()
-                                  }))
-                                : [{
-                                    title: 'Nota',
-                                    description: businessDetailDraft.notes.trim(),
-                                    createdAt:
-                                      selectedBusiness.notes?.[0]?.createdAt ?? new Date().toISOString()
-                                  }]
-                              : []
-                          }
-
-                          void (async () => {
-                            try {
-                              await WebhookService.updateNegotiation(selectedBusinessId, payload)
-                              await refreshLeadNegotiations(leadId ?? '')
-                              onLeadUpdated?.()
-                              setIsEditingBusiness(false)
-                              setBusinessesError(null)
-                            } catch (exception: unknown) {
-                              const message =
-                                exception instanceof Error
-                                  ? exception.message
-                                  : 'Falha ao atualizar negócio.'
-                              setBusinessesError(message)
-                            }
-                          })()
-                        }}
-                        disabled={!businessDetailDraft?.title.trim()}
-                        style={{
-                          minWidth: 100,
-                          height: 36,
-                          border: 'none',
-                          borderRadius: 8,
-                          background: businessDetailDraft?.title.trim() ? '#1f7a4d' : '#9ca3af',
-                          color: '#ffffff',
-                          fontSize: 14,
-                          fontWeight: 700,
-                          cursor: businessDetailDraft?.title.trim() ? 'pointer' : 'not-allowed'
-                        }}
-                      >
-                        Salvar
-                      </button>
-                    </div>
                   </div>
                 </article>
               ) : (
                 <>
-                  <section style={{ display: 'grid', gap: 8, width: '100%', minWidth: 0, marginTop: 8 }}>
+                  <section style={{ display: 'grid', gap: 8, width: '100%', minWidth: 0, marginTop: 6 }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}>
                         <CircleUserRound size={15} />
                       </span>
-                      <h3 style={{ margin: 0, marginTop: 8, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Visão Geral</h3>
+                      <h3 style={{ margin: 0, color: '#0f172a', fontSize: 30 / 2, fontWeight: 700 }}>Visão Geral</h3>
                     </div>
 
                     <div style={{ borderTop: '1px solid #e5e7eb' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
+                        <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><User size={14} /> Lead</span>
+                        <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>
+                          {leadData?.name?.trim() || '-'}
+                        </span>
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
                         <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><CircleDollarSign size={14} /> Valor</span>
                         <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>
@@ -6097,6 +5614,36 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                             )}
                           >
                             {selectedBusinessTypeLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8, padding: '12px 2px', borderBottom: '1px solid #f1f5f9' }}>
+                        <span style={{ color: '#475569', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Compass size={14} /> Origem</span>
+                        {businessLeadSourceTagPresentation.label === '-' ? (
+                          <span style={{ color: '#111827', fontSize: 14, fontWeight: 700 }}>-</span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: businessLeadSourceTagPresentation.textColor,
+                              whiteSpace: 'nowrap',
+                              background: businessLeadSourceTagPresentation.backgroundColor,
+                              border: `1px solid ${businessLeadSourceTagPresentation.borderColor}`,
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '6px 10px',
+                              lineHeight: 1.1,
+                              width: 'fit-content'
+                            }}
+                          >
+                            {businessLeadSourceTagPresentation.icon ? (
+                              <span style={tagIconStyle}>{businessLeadSourceTagPresentation.icon}</span>
+                            ) : null}
+                            <span style={tagContentStyle}>{businessLeadSourceTagPresentation.label}</span>
                           </span>
                         )}
                       </div>
@@ -6945,6 +6492,44 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       )
     }
 
+    const canCreateBusiness = Boolean(newBusinessDraft.title.trim() && leadId)
+    const handleCreateBusiness = async () => {
+      if (!leadId || !newBusinessDraft.title.trim()) {
+        return
+      }
+
+      const payload: CreateNegotiationPayload = {
+        leadId,
+        title: newBusinessDraft.title || undefined,
+        stage: newBusinessDraft.stage,
+        temperature: newBusinessDraft.temperature || undefined,
+        negotiationType: newBusinessDraft.negotiationType || undefined,
+        value: parseLeadValueInput(newBusinessDraft.value) ?? undefined,
+        notes: newBusinessDraft.notes.trim()
+          ? [{
+              title: 'Nota',
+              description: newBusinessDraft.notes.trim(),
+              createdAt: new Date().toISOString()
+            }]
+          : undefined
+      }
+
+      try {
+        await WebhookService.createNegotiation(payload)
+        await refreshLeadNegotiations(leadId)
+        onLeadUpdated?.()
+        setIsCreatingBusiness(false)
+        setNewBusinessDraft(initialNewBusinessDraft)
+        setBusinessesError(null)
+      } catch (exception: unknown) {
+        const message =
+          exception instanceof Error
+            ? exception.message
+            : 'Falha ao criar negócio.'
+        setBusinessesError(message)
+      }
+    }
+
     const businessCreateContent = (
         <section
           style={{
@@ -6965,30 +6550,31 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               </h2>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsCreatingBusiness(false)
-                setNewBusinessDraft(initialNewBusinessDraft)
-                setBusinessesError(null)
-              }}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-              aria-label="Fechar criação de negócio"
-            >
-              X
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button
+                type="button"
+                aria-label="Salvar negócio"
+                title="Salvar negócio"
+                onClick={() => void handleCreateBusiness()}
+                disabled={!canCreateBusiness}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateBusiness ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateBusiness ? 'pointer' : 'not-allowed' }}
+              >
+                <Save size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreatingBusiness(false)
+                  setNewBusinessDraft(initialNewBusinessDraft)
+                  setBusinessesError(null)
+                }}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+                aria-label="Fechar criação de negócio"
+                title="Fechar criação"
+              >
+                X
+              </button>
+            </div>
           </div>
 
           {businessesError ? <p style={{ margin: 0, color: '#b91c1c' }}>{businessesError}</p> : null}
@@ -7315,81 +6901,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreatingBusiness(false)
-                  setNewBusinessDraft(initialNewBusinessDraft)
-                }}
-                style={{
-                  minWidth: 120,
-                  height: 42,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!leadId) return
-
-                  const payload: CreateNegotiationPayload = {
-                    leadId,
-                    title: newBusinessDraft.title || undefined,
-                    stage: newBusinessDraft.stage,
-                    temperature: newBusinessDraft.temperature || undefined,
-                    negotiationType: newBusinessDraft.negotiationType || undefined,
-                    value: parseLeadValueInput(newBusinessDraft.value) ?? undefined,
-                    notes: newBusinessDraft.notes.trim()
-                      ? [{
-                          title: 'Nota',
-                          description: newBusinessDraft.notes.trim(),
-                          createdAt: new Date().toISOString()
-                        }]
-                      : undefined
-                  }
-
-                  void (async () => {
-                    try {
-                      await WebhookService.createNegotiation(payload)
-                      await refreshLeadNegotiations(leadId)
-                      onLeadUpdated?.()
-                      setIsCreatingBusiness(false)
-                      setNewBusinessDraft(initialNewBusinessDraft)
-                      setBusinessesError(null)
-                    } catch (exception: unknown) {
-                      const message =
-                        exception instanceof Error
-                          ? exception.message
-                          : 'Falha ao criar negócio.'
-                      setBusinessesError(message)
-                    }
-                  })()
-                }}
-                disabled={!newBusinessDraft.title.trim() || !leadId}
-                style={{
-                  minWidth: 120,
-                  height: 42,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: newBusinessDraft.title.trim() && leadId ? '#1f7a4d' : '#9ca3af',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: newBusinessDraft.title.trim() && leadId ? 'pointer' : 'not-allowed'
-                }}
-              >
-                Salvar
-              </button>
-            </div>
           </article>
         </section>
       )
@@ -7929,26 +7440,27 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               Nova nota
             </h3>
 
-            <button
-              type="button"
-              aria-label="Fechar criação de nota"
-              onClick={handleCloseLeadTabCreateNote}
-              style={{
-                height: 28,
-                minWidth: 28,
-                border: 'none',
-                borderRadius: 6,
-                background: 'transparent',
-                color: '#6b7280',
-                padding: '0 8px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-                lineHeight: 1
-              }}
-            >
-              X
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button
+                type="button"
+                aria-label="Salvar nota"
+                title="Salvar nota"
+                onClick={() => void handleCreateLeadTabNote()}
+                disabled={!canCreateLeadTabNote}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateLeadTabNote ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateLeadTabNote ? 'pointer' : 'not-allowed' }}
+              >
+                <Save size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Fechar criação de nota"
+                title="Fechar criação"
+                onClick={handleCloseLeadTabCreateNote}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+              >
+                X
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -8044,45 +7556,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={handleCloseLeadTabCreateNote}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: '1px solid #d1d5db',
-              borderRadius: 8,
-              background: '#ffffff',
-              color: '#0f172a',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void handleCreateLeadTabNote()
-            }}
-            disabled={!canCreateLeadTabNote}
-            style={{
-              minWidth: 120,
-              height: 42,
-              border: 'none',
-              borderRadius: 8,
-              background: '#1f7a4d',
-              color: '#ffffff',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: canCreateLeadTabNote ? 'pointer' : 'not-allowed'
-            }}
-          >
-            Salvar
-          </button>
-        </div>
       </section>
     )
 
@@ -8201,26 +7674,27 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                 Nova nota
               </h2>
 
-              <button
-                type="button"
-                onClick={handleCloseLeadTabCreateNote}
-                style={{
-                  height: 28,
-                  minWidth: 28,
-                  border: 'none',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  color: '#6b7280',
-                  padding: '0 8px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  lineHeight: 1
-                }}
-                aria-label="Fechar criação de nota"
-              >
-                X
-              </button>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  aria-label="Salvar nota"
+                  title="Salvar nota"
+                  onClick={() => void handleCreateLeadTabNote()}
+                  disabled={!canCreateLeadTabNote}
+                  style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateLeadTabNote ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateLeadTabNote ? 'pointer' : 'not-allowed' }}
+                >
+                  <Save size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseLeadTabCreateNote}
+                  title="Fechar criação"
+                  style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+                  aria-label="Fechar criação de nota"
+                >
+                  X
+                </button>
+              </div>
             </div>
 
             <article
@@ -8469,6 +7943,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     return (
       <LeadChatTab
         leadId={leadId}
+        leadSource={leadData?.source}
         runtimeMode={currentRuntimeMode}
         isUpdatingRuntimeMode={isUpdatingRuntimeMode}
         onToggleRuntimeMode={handleToggleRuntimeMode}
@@ -8504,7 +7979,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setFollowUpsError(null)
       setBusinessesError(null)
       setLeadData(null)
-      setMessageTemplates([])
       setFollowUpsTotalItems(0)
       setStatusSortFocus('overdue')
       setDateSortOrder('asc')
@@ -8549,7 +8023,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setFollowUpsError(null)
       setBusinessesError(null)
       setLeadData(null)
-      setMessageTemplates([])
       setLeadNegotiations([])
       setNegotiationFollowUps([])
       setFollowUpsTotalItems(0)
@@ -8573,17 +8046,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         setStatusSortFocus(initialStatusSortFocus)
         setDateSortOrder(initialDateSortOrder)
         setIsUpdatingRuntimeMode(false)
-        const [lead, templates] = await Promise.all([
-          WebhookService.loadLead(leadId),
-          WebhookService.loadMessageTemplates()
-        ])
+        const lead = await WebhookService.loadLead(leadId)
         setLeadData(lead)
-        setMessageTemplates(templates)
         await refreshLeadNegotiations(leadId)
       } catch (exception: unknown) {
         const message = exception instanceof Error ? exception.message : 'Falha ao carregar lead.'
         setLeadData(null)
-        setMessageTemplates([])
         setLeadNegotiations([])
         setNegotiationFollowUps([])
         setFollowUpsTotalItems(0)
@@ -8597,7 +8065,30 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }, [isCreateLeadMode, leadId])
 
   if (isCreateLeadMode) {
-    const canCreateLead = Boolean(infoDraft.name.trim() && isLeadPhoneComplete(infoDraft.phone))
+    const canCreateLead = Boolean(
+      infoDraft.name.trim() &&
+      isLeadPhoneComplete(infoDraft.phone)
+    )
+    const createLeadFieldLabelStyle = {
+      color: '#1f2937',
+      fontSize: isMobile ? 17 / 1.3 : 13,
+      fontWeight: 700
+    } as const
+    const createLeadInputStyle = {
+      width: '100%',
+      height: isMobile ? 46 : 42,
+      border: '1px solid #d7dce4',
+      borderRadius: 10,
+      padding: '0 14px',
+      color: '#111827',
+      fontSize: isMobile ? 17 / 1.2 : 14,
+      boxSizing: 'border-box',
+      background: '#ffffff'
+    } as const
+    const createLeadSelectStyle = {
+      ...createLeadInputStyle,
+      fontWeight: 600
+    } as const
 
     return (
       <section
@@ -8614,31 +8105,32 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'grid', gap: 4 }}>
-            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+            <h2 style={{ margin: 0, color: '#0f172a', fontSize: isMobile ? 24 : 26, fontWeight: isMobile ? 700 : 800, lineHeight: 1 }}>
               Novo lead
             </h2>
           </div>
 
-          <button
-            type="button"
-            aria-label="Fechar criação de lead"
-            onClick={() => navigate(`${closeLeadPath}${location.search}`)}
-            style={{
-              height: 28,
-              minWidth: 28,
-              border: 'none',
-              borderRadius: 6,
-              background: 'transparent',
-              color: '#6b7280',
-              padding: '0 8px',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 600,
-              lineHeight: 1
-            }}
-          >
-            X
-          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              aria-label="Salvar lead"
+              title="Salvar lead"
+              onClick={() => void handleCreateLead()}
+              disabled={!canCreateLead}
+              style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canCreateLead ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canCreateLead ? 'pointer' : 'not-allowed' }}
+            >
+              <Save size={18} />
+            </button>
+            <button
+              type="button"
+              aria-label="Fechar criação de lead"
+              title="Fechar criação"
+              onClick={() => navigate(`${closeLeadPath}${location.search}`)}
+              style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+            >
+              X
+            </button>
+          </div>
         </div>
 
         {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
@@ -8677,25 +8169,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               alignContent: 'start'
             }}
           >
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome</span>
+            <span style={createLeadFieldLabelStyle}>Nome</span>
             <input
               type="text"
               value={infoDraft.name}
               onChange={(event) => setInfoDraft((current) => ({ ...current, name: event.target.value }))}
               autoComplete="new-password"
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 16,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadInputStyle}
             />
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Telefone</span>
+            <span style={createLeadFieldLabelStyle}>Telefone</span>
             <input
               type="text"
               value={infoDraft.phone}
@@ -8703,77 +8186,42 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               autoComplete="new-password"
               maxLength={14}
               inputMode="numeric"
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 16,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadInputStyle}
             />
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Email</span>
+            <span style={createLeadFieldLabelStyle}>Email</span>
             <input
               type="email"
               value={infoDraft.email}
               onChange={(event) => setInfoDraft((current) => ({ ...current, email: event.target.value }))}
               autoComplete="new-password"
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 16,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadInputStyle}
             />
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Localização</span>
+            <span style={createLeadFieldLabelStyle}>Localização</span>
             <input
               type="text"
               value={infoDraft.location}
               onChange={(event) => setInfoDraft((current) => ({ ...current, location: event.target.value }))}
               autoComplete="new-password"
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 16,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadInputStyle}
             />
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Origem</span>
+            <span style={createLeadFieldLabelStyle}>Origem</span>
             <select
-              value={infoDraft.source.toLowerCase()}
+              value={resolveLeadSourceOptionValue(infoDraft.source)}
               onChange={(event) => setInfoDraft((current) => ({ ...current, source: event.target.value }))}
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 14,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadSelectStyle}
             >
               <option value="">Selecione</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="metaads">MetaAds</option>
-              <option value="googleads">Google Ads</option>
-              <option value="indicacao">Indicação</option>
+              {createLeadSourceOptions.map((sourceOption) => (
+                <option key={sourceOption.value} value={sourceOption.value}>
+                  {sourceOption.label}
+                </option>
+              ))}
             </select>
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Qualificação</span>
+            <span style={createLeadFieldLabelStyle}>Qualificação</span>
             <select
               value={infoDraft.leadQualification}
               onChange={(event) =>
@@ -8782,23 +8230,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   leadQualification: event.target.value as '' | 'qualify' | 'not qualify'
                 }))
               }
-              style={{
-                width: '100%',
-                height: 36,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                padding: '0 10px',
-                fontSize: 14,
-                color: '#111827',
-                boxSizing: 'border-box'
-              }}
+              style={createLeadSelectStyle}
             >
               <option value="">Não definido</option>
               <option value="qualify">Qualificado</option>
               <option value="not qualify">Não qualificado</option>
             </select>
 
-            <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Links</span>
+            <span style={createLeadFieldLabelStyle}>Links</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
               <label
                 style={{
@@ -8852,6 +8291,45 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               >
                 <input
                   type="checkbox"
+                  checked={infoDraft.selectedSocialLinks.includes('facebook')}
+                  onChange={() => {
+                    setInfoDraft((current) => {
+                      const isSelected = current.selectedSocialLinks.includes('facebook')
+
+                      if (isSelected) {
+                        return {
+                          ...current,
+                          selectedSocialLinks: current.selectedSocialLinks.filter((item) => item !== 'facebook'),
+                          socialLinks: {
+                            ...current.socialLinks,
+                            facebook: ''
+                          }
+                        }
+                      }
+
+                      return {
+                        ...current,
+                        selectedSocialLinks: [...current.selectedSocialLinks, 'facebook']
+                      }
+                    })
+                  }}
+                />
+                Facebook
+              </label>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  color: '#334155',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <input
+                  type="checkbox"
                   checked={infoDraft.selectedSocialLinks.includes('url')}
                   onChange={() => {
                     setInfoDraft((current) => {
@@ -8881,7 +8359,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
             {infoDraft.selectedSocialLinks.includes('instagram') ? (
               <>
-                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Instagram</span>
+                <span style={createLeadFieldLabelStyle}>Instagram</span>
                 <input
                   type="text"
                   value={infoDraft.socialLinks.instagram}
@@ -8895,23 +8373,35 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     }))
                   }
                   placeholder="@usuario ou link"
-                  style={{
-                    width: '100%',
-                    height: 36,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 16,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
+                  style={createLeadInputStyle}
+                />
+              </>
+            ) : null}
+
+            {infoDraft.selectedSocialLinks.includes('facebook') ? (
+              <>
+                <span style={createLeadFieldLabelStyle}>Facebook</span>
+                <input
+                  type="text"
+                  value={infoDraft.socialLinks.facebook}
+                  onChange={(event) =>
+                    setInfoDraft((current) => ({
+                      ...current,
+                      socialLinks: {
+                        ...current.socialLinks,
+                        facebook: event.target.value
+                      }
+                    }))
+                  }
+                  placeholder="Perfil ou link"
+                  style={createLeadInputStyle}
                 />
               </>
             ) : null}
 
             {infoDraft.selectedSocialLinks.includes('url') ? (
               <>
-                <span style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>URL</span>
+                <span style={createLeadFieldLabelStyle}>URL</span>
                 <input
                   type="text"
                   value={infoDraft.socialLinks.url}
@@ -8925,61 +8415,12 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     }))
                   }
                   placeholder="https://"
-                  style={{
-                    width: '100%',
-                    height: 36,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0 10px',
-                    fontSize: 16,
-                    color: '#111827',
-                    boxSizing: 'border-box'
-                  }}
+                  style={createLeadInputStyle}
                 />
               </>
             ) : null}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-            <button
-              type="button"
-              onClick={() => navigate(`${closeLeadPath}${location.search}`)}
-              style={{
-                minWidth: 120,
-                height: 42,
-                border: '1px solid #d1d5db',
-                borderRadius: 8,
-                background: '#ffffff',
-                color: '#0f172a',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                void handleCreateLead()
-              }}
-              disabled={!canCreateLead}
-              style={{
-                minWidth: 120,
-                height: 42,
-                border: 'none',
-                borderRadius: 8,
-                background: canCreateLead ? '#1f7a4d' : '#9ca3af',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: canCreateLead ? 'pointer' : 'not-allowed'
-              }}
-            >
-              Salvar
-            </button>
-          </div>
         </article>
       </section>
     )
@@ -8992,7 +8433,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const selectedHeaderBusiness = activeTab === 'negocios' && selectedBusinessId
     ? leadNegotiations.find((business) => business.id === selectedBusinessId) ?? null
     : null
-  const mobileSelectedBusiness = isMobile ? selectedHeaderBusiness : null
   const isSelectedHeaderBusinessClosed = selectedHeaderBusiness
     ? formatDateOnly(selectedHeaderBusiness.closedAt) !== '-'
     : false
@@ -9025,8 +8465,20 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           {isMobile || selectedHeaderBusiness ? (
             <button
               type="button"
-              aria-label={selectedHeaderBusiness ? 'Voltar para o lead' : 'Voltar para listagem de leads'}
+              aria-label={
+                viewingBusinessFollowUpId
+                  ? 'Voltar para listagem de follow-ups'
+                  : selectedHeaderBusiness
+                    ? 'Voltar para o lead'
+                    : 'Voltar para listagem de leads'
+              }
               onClick={() => {
+                if (selectedHeaderBusiness && viewingBusinessFollowUpId) {
+                  setViewingBusinessFollowUpId(null)
+                  setIsConfirmingViewedBusinessFollowUpDelete(false)
+                  return
+                }
+
                 if (selectedHeaderBusiness) {
                   setSelectedBusinessId(null)
                   setIsBusinessActionsOpen(false)
@@ -9300,16 +8752,16 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         </div>
       </header>
 
-      {mobileSelectedBusiness ? (
+      {selectedHeaderBusiness ? (
         <div style={{ display: 'grid', gap: 0 }}>
           <nav
-            className="mobile-tabs-scrollbar-hidden"
+            className={isMobile ? 'mobile-tabs-scrollbar-hidden' : undefined}
             style={{
-              padding: '0 4px',
-              overflowX: 'auto'
+              padding: isMobile ? '0 4px' : 0,
+              overflowX: isMobile ? 'auto' : 'visible'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 4, minWidth: 0 }}>
               {[
                 { key: 'informacoes' as const, label: 'Informações' },
                 { key: 'followups' as const, label: 'FollowUps' },
@@ -9323,14 +8775,14 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                     key={tab.key}
                     type="button"
                     onClick={() => {
-                      if (mobileSelectedBusiness) {
+                      if (selectedHeaderBusiness) {
                         setBusinessDetailDraft({
-                          title: mobileSelectedBusiness.title ?? '',
-                          negotiationType: mobileSelectedBusiness.negotiationType ?? '',
-                          stage: mobileSelectedBusiness.stage,
-                          temperature: mobileSelectedBusiness.temperature ?? '',
-                          value: formatLeadValueInputField(mobileSelectedBusiness.value),
-                          notes: formatNegotiationNotes(mobileSelectedBusiness.notes)
+                          title: selectedHeaderBusiness.title ?? '',
+                          negotiationType: selectedHeaderBusiness.negotiationType ?? '',
+                          stage: selectedHeaderBusiness.stage,
+                          temperature: selectedHeaderBusiness.temperature ?? '',
+                          value: formatLeadValueInputField(selectedHeaderBusiness.value),
+                          notes: formatNegotiationNotes(selectedHeaderBusiness.notes)
                         })
                       }
                       setIsEditingBusiness(false)
@@ -9345,16 +8797,20 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                       border: 'none',
                       background:
                         isActive || hoveredBusinessTab === tab.key
-                          ? '#dcfce7'
+                          ? isMobile
+                            ? '#dcfce7'
+                            : interactionTheme.clickableCardHoverBackground
                           : 'transparent',
-                      borderRadius: 8,
-                      padding: '12px 16px',
+                      borderRadius: isMobile ? 8 : 6,
+                      padding: isMobile ? '12px 16px' : '8px 12px',
                       cursor: 'pointer',
-                      fontSize: 13,
+                      fontSize: isMobile ? 13 : 14,
                       fontWeight: isActive ? 700 : 600,
                       color:
                         isActive || hoveredBusinessTab === tab.key
-                          ? '#1f7a4d'
+                          ? isMobile
+                            ? '#1f7a4d'
+                            : interactionTheme.activeIconColor
                           : '#6b7280',
                       whiteSpace: 'nowrap'
                     }}
@@ -9365,6 +8821,10 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               })}
             </div>
           </nav>
+
+          {!isMobile ? (
+            <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+          ) : null}
         </div>
       ) : !shouldHideLeadTabs ? (
         <div style={{ display: 'grid', gap: 0 }}>
@@ -9432,10 +8892,56 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         </div>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: isMobile ? '16px 12px 0' : 0 }}>
-        {isLoading ? <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p> : null}
-        {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
-        {!isLoading && !error ? renderTabContent() : null}
+      <div
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: isEditingLeadInfo && activeTab === 'geral' ? 16 : 0, padding: isMobile ? '16px 12px 0' : 0 }}
+      >
+        {isEditingLeadInfo && activeTab === 'geral' ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: '#ffffff',
+              flexShrink: 0
+            }}
+          >
+            <h2 style={{ margin: 0, color: '#0f172a', fontSize: isMobile ? 24 : 26, fontWeight: isMobile ? 700 : 800, lineHeight: 1 }}>
+              Editar lead
+            </h2>
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button
+                type="button"
+                aria-label="Salvar lead"
+                title="Salvar lead"
+                onClick={() => void handleSaveLeadInfo()}
+                disabled={!canSaveLeadInfo}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: canSaveLeadInfo ? '#6b7280' : '#cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: canSaveLeadInfo ? 'pointer' : 'not-allowed' }}
+              >
+                <Save size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Cancelar edição do lead"
+                title="Cancelar edição"
+                onClick={handleCancelLeadInfoEdit}
+                style={{ width: 32, height: 32, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', fontSize: 14, fontWeight: 600, lineHeight: 1 }}
+              >
+                X
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          className={!isMobile && activeTab === 'geral' ? 'scrollbar-hidden' : undefined}
+          style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: !isMobile && activeTab === 'geral' ? 'auto' : undefined }}
+        >
+          {isLoading ? <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p> : null}
+          {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
+          {!isLoading && !error ? renderTabContent() : null}
+        </div>
       </div>
     </section>
   )

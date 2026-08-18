@@ -398,8 +398,11 @@ export default function ArquivosPage() {
           overflow: 'hidden'
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Arquivos</h1>
+          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+            Total {filteredArquivos.length}
+          </span>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px', gap: 12 }}>
@@ -1073,18 +1076,11 @@ export default function ArquivosPage() {
                             event.stopPropagation()
                             void handleDownloadArquivo(arquivo.id)
                           }}
-                          onMouseEnter={(event) =>
-                            applyActionHoverBackground(true, event.currentTarget)
-                          }
-                          onMouseLeave={(event) =>
-                            applyActionHoverBackground(false, event.currentTarget)
-                          }
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
@@ -1101,18 +1097,11 @@ export default function ArquivosPage() {
                             event.stopPropagation()
                             setConfirmingDeleteArquivoId(arquivo.id)
                           }}
-                          onMouseEnter={(event) =>
-                            applyActionHoverBackground(true, event.currentTarget)
-                          }
-                          onMouseLeave={(event) =>
-                            applyActionHoverBackground(false, event.currentTarget)
-                          }
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer'
@@ -1148,9 +1137,7 @@ export default function ArquivosPage() {
             padding: '0 8px'
           }}
         >
-          <span>
-            {filteredArquivos.length} arquivo{filteredArquivos.length === 1 ? '' : 's'}
-          </span>
+          <span>Total {filteredArquivos.length}</span>
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}

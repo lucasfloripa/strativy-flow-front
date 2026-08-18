@@ -11,6 +11,7 @@ import { FinanceiroService } from '../../features/financeiro/services/Financeiro
 import type {
   FinanceiroDistributionKpisResponse,
   FinanceiroStageKey,
+  FinanceiroTemplateCostsResponse,
   FinanceiroTopKpisResponse
 } from '../../features/financeiro/types/financeiro.types'
 
@@ -21,6 +22,16 @@ const defaultFinanceTopSummary: FinanceiroTopKpisResponse = {
   ticketMedio: 0,
   taxaConversao: 0,
   negociosEmAberto: 0
+}
+
+const defaultTemplateCosts: FinanceiroTemplateCostsResponse = {
+  totalTemplates: 0,
+  totalCost: 0,
+  types: [
+    { type: 'MARKETING', label: 'Marketing', quantity: 0, unitCost: 0.3, totalCost: 0 },
+    { type: 'UTILITY', label: 'Utilitário', quantity: 0, unitCost: 0.04, totalCost: 0 },
+    { type: 'UNKNOWN', label: 'Não identificado', quantity: 0, unitCost: 0, totalCost: 0 }
+  ]
 }
 
 const formatCurrency = (value: number): string => {
@@ -299,7 +310,9 @@ export default function FinanceiroPage() {
   const [dateRangeFilter, setDateRangeFilter] = useState<DateRange | undefined>(() => createDefaultDateRange())
   const [financeTopSummary, setFinanceTopSummary] = useState<FinanceiroTopKpisResponse>(defaultFinanceTopSummary)
   const [financeDistributionKpis, setFinanceDistributionKpis] = useState<FinanceiroDistributionKpisResponse>(defaultFinanceDistributionKpis)
+  const [templateCosts, setTemplateCosts] = useState<FinanceiroTemplateCostsResponse>(defaultTemplateCosts)
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState<boolean>(false)
+  const [activeDesktopView, setActiveDesktopView] = useState<'general' | 'costs'>('general')
   const [visibleSummaryTooltip, setVisibleSummaryTooltip] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false))
   const [hoveredSummaryCardTitle, setHoveredSummaryCardTitle] = useState<string | null>(null)
@@ -356,6 +369,29 @@ export default function FinanceiroPage() {
       isMounted = false
     }
   }, [createdAtFrom, createdAtTo])
+
+  useEffect(() => {
+    if (isMobile || activeDesktopView !== 'costs') {
+      return
+    }
+
+    let isMounted = true
+
+    void FinanceiroService.loadTemplateCosts({
+      createdAtFrom,
+      createdAtTo
+    })
+      .then((costs) => {
+        if (isMounted) setTemplateCosts(costs)
+      })
+      .catch(() => {
+        if (isMounted) setTemplateCosts(defaultTemplateCosts)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeDesktopView, createdAtFrom, createdAtTo, isMobile])
 
   const financeSummaryCards = buildFinanceSummaryCards(financeTopSummary)
   const temperatureChartData = buildTemperatureChartData(financeDistributionKpis)
@@ -431,94 +467,130 @@ export default function FinanceiroPage() {
 
         {!isMobile ? (
           <div
-            ref={dateRangePickerRef}
             style={{
-              width: 300,
-              maxWidth: 300,
-              height: 40,
-              border: '1px solid #d1d5db',
-              borderRadius: 8,
-              background: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '0 12px',
-              boxSizing: 'border-box',
-              position: 'relative'
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', color: '#6b7280', flexShrink: 0 }}>
-              <CalendarDays size={16} />
-            </span>
-
-            <input
-              type="text"
-              readOnly
-              value={formatRangeFilterLabel(dateRangeFilter)}
-              onClick={() => setIsDateRangePickerOpen((current) => !current)}
-              onFocus={() => setIsDateRangePickerOpen(true)}
-              aria-label="Selecionar periodo"
+            <div
+              ref={dateRangePickerRef}
               style={{
-                width: '100%',
-                border: '1px solid #f4f6fa',
-                outline: 'none',
-                background: '#fcfdff',
-                borderRadius: 6,
-                padding: '6px 8px',
-                color: dateRangeFilter?.from ? '#111827' : '#6b7280',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                boxSizing: 'border-box'
+                width: 300,
+                maxWidth: 300,
+                height: 40,
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                background: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 12px',
+                boxSizing: 'border-box',
+                position: 'relative',
+                order: 2
               }}
-            />
-
-            <button
-              type="button"
-              onClick={() => setDateRangeFilter(undefined)}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#64748b',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                flexShrink: 0,
-                padding: 0,
-                opacity: dateRangeFilter?.from ? 1 : 0.45
-              }}
-              disabled={!dateRangeFilter?.from}
             >
-              Limpar
-            </button>
+              <span style={{ display: 'inline-flex', alignItems: 'center', color: '#6b7280', flexShrink: 0 }}>
+                <CalendarDays size={16} />
+              </span>
 
-            {isDateRangePickerOpen ? (
-              <div
+              <input
+                type="text"
+                readOnly
+                value={formatRangeFilterLabel(dateRangeFilter)}
+                onClick={() => setIsDateRangePickerOpen((current) => !current)}
+                onFocus={() => setIsDateRangePickerOpen(true)}
+                aria-label="Selecionar periodo"
                 style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 12,
-                  background: '#ffffff',
-                  boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
-                  padding: 12,
-                  zIndex: 30
+                  width: '100%',
+                  border: '1px solid #f4f6fa',
+                  outline: 'none',
+                  background: '#fcfdff',
+                  borderRadius: 6,
+                  padding: '6px 8px',
+                  color: dateRangeFilter?.from ? '#111827' : '#6b7280',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  boxSizing: 'border-box'
                 }}
+              />
+
+              <button
+                type="button"
+                onClick={() => setDateRangeFilter(undefined)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#64748b',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  padding: 0,
+                  opacity: dateRangeFilter?.from ? 1 : 0.45
+                }}
+                disabled={!dateRangeFilter?.from}
               >
-                <DayPicker
-                  mode="range"
-                  selected={dateRangeFilter}
-                  onSelect={setDateRangeFilter}
-                  locale={undefined}
-                  weekStartsOn={1}
-                  showOutsideDays
-                />
-              </div>
-            ) : null}
+                Limpar
+              </button>
+
+              {isDateRangePickerOpen ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 12,
+                    background: '#ffffff',
+                    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
+                    padding: 12,
+                    zIndex: 30
+                  }}
+                >
+                  <DayPicker
+                    mode="range"
+                    selected={dateRangeFilter}
+                    onSelect={setDateRangeFilter}
+                    locale={undefined}
+                    weekStartsOn={1}
+                    showOutsideDays
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            {(['general', 'costs'] as const).map((view) => {
+              const isSelected = activeDesktopView === view
+
+              return (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setActiveDesktopView(view)}
+                  aria-pressed={isSelected}
+                  style={{
+                    height: 40,
+                    minWidth: 82,
+                    padding: '0 16px',
+                    border: `1px solid ${isSelected ? '#1f46ad' : '#d1d5db'}`,
+                    borderRadius: 8,
+                    background: isSelected ? '#1f46ad' : '#ffffff',
+                    color: isSelected ? '#ffffff' : '#475569',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {view === 'general' ? 'Geral' : 'Custos'}
+                </button>
+              )
+            })}
           </div>
         ) : null}
       </header>
@@ -636,7 +708,7 @@ export default function FinanceiroPage() {
         style={{
           minHeight: 0,
           flex: 1,
-          display: 'flex',
+          display: activeDesktopView === 'general' || isMobile ? 'flex' : 'none',
           flexDirection: 'column',
           gap: 8,
           overflowX: 'hidden',
@@ -1329,6 +1401,128 @@ export default function FinanceiroPage() {
       </div>
 
       </div>
+
+      {!isMobile && activeDesktopView === 'costs' ? (
+        <div
+          className="financeiro-scroll-body"
+          style={{
+            minHeight: 0,
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 12
+            }}
+          >
+            {[
+              {
+                label: 'Templates enviados',
+                value: formatCount(templateCosts.totalTemplates),
+                color: '#2563eb'
+              },
+              {
+                label: 'Custo total',
+                value: formatCurrency(templateCosts.totalCost),
+                color: '#dc2626'
+              }
+            ].map((summary) => (
+              <article
+                key={summary.label}
+                style={{
+                  minHeight: 112,
+                  padding: '18px 20px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <span style={{ color: '#64748b', fontSize: 14, fontWeight: 600 }}>
+                  {summary.label}
+                </span>
+                <strong style={{ color: summary.color, fontSize: 28, lineHeight: 1.1 }}>
+                  {summary.value}
+                </strong>
+              </article>
+            ))}
+          </div>
+
+          <section
+            style={{
+              width: '100%',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              background: '#ffffff',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid #e2e8f0' }}>
+              <h2 style={{ margin: 0, color: '#0f172a', fontSize: 18, fontWeight: 700 }}>
+                Custos por tipo de template
+              </h2>
+              <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 13 }}>
+                Valores calculados para o período selecionado.
+              </p>
+            </div>
+
+            <div
+              style={{
+                minHeight: 44,
+                padding: '0 20px',
+                display: 'grid',
+                gridTemplateColumns: 'minmax(180px, 1fr) 140px 160px 160px',
+                alignItems: 'center',
+                gap: 16,
+                color: '#64748b',
+                background: '#f8fafc',
+                fontSize: 12,
+                fontWeight: 700
+              }}
+            >
+              <span>Tipo</span>
+              <span style={{ textAlign: 'right' }}>Quantidade</span>
+              <span style={{ textAlign: 'right' }}>Valor unitário</span>
+              <span style={{ textAlign: 'right' }}>Subtotal</span>
+            </div>
+
+            {templateCosts.types.map((templateType) => (
+              <div
+                key={templateType.type}
+                style={{
+                  minHeight: 62,
+                  padding: '0 20px',
+                  borderTop: '1px solid #e2e8f0',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(180px, 1fr) 140px 160px 160px',
+                  alignItems: 'center',
+                  gap: 16,
+                  color: '#334155',
+                  fontSize: 14
+                }}
+              >
+                <strong style={{ color: '#0f172a' }}>{templateType.label}</strong>
+                <span style={{ textAlign: 'right' }}>{formatCount(templateType.quantity)}</span>
+                <span style={{ textAlign: 'right' }}>{formatCurrency(templateType.unitCost)}</span>
+                <strong style={{ textAlign: 'right', color: '#0f172a' }}>
+                  {formatCurrency(templateType.totalCost)}
+                </strong>
+              </div>
+            ))}
+          </section>
+        </div>
+      ) : null}
 
     </section>
   )

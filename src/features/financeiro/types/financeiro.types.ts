@@ -7,6 +7,20 @@ export type FinanceiroTopKpisResponse = {
   negociosEmAberto: number
 }
 
+export type FinanceiroTemplateCostType = 'MARKETING' | 'UTILITY' | 'UNKNOWN'
+
+export type FinanceiroTemplateCostsResponse = {
+  totalTemplates: number
+  totalCost: number
+  types: Array<{
+    type: FinanceiroTemplateCostType
+    label: string
+    quantity: number
+    unitCost: number
+    totalCost: number
+  }>
+}
+
 export type FinanceiroStageKey =
   | 'NEW'
   | 'CONTACTED'

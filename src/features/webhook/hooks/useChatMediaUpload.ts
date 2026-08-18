@@ -13,6 +13,7 @@ type UseChatMediaUploadResult = {
     type: ChatUploadMediaType
     caption?: string
     metadata?: Record<string, unknown>
+    channel?: 'messenger' | 'instagram'
   }) => Promise<boolean>
   cancelUpload: () => void
 }
@@ -97,6 +98,7 @@ export const useChatMediaUpload = (): UseChatMediaUploadResult => {
     type: ChatUploadMediaType
     caption?: string
     metadata?: Record<string, unknown>
+    channel?: 'messenger' | 'instagram'
   }): Promise<boolean> => {
     if (isUploading) {
       return false
@@ -114,6 +116,7 @@ export const useChatMediaUpload = (): UseChatMediaUploadResult => {
         type: params.type,
         caption: params.caption,
         metadata: params.metadata,
+        channel: params.channel,
         signal: nextAbortController.signal
       })
 

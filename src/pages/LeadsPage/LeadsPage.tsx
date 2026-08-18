@@ -1,10 +1,12 @@
-import { Archive, CalendarDays, Clock3, Facebook, Handshake, ListFilter, MessageCircle, Plus, Search, Star, Trash2 } from 'lucide-react'
+import { Archive, CalendarDays, Clock3, ListFilter, Plus, Star, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import {
   formatDateTime,
   getApiDateTimestamp,
@@ -40,6 +42,7 @@ type LeadsTableRow = {
 type TagPresentation = {
   label: string
   textColor: string
+  background: string
   icon?: ReactNode
 }
 
@@ -47,53 +50,8 @@ type LeadSortKey = 'createdAt' | 'name' | 'qualification' | 'nextAgenda' | 'last
 type LeadSortDirection = 'asc' | 'desc'
 type QualificationSortFocus = 'qualify' | 'notQualify' | 'unqualified'
 type NextAgendaSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
-type SourceSortFocus = 'whatsappFirst' | 'metaAdsFirst' | 'googleAdsFirst' | 'indicacaoFirst'
+type SourceSortFocus = 'whatsappFirst' | 'directFirst' | 'metaAdsFirst' | 'googleAdsFirst' | 'indicacaoFirst'
 
-
-const getSourceTagPresentation = (source: string): TagPresentation => {
-  const normalizedSource = source
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  if (normalizedSource === 'metaads') {
-    return {
-      label: 'Meta Ads',
-      textColor: '#1877f2',
-      icon: <Facebook size={12} />
-    }
-  }
-
-  if (normalizedSource === 'googleads') {
-    return {
-      label: 'Google Ads',
-      textColor: '#FBBC04',
-      icon: <Search size={12} />
-    }
-  }
-
-  if (normalizedSource === 'whatsapp') {
-    return {
-      label: 'WhatsApp',
-      textColor: '#15803d',
-      icon: <MessageCircle size={12} />
-    }
-  }
-
-  if (normalizedSource === 'indicacao') {
-    return {
-      label: 'Indicação',
-      textColor: '#7c3aed',
-      icon: <Handshake size={12} />
-    }
-  }
-
-  return {
-    label: source,
-    textColor: '#6b7280'
-  }
-}
 
 const normalizePhoneDigits = (value: string): string => value.replace(/\D/g, '')
 
@@ -133,11 +91,28 @@ const getInteractionTagPresentation = (
   createdAt: string | Date | null
 ): TagPresentation => {
   const referenceValue = lastMessageAt ?? createdAt
+  const referenceDate = parseApiDateToBrowserDate(referenceValue)
+
+  if (!referenceDate) {
+    return {
+      label: '-',
+      textColor: '#6b7280',
+      background: '#f3f4f6'
+    }
+  }
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const colors = referenceDate < startOfToday
+    ? { textColor: '#b91c1c', background: '#fee2e2' }
+    : referenceDate <= endOfToday
+      ? { textColor: '#b45309', background: '#fef3c7' }
+      : { textColor: '#1d4ed8', background: '#dbeafe' }
 
   return {
-    label: referenceValue ? formatDateTime(referenceValue) : '-',
-    textColor: '#6b7280',
-    icon: <Clock3 size={12} />
+    label: formatDateTime(referenceDate),
+    ...colors
   }
 }
 
@@ -193,10 +168,9 @@ const resolveNextAgendaStatus = (
 
     if (dueDate) {
       const now = new Date()
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
       const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
 
-      if (dueDate < startOfToday) {
+      if (dueDate < now) {
         return 'overdue'
       }
 
@@ -323,7 +297,7 @@ const getQualificationSortRank = (
 
 const normalizeSourceValue = (
   source: string
-): 'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other' => {
+): 'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other' => {
   const normalizedSource = source
     .trim()
     .toLowerCase()
@@ -333,6 +307,14 @@ const normalizeSourceValue = (
 
   if (normalizedSource === 'whatsapp') {
     return 'whatsapp'
+  }
+
+  if (
+    normalizedSource === 'direct' ||
+    normalizedSource === 'instagram' ||
+    normalizedSource === 'instagramdirect'
+  ) {
+    return 'direct'
   }
 
   if (normalizedSource === 'metaads') {
@@ -355,35 +337,47 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
 
   const ranksByFocus: Record<
     SourceSortFocus,
-    Record<'whatsapp' | 'metaads' | 'googleads' | 'indicacao' | 'other', number>
+    Record<'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other', number>
   > = {
     whatsappFirst: {
       whatsapp: 0,
-      metaads: 1,
-      googleads: 2,
-      indicacao: 3,
-      other: 4
+      direct: 1,
+      metaads: 2,
+      googleads: 3,
+      indicacao: 4,
+      other: 5
+    },
+    directFirst: {
+      direct: 0,
+      whatsapp: 1,
+      metaads: 2,
+      googleads: 3,
+      indicacao: 4,
+      other: 5
     },
     metaAdsFirst: {
       metaads: 0,
       whatsapp: 1,
-      googleads: 2,
-      indicacao: 3,
-      other: 4
+      direct: 2,
+      googleads: 3,
+      indicacao: 4,
+      other: 5
     },
     googleAdsFirst: {
       googleads: 0,
       whatsapp: 1,
-      metaads: 2,
-      indicacao: 3,
-      other: 4
+      direct: 2,
+      metaads: 3,
+      indicacao: 4,
+      other: 5
     },
     indicacaoFirst: {
       indicacao: 0,
       whatsapp: 1,
-      metaads: 2,
-      googleads: 3,
-      other: 4
+      direct: 2,
+      metaads: 3,
+      googleads: 4,
+      other: 5
     }
   }
 
@@ -950,6 +944,10 @@ export default function LeadsPage() {
 
       setSourceSortFocus((currentFocus) => {
         if (currentFocus === 'whatsappFirst') {
+          return 'directFirst'
+        }
+
+        if (currentFocus === 'directFirst') {
           return 'metaAdsFirst'
         }
 
@@ -1025,8 +1023,11 @@ export default function LeadsPage() {
           overflow: 'hidden'
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads</h1>
+          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+            Total {filteredLeads.length}
+          </span>
         </header>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
@@ -1249,7 +1250,7 @@ export default function LeadsPage() {
               lead.lastMessageAt,
               lead.createdAt
             )
-            const sourceTagPresentation = getSourceTagPresentation(lead.source)
+            const sourceTagPresentation = getLeadSourceTagPresentation(lead.source)
             const nextAgendaLabel = formatAgendaDateTime(lead.nextFollowUpDueAt)
             const nextAgendaTagColors = getNextAgendaTagColors(resolveNextAgendaStatus(lead))
 
@@ -1362,11 +1363,13 @@ export default function LeadsPage() {
                       <span
                         style={{
                           marginTop: 8,
+                          marginLeft: 8,
                           fontSize: 12,
                           fontWeight: 700,
                           color: sourceTagPresentation.textColor,
                           whiteSpace: 'nowrap',
-                          background: `${sourceTagPresentation.textColor}44`,
+                          background: sourceTagPresentation.backgroundColor,
+                          border: `1px solid ${sourceTagPresentation.borderColor}`,
                           borderRadius: 6,
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1469,7 +1472,7 @@ export default function LeadsPage() {
                       <Clock3 size={17} />
                       <span>Último contato</span>
                     </div>
-                    <p style={{ margin: '8px 0 0 24px', color: '#64748b', fontSize: 14, lineHeight: 1.35, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <p style={{ margin: '8px 0 0 8px', color: shouldShowNewTag ? '#b45309' : interactionTagPresentation.textColor, background: shouldShowNewTag ? '#fef3c7' : interactionTagPresentation.background, borderRadius: 6, display: 'flex', width: 'max-content', maxWidth: 'calc(100% - 24px)', padding: '7px 12px', fontSize: 12, fontWeight: 700, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {isArchivedLead ? '-' : shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
                     </p>
                   </div>
@@ -1493,12 +1496,18 @@ export default function LeadsPage() {
                       }}
                       style={{
                         margin: '8px 0 0 0',
-                        border: 'none',
-                        background: 'transparent',
-                        color: nextAgendaTagColors.textColor,
-                        padding: 0,
-                        fontSize: 14,
-                        lineHeight: 1.35,
+                        border: '1px solid transparent',
+                        borderRadius: 6,
+                        background: isArchivedLead || nextAgendaLabel === '-'
+                          ? 'transparent'
+                          : nextAgendaTagColors.background,
+                        color: isArchivedLead || nextAgendaLabel === '-'
+                          ? '#9ca3af'
+                          : nextAgendaTagColors.textColor,
+                        padding: isArchivedLead || nextAgendaLabel === '-' ? 0 : '7px 12px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        lineHeight: 1.1,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1898,7 +1907,7 @@ export default function LeadsPage() {
                     Origem <span style={{ fontSize: 11 }}>{getSortIndicator('source')}</span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
                   Ações
                 </th>
               </tr>
@@ -1911,7 +1920,7 @@ export default function LeadsPage() {
                   lead.lastMessageAt,
                   lead.createdAt
                 )
-                const sourceTagPresentation = getSourceTagPresentation(lead.source)
+                const sourceTagPresentation = getLeadSourceTagPresentation(lead.source)
                 const leadQualificationLabel = isArchivedLead
                   ? 'Arquivado'
                   : getLeadQualificationLabel(lead.leadQualification)
@@ -2123,22 +2132,24 @@ export default function LeadsPage() {
                         color: '#111827'
                       }}
                     >
-                      <span
-                        ref={(element) => setLeadNameRef(lead.id, element)}
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'normal',
-                          lineHeight: '18px',
-                          fontSize: 14,
-                          fontWeight: 700
-                        }}
-                      >
-                        {lead.name}
-                      </span>
+                      <DelayedTooltip content={lead.name}>
+                        <span
+                          ref={(element) => setLeadNameRef(lead.id, element)}
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'normal',
+                            lineHeight: '18px',
+                            fontSize: 14,
+                            fontWeight: 700
+                          }}
+                        >
+                          {lead.name}
+                        </span>
+                      </DelayedTooltip>
                     </td>
                     <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
                       {leadQualificationLabel === '-' ? (
@@ -2219,9 +2230,9 @@ export default function LeadsPage() {
                           style={{
                             fontSize: 12,
                             fontWeight: 700,
-                            color: shouldShowNewTag ? '#eab308' : interactionTagPresentation.textColor,
+                            color: shouldShowNewTag ? '#b45309' : interactionTagPresentation.textColor,
                             whiteSpace: 'nowrap',
-                            background: shouldShowNewTag ? '#fef3c7' : `${interactionTagPresentation.textColor}44`,
+                            background: shouldShowNewTag ? '#fef3c7' : interactionTagPresentation.background,
                             borderRadius: 6,
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -2230,11 +2241,6 @@ export default function LeadsPage() {
                             lineHeight: 1.1
                           }}
                         >
-                          {!shouldShowNewTag && interactionTagPresentation.icon ? (
-                            <span style={tagIconStyle}>
-                              {interactionTagPresentation.icon}
-                            </span>
-                          ) : null}
                           <span style={tagContentStyle}>
                             {shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
                           </span>
@@ -2251,7 +2257,8 @@ export default function LeadsPage() {
                             fontWeight: 700,
                             color: sourceTagPresentation.textColor,
                             whiteSpace: 'nowrap',
-                            background: `${sourceTagPresentation.textColor}44`,
+                            background: sourceTagPresentation.backgroundColor,
+                            border: `1px solid ${sourceTagPresentation.borderColor}`,
                             borderRadius: 6,
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -2287,9 +2294,8 @@ export default function LeadsPage() {
                           style={{
                             height: 24,
                             width: 24,
-                            border: lead.isFavorite ? '1px solid #fde047' : '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: lead.isFavorite ? '#fef9c3' : '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: lead.isFavorite ? '#facc15' : '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
@@ -2317,26 +2323,14 @@ export default function LeadsPage() {
 
                             setConfirmingArchiveLeadId(lead.id)
                           }}
-                          onMouseEnter={(event) => {
-                            event.currentTarget.style.background = isArchivedLead
-                              ? '#e5e7eb'
-                              : interactionTheme.clickableCardHoverBackground
-                          }}
-                          onMouseLeave={(event) => {
-                            event.currentTarget.style.background = isArchivedLead
-                              ? '#e5e7eb'
-                              : '#ffffff'
-                          }}
                           style={{
                             height: 24,
                             width: 24,
-                            border: isArchivedLead ? '1px solid #d1d5db' : '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: isArchivedLead ? '#e5e7eb' : '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: isArchivedLead ? '#6b7280' : '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -2352,22 +2346,14 @@ export default function LeadsPage() {
                             setConfirmingArchiveLeadId(null)
                             setConfirmingDeleteLeadId(lead.id)
                           }}
-                          onMouseEnter={(event) => {
-                            event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                          }}
-                          onMouseLeave={(event) => {
-                            event.currentTarget.style.background = '#ffffff'
-                          }}
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -2412,6 +2398,20 @@ export default function LeadsPage() {
               ) : null}
             </tbody>
           </table>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 10,
+            color: '#6b7280',
+            fontSize: 13,
+            padding: '0 8px'
+          }}
+        >
+          <span>Total {filteredLeads.length}</span>
         </div>
 
         {isLeadSelected && !isMobile ? (

@@ -5,6 +5,7 @@ import { interactionTheme } from '../../../app/theme/brandTheme'
 type RecordingComposerProps = {
   durationLabel: string
   isUploading: boolean
+  accentColor?: string
   onCancel: () => void
   onFinish: () => void
 }
@@ -12,6 +13,7 @@ type RecordingComposerProps = {
 export function RecordingComposer({
   durationLabel,
   isUploading,
+  accentColor = interactionTheme.primaryButtonBackground,
   onCancel,
   onFinish
 }: RecordingComposerProps) {
@@ -20,7 +22,7 @@ export function RecordingComposer({
       style={{
         flex: 1,
         minHeight: 40,
-        border: `1px solid ${interactionTheme.inputFocusBorderColor}`,
+        border: `1px solid ${accentColor}`,
         borderRadius: 8,
         display: 'flex',
         alignItems: 'center',
@@ -92,7 +94,7 @@ export function RecordingComposer({
             border: 'none',
             borderRadius: 6,
             color: '#ffffff',
-            background: interactionTheme.primaryButtonBackground,
+            background: accentColor,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',

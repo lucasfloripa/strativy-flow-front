@@ -234,8 +234,11 @@ export default function LeadsArquivadosPage() {
           overflow: 'hidden'
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads Arquivados</h1>
+          <span style={{ width: 52, flexShrink: 0, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+            Total {archivedLeads.length}
+          </span>
         </header>
 
         <input
@@ -736,9 +739,8 @@ export default function LeadsArquivadosPage() {
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 4,
-                            background: '#e5e7eb',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#6b7280',
                             padding: 0,
                             cursor: 'pointer',
@@ -759,9 +761,8 @@ export default function LeadsArquivadosPage() {
                           style={{
                             height: 24,
                             width: 24,
-                            border: '1px solid #e5e7eb',
-                            borderRadius: 4,
-                            background: '#ffffff',
+                            border: 'none',
+                            background: 'transparent',
                             color: '#4b5563',
                             padding: 0,
                             cursor: 'pointer',
@@ -816,7 +817,7 @@ export default function LeadsArquivadosPage() {
           }}
         >
           <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 8 }}>
-            {archivedLeads.length} arquivado{archivedLeads.length === 1 ? '' : 's'}
+            Total {archivedLeads.length}
           </span>
 
         </div>

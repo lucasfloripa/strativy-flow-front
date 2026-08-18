@@ -27,6 +27,7 @@ export type DashboardConversation = {
   source: string | null
   leadCreatedAt: string | Date
   lastMessageAt: string | Date
+  lastInboundAt: string | Date | null
   lastMessage: string | null
   lastMessageDirection: 'INBOUND' | 'OUTBOUND' | 'AUTOMATIC'
   lastMessageType: string

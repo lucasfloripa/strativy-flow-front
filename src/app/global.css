@@ -58,11 +58,13 @@ textarea {
   font: inherit;
 }
 
-.mobile-tabs-scrollbar-hidden {
+.mobile-tabs-scrollbar-hidden,
+.scrollbar-hidden {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.mobile-tabs-scrollbar-hidden::-webkit-scrollbar {
+.mobile-tabs-scrollbar-hidden::-webkit-scrollbar,
+.scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }

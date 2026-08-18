@@ -2,18 +2,25 @@ export type ChatMessageApi = {
   id: string
   content: string | null
   direction: string
-  type?: 'text' | 'image' | 'audio' | 'video' | 'document' | null
+  type?: 'text' | 'image' | 'audio' | 'video' | 'document' | 'contact' | null
   mediaUrl?: string | null
   mimeType?: string | null
   mediaSize?: number | null
   fileName?: string | null
   source?: 'normal' | 'template'
+  metadata?: Record<string, unknown> | null
   createdAt?: string
 }
 
 export type ChatMessageDirection = 'inbound' | 'outbound'
 
-export type ChatMessageType = 'text' | 'image' | 'audio' | 'video' | 'document'
+export type ChatMessageType =
+  | 'text'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'document'
+  | 'contact'
 
 export type ChatMessageSource = 'normal' | 'template'
 
@@ -27,11 +34,12 @@ export type ChatMessage = {
   mediaSize?: number | null
   fileName?: string | null
   source: ChatMessageSource
+  metadata?: Record<string, unknown> | null
   createdAt?: string
 }
 
 export type LeadRuntimeMode = 'HUMAN' | 'AUTOMATION'
-export type LeadSocialLinkKey = 'instagram' | 'url'
+export type LeadSocialLinkKey = 'instagram' | 'facebook' | 'url'
 export type LeadSocialLinks = Partial<Record<LeadSocialLinkKey, string>>
 
 export type LeadStage =
@@ -196,9 +204,7 @@ export type NegotiationFollowUpResponse = {
   id: string
   negotiationId: string
   title: string
-  templateId?: string | null
-  template?: FollowUpTemplateResponse | null
-  templateVariables?: Record<string, unknown> | null
+  actions: FollowUpActionResponse[]
   dueAt: string
   status: LeadFollowUpStatus
   completedAt?: string | null
@@ -206,11 +212,35 @@ export type NegotiationFollowUpResponse = {
   updatedAt?: string
 }
 
+export type FollowUpActionType = 'send_message' | 'send_email'
+export type FollowUpMessageChannel = 'whatsapp' | 'messenger' | 'instagram' | 'Agenda'
+export type FollowUpActionStatus =
+  | 'pending'
+  | 'executed'
+  | 'failed'
+  | 'skipped'
+  | 'manual_required'
+
+export type FollowUpActionPayload = {
+  type: FollowUpActionType
+  channel?: FollowUpMessageChannel
+  payload: Record<string, unknown>
+}
+
+export type FollowUpActionResponse = FollowUpActionPayload & {
+  id: string
+  channel: FollowUpMessageChannel | null
+  status: FollowUpActionStatus
+  executedAt: string | null
+  failureReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export type CreateNegotiationFollowUpPayload = {
   negotiationId: string
   title: string
-  templateId?: string | null
-  templateVariables?: Record<string, unknown>
+  actions: FollowUpActionPayload[]
   dueAt: string
 }
 

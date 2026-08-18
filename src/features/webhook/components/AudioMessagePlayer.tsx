@@ -8,14 +8,23 @@ type AudioMessagePlayerProps = {
   mediaUrl: string
   mimeType?: string | null
   isOutbound?: boolean
+  theme?: 'default' | 'messenger' | 'direct'
 }
 
 export function AudioMessagePlayer({
   messageId,
   mediaUrl,
   mimeType,
-  isOutbound = false
+  isOutbound = false,
+  theme = 'default'
 }: AudioMessagePlayerProps) {
+  const isMessenger = theme === 'messenger'
+  const isDirect = theme === 'direct'
+  const accentColor = isDirect
+    ? '#c13584'
+    : isMessenger
+      ? '#0084ff'
+      : interactionTheme.primaryButtonBackground
   const {
     audioRef,
     isPlaying,
@@ -81,6 +90,58 @@ export function AudioMessagePlayer({
             background: #ffffff;
             border: 2px solid #16a34a;
           }
+
+          .audio-progress-slider--messenger::-webkit-slider-runnable-track {
+            background: rgba(0, 132, 255, 0.22);
+          }
+
+          .audio-progress-slider--messenger::-webkit-slider-thumb {
+            background: #0084ff;
+          }
+
+          .audio-progress-slider--messenger::-moz-range-track {
+            background: rgba(0, 132, 255, 0.22);
+          }
+
+          .audio-progress-slider--messenger::-moz-range-thumb {
+            background: #0084ff;
+          }
+
+          .audio-progress-slider--messenger.audio-progress-slider--outbound::-webkit-slider-thumb {
+            background: #ffffff;
+            border: 2px solid #0084ff;
+          }
+
+          .audio-progress-slider--messenger.audio-progress-slider--outbound::-moz-range-thumb {
+            background: #ffffff;
+            border: 2px solid #0084ff;
+          }
+
+          .audio-progress-slider--direct::-webkit-slider-runnable-track {
+            background: rgba(193, 53, 132, 0.22);
+          }
+
+          .audio-progress-slider--direct::-webkit-slider-thumb {
+            background: #c13584;
+          }
+
+          .audio-progress-slider--direct::-moz-range-track {
+            background: rgba(193, 53, 132, 0.22);
+          }
+
+          .audio-progress-slider--direct::-moz-range-thumb {
+            background: #c13584;
+          }
+
+          .audio-progress-slider--direct.audio-progress-slider--outbound::-webkit-slider-thumb {
+            background: #ffffff;
+            border: 2px solid #c13584;
+          }
+
+          .audio-progress-slider--direct.audio-progress-slider--outbound::-moz-range-thumb {
+            background: #ffffff;
+            border: 2px solid #c13584;
+          }
         `}
       </style>
 
@@ -108,7 +169,7 @@ export function AudioMessagePlayer({
             minWidth: 34,
             border: 'none',
             borderRadius: 8,
-            background: interactionTheme.primaryButtonBackground,
+            background: accentColor,
             color: '#ffffff',
             cursor: 'pointer',
             display: 'inline-flex',
@@ -127,7 +188,7 @@ export function AudioMessagePlayer({
 
         <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
           <input
-            className={`audio-progress-slider${isOutbound ? ' audio-progress-slider--outbound' : ''}`}
+            className={`audio-progress-slider${isOutbound ? ' audio-progress-slider--outbound' : ''}${isMessenger ? ' audio-progress-slider--messenger' : ''}`}
             type="range"
             min={0}
             max={100}
@@ -137,7 +198,7 @@ export function AudioMessagePlayer({
               handleSeekChange(Number(event.target.value))
             }}
             aria-label="Progresso do audio"
-            style={{ width: '100%', accentColor: interactionTheme.primaryButtonBackground, cursor: 'pointer' }}
+            style={{ width: '100%', accentColor, cursor: 'pointer' }}
           />
           <div
             style={{

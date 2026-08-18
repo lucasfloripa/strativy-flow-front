@@ -1,4 +1,5 @@
 import { appApiClient } from '../../../core/api/appApiClient'
+import axios from 'axios'
 import type {
   ChatMessage,
   ChatMessageApi,
@@ -6,6 +7,7 @@ import type {
   CreateNegotiationFollowUpPayload,
   CreateNegotiationPayload,
   FollowUpDateSortOrder,
+  FollowUpActionPayload,
   FollowUpSortFocus,
   PaginatedResponse,
   LeadFollowUpResponse,
@@ -36,7 +38,8 @@ export const WebhookService = {
         message.type === 'image' ||
         message.type === 'audio' ||
         message.type === 'video' ||
-        message.type === 'document'
+        message.type === 'document' ||
+        message.type === 'contact'
           ? message.type
           : 'text',
       mediaUrl: message.mediaUrl ?? null,
@@ -44,6 +47,7 @@ export const WebhookService = {
       mediaSize: message.mediaSize ?? null,
       fileName: message.fileName ?? null,
       source: message.source ?? 'normal',
+      metadata: message.metadata ?? null,
       createdAt: message.createdAt
     }
   },
@@ -60,8 +64,15 @@ export const WebhookService = {
   },
 
   async createLead(payload: CreateLeadPayload): Promise<LeadResponse> {
-    const { data } = await appApiClient.post<LeadResponse>('/leads', payload)
-    return data
+    try {
+      const { data } = await appApiClient.post<LeadResponse>('/leads', payload)
+      return data
+    } catch (error) {
+      if (axios.isAxiosError<{ message?: string }>(error)) {
+        throw new Error(error.response?.data?.message || 'Falha ao criar lead.')
+      }
+      throw error
+    }
   },
 
   async updateLead(leadId: string, payload: UpdateLeadPayload): Promise<LeadResponse> {
@@ -156,10 +167,24 @@ export const WebhookService = {
     return data
   },
 
-  async sendMessage(leadId: string, content: string, source?: 'normal' | 'template'): Promise<ChatMessage> {
+  async sendMessage(
+    leadId: string,
+    content: string,
+    source?: 'normal' | 'template',
+    channel?: 'whatsapp' | 'messenger' | 'instagram'
+  ): Promise<ChatMessage> {
     const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
       `/leads/${leadId}/messages`,
-      { content, source }
+      { content, source, channel }
+    )
+
+    return this.mapMessageFromApi(data.message)
+  },
+
+  async sendContacts(leadId: string, contactIds: string[]): Promise<ChatMessage> {
+    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
+      `/leads/${leadId}/messages/contacts`,
+      { contactIds }
     )
 
     return this.mapMessageFromApi(data.message)
@@ -172,12 +197,17 @@ export const WebhookService = {
       type: 'audio' | 'image' | 'video' | 'document'
       caption?: string
       metadata?: Record<string, unknown>
+      channel?: 'messenger' | 'instagram'
       signal?: AbortSignal
     }
   ): Promise<ChatMessage> {
     const formData = new FormData()
     formData.append('file', payload.file)
     formData.append('type', payload.type)
+
+    if (payload.channel) {
+      formData.append('channel', payload.channel)
+    }
 
     if (payload.caption?.trim()) {
       formData.append('caption', payload.caption.trim())
@@ -278,6 +308,7 @@ export const WebhookService = {
       dueAt?: string
       status?: LeadFollowUpStatus
       completedAt?: string | null
+      actions?: FollowUpActionPayload[]
     }
   ): Promise<NegotiationFollowUpResponse> {
     const { data } = await appApiClient.patch<NegotiationFollowUpResponse>(

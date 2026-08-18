@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, CircleHelp, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, CircleHelp, Contact, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -1331,6 +1331,24 @@ export function AuthenticatedLayout() {
             </li>
             <li>
               <NavLink
+                to="/contatos"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'contatos',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('contatos')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <Contact size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Contatos</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
                 to="/arquivos"
                 onClick={() => setIsSettingsPanelOpen(false)}
                 style={({ isActive }) =>
@@ -1349,24 +1367,6 @@ export function AuthenticatedLayout() {
             </li>
             <li>
               <NavLink
-                to="/financeiro"
-                onClick={() => setIsSettingsPanelOpen(false)}
-                style={({ isActive }) =>
-                  navItemStyle(
-                    isSettingsPanelOpen ? false : isActive,
-                    hoveredNavKey === 'financeiro',
-                    isSidebarCollapsed
-                  )
-                }
-                onMouseEnter={() => setHoveredNavKey('financeiro')}
-                onMouseLeave={() => setHoveredNavKey(null)}
-              >
-                <CircleDollarSign size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Financeiro</span> : null}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink
                 to="/arquivados"
                 onClick={() => setIsSettingsPanelOpen(false)}
                 style={({ isActive }) =>
@@ -1381,6 +1381,24 @@ export function AuthenticatedLayout() {
               >
                 <Archive size={16} />
                 {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Leads Arquivados</span> : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/financeiro"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'financeiro',
+                    isSidebarCollapsed
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('financeiro')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <CircleDollarSign size={16} />
+                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Financeiro</span> : null}
               </NavLink>
             </li>
             <li>
@@ -3120,6 +3138,26 @@ export function AuthenticatedLayout() {
                 >
                   <CalendarClock size={18} />
                   <span style={{ marginLeft: 10 }}>Agenda</span>
+                </NavLink>
+
+                <NavLink
+                  to="/contatos"
+                  onClick={() => {
+                    setIsMobileHomeNotificationsOpen(false)
+                    setIsMobileMenuOpen(false)
+                    setIsSettingsPanelOpen(false)
+                  }}
+                  style={({ isActive }) => ({
+                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'contatos-mobile-menu', false),
+                    justifyContent: 'flex-start',
+                    minHeight: 48,
+                    padding: '12px 14px'
+                  })}
+                  onMouseEnter={() => setHoveredNavKey('contatos-mobile-menu')}
+                  onMouseLeave={() => setHoveredNavKey(null)}
+                >
+                  <Contact size={18} />
+                  <span style={{ marginLeft: 10 }}>Contatos</span>
                 </NavLink>
 
                 <NavLink

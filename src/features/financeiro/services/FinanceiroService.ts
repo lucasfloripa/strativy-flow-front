@@ -1,6 +1,7 @@
 import { appApiClient } from '../../../core/api/appApiClient'
 import type {
   FinanceiroDistributionKpisResponse,
+  FinanceiroTemplateCostsResponse,
   FinanceiroTopKpisResponse
 } from '../types/financeiro.types'
 
@@ -22,6 +23,19 @@ export const FinanceiroService = {
   ): Promise<FinanceiroDistributionKpisResponse> {
     const { data } = await appApiClient.get<FinanceiroDistributionKpisResponse>(
       '/financeiro/kpis-distribuicao',
+      {
+        params
+      }
+    )
+
+    return data
+  },
+
+  async loadTemplateCosts(
+    params?: LoadTopKpisParams
+  ): Promise<FinanceiroTemplateCostsResponse> {
+    const { data } = await appApiClient.get<FinanceiroTemplateCostsResponse>(
+      '/financeiro/custos-templates',
       {
         params
       }

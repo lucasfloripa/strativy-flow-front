@@ -1,11 +1,14 @@
 import type { FormEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic, Contact as ContactIcon, Ellipsis } from 'lucide-react'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { appApiClient } from '../../../core/api/appApiClient'
 import { useRealtime } from '../../../core/realtime/useRealtime'
 import { formatChatMessageTimestamp } from '../../../core/utils/dateTime'
+import { formatStoredLeadPhoneInput } from '../../../core/utils/leadPhone'
+import { ContactsService } from '../../contacts/services/ContactsService'
+import type { Contact as ContactRecord } from '../../contacts/types/contacts.types'
 import { MediaPicker } from './MediaPicker'
 import { MessageContent } from './MessageContent'
 import { RecordingComposer } from './RecordingComposer'
@@ -16,15 +19,84 @@ import type { ChatMessage, ChatMessageApi, LeadRuntimeMode, MessageTemplateRespo
 
 type LeadChatTabProps = {
   leadId: string
+  leadSource?: string | null
   runtimeMode?: LeadRuntimeMode
   isUpdatingRuntimeMode?: boolean
   onToggleRuntimeMode?: () => void
 }
 
 const conversationWindowDurationInMs = 24 * 60 * 60 * 1000
+const messageInputMinHeight = 40
+const messageInputMaxHeight = 80
+const greenBorderLeadSources = new Set([
+  'whatsapp',
+  'googleads',
+  'metaads',
+  'indicacao'
+])
+
+const greenChatTheme = {
+  backgroundColor: '#eef8f1',
+  borderColor: '#128c4a',
+  outboundMessageBackground: interactionTheme.primaryButtonBackground,
+  inboundMessageBackground: '#d9f2df',
+  buttonBackground: interactionTheme.primaryButtonBackground,
+  buttonHoverBackground: interactionTheme.primaryButtonHoverBackground,
+  inputFocusBorderColor: interactionTheme.inputFocusBorderColor,
+  inputFocusBoxShadow: interactionTheme.inputFocusBoxShadow,
+  recordingAccentColor: '#15803d',
+  templateBackground: '#f0fdf4',
+  templateBorderColor: '#bbf7d0',
+  templateAccentColor: '#10b981',
+  templateLabelColor: '#059669',
+  innerHighlight: 'inset 0 1px 0 rgba(37, 211, 102, 0.2)',
+  boxShadow:
+    'inset 0 0 0 1px rgba(37, 211, 102, 0.2), 0 8px 24px rgba(18, 140, 74, 0.18), 0 2px 6px rgba(18, 140, 74, 0.12)'
+}
+
+const messengerChatTheme = {
+  backgroundColor: '#eaf4ff',
+  borderColor: '#006fd6',
+  outboundMessageBackground: '#0084ff',
+  inboundMessageBackground: '#dbeeff',
+  buttonBackground: '#0084ff',
+  buttonHoverBackground: '#006fd6',
+  inputFocusBorderColor: '#0084ff',
+  inputFocusBoxShadow: '0 0 0 3px rgba(0, 132, 255, 0.18)',
+  recordingAccentColor: '#0084ff',
+  templateBackground: '#eff6ff',
+  templateBorderColor: '#bfdbfe',
+  templateAccentColor: '#0084ff',
+  templateLabelColor: '#006fd6',
+  innerHighlight: 'inset 0 1px 0 rgba(0, 132, 255, 0.2)',
+  boxShadow:
+    'inset 0 0 0 1px rgba(0, 132, 255, 0.2), 0 8px 24px rgba(0, 111, 214, 0.18), 0 2px 6px rgba(0, 111, 214, 0.12)'
+}
+
+const directChatTheme = {
+  backgroundColor: '#fff5fa',
+  borderColor: '#c13584',
+  outboundMessageBackground:
+    'linear-gradient(135deg, #833ab4 0%, #c13584 36%, #fd1d1d 72%, #fcb045 100%)',
+  inboundMessageBackground: '#fde7f3',
+  buttonBackground:
+    'linear-gradient(135deg, #833ab4 0%, #c13584 42%, #fd1d1d 100%)',
+  buttonHoverBackground: '#a72d73',
+  inputFocusBorderColor: '#c13584',
+  inputFocusBoxShadow: '0 0 0 3px rgba(193, 53, 132, 0.18)',
+  recordingAccentColor: '#c13584',
+  templateBackground: '#fff0f6',
+  templateBorderColor: '#f9a8d4',
+  templateAccentColor: '#c13584',
+  templateLabelColor: '#a21caf',
+  innerHighlight: 'inset 0 1px 0 rgba(193, 53, 132, 0.18)',
+  boxShadow:
+    'inset 0 0 0 1px rgba(193, 53, 132, 0.16), 0 8px 24px rgba(193, 53, 132, 0.16), 0 2px 6px rgba(131, 58, 180, 0.12)'
+}
 
 export function LeadChatTab({
   leadId,
+  leadSource,
   runtimeMode = 'AUTOMATION',
   isUpdatingRuntimeMode = false,
   onToggleRuntimeMode
@@ -32,6 +104,29 @@ export function LeadChatTab({
   const realtime = useRealtime()
   const mediaUploader = useChatMediaUpload()
   const audioRecorder = useAudioRecorder()
+  const normalizedLeadSource = leadSource
+    ?.trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f\s_-]+/g, '')
+  const isMessengerChat = normalizedLeadSource === 'messenger'
+  const isDirectChat =
+    normalizedLeadSource === 'direct' ||
+    normalizedLeadSource === 'instagram' ||
+    normalizedLeadSource === 'instagramdirect'
+  const isMetaMessagingChat = isMessengerChat || isDirectChat
+  const isWhatsAppChat = normalizedLeadSource === 'whatsapp'
+  const canSendContacts = isWhatsAppChat || isMetaMessagingChat
+  const outboundMessageChannel = isDirectChat
+    ? 'instagram' as const
+    : isMessengerChat
+      ? 'messenger' as const
+      : undefined
+  const audioTheme = isDirectChat
+    ? 'direct' as const
+    : isMessengerChat
+      ? 'messenger' as const
+      : 'default' as const
   const [message, setMessage] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -49,23 +144,71 @@ export function LeadChatTab({
   const [shortcutDropdownVisible, setShortcutDropdownVisible] = useState<boolean>(false)
   const [shortcutFilter, setShortcutFilter] = useState<string>('')
   const [shortcutActiveIndex, setShortcutActiveIndex] = useState<number>(0)
-  const [isAttachmentButtonHovered, setIsAttachmentButtonHovered] = useState<boolean>(false)
-  const [isImageButtonHovered, setIsImageButtonHovered] = useState<boolean>(false)
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState<boolean>(false)
+  const [isAttachmentMenuButtonHovered, setIsAttachmentMenuButtonHovered] = useState<boolean>(false)
+  const [hoveredAttachmentOption, setHoveredAttachmentOption] = useState<'media' | 'document' | 'contact' | null>(null)
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
   const [isReopeningConversation, setIsReopeningConversation] = useState<boolean>(false)
+  const [isSelectingContact, setIsSelectingContact] = useState<boolean>(false)
+  const [contactOptions, setContactOptions] = useState<ContactRecord[]>([])
+  const [isLoadingContacts, setIsLoadingContacts] = useState<boolean>(false)
+  const [contactPickerError, setContactPickerError] = useState<string | null>(null)
+  const [contactSearchTerm, setContactSearchTerm] = useState<string>('')
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [messageTemplates, setMessageTemplates] = useState<MessageTemplateResponse[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const [conversationWindowNow, setConversationWindowNow] = useState<number>(() => Date.now())
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const attachmentMenuRef = useRef<HTMLDivElement | null>(null)
 
-  const isUploadingDocument = mediaUploader.isUploading && mediaUploader.uploadingType === 'document'
-  const isUploadingImageOrVideo =
-    mediaUploader.isUploading &&
-    (mediaUploader.uploadingType === 'image' || mediaUploader.uploadingType === 'video')
+  useEffect(() => {
+    if (!isAttachmentMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!attachmentMenuRef.current?.contains(event.target as Node)) {
+        setIsAttachmentMenuOpen(false)
+      }
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAttachmentMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isAttachmentMenuOpen])
+
+  useLayoutEffect(() => {
+    const messageInput = messageInputRef.current
+
+    if (!messageInput) return
+
+    messageInput.style.height = 'auto'
+    const contentHeight = messageInput.scrollHeight + 2
+    const nextHeight = Math.min(
+      Math.max(contentHeight, messageInputMinHeight),
+      messageInputMaxHeight
+    )
+
+    messageInput.style.height = `${nextHeight}px`
+    messageInput.style.overflowY =
+      contentHeight > messageInputMaxHeight ? 'auto' : 'hidden'
+  }, [isCompactScreen, message])
+
   const isUploadingAudio = mediaUploader.isUploading && mediaUploader.uploadingType === 'audio'
   const isAnyUploadActive = mediaUploader.isUploading
+  const isComposerActionDisabled =
+    isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'
 
   const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
   const inboundMessageTimes = inboundMessages
@@ -78,6 +221,8 @@ export function LeadChatTab({
   const shouldShowTemplateButton =
     lastInboundTime === null ||
     conversationWindowNow - lastInboundTime >= conversationWindowDurationInMs
+  const shouldBlockMetaComposer =
+    shouldShowTemplateButton && isMetaMessagingChat
 
   useEffect(() => {
     if (lastInboundTime === null) {
@@ -144,10 +289,28 @@ export function LeadChatTab({
       })
     }
 
+    const handleMessageUpdated = (payload: ChatMessageApi & { leadId?: string }) => {
+      const messageLeadId = String(payload?.leadId ?? '').trim()
+
+      if (messageLeadId && messageLeadId !== leadId) {
+        return
+      }
+
+      const updatedMessage = WebhookService.mapMessageFromApi(payload)
+
+      setMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === updatedMessage.id ? updatedMessage : message
+        )
+      )
+    }
+
     realtime.on('message.created', handleMessageCreated)
+    realtime.on('message.updated', handleMessageUpdated)
 
     return () => {
       realtime.off('message.created', handleMessageCreated)
+      realtime.off('message.updated', handleMessageUpdated)
     }
   }, [leadId, realtime])
 
@@ -181,6 +344,38 @@ export function LeadChatTab({
       isMounted = false
     }
   }, [leadId])
+
+  useEffect(() => {
+    if (!isSelectingContact) {
+      return
+    }
+
+    let isMounted = true
+
+    setIsLoadingContacts(true)
+    setContactPickerError(null)
+
+    void ContactsService.getContacts()
+      .then((contacts) => {
+        if (isMounted) {
+          setContactOptions(contacts)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setContactPickerError('Falha ao carregar contatos.')
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingContacts(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isSelectingContact])
 
   useEffect(() => {
     if (isLoading) return
@@ -323,6 +518,67 @@ export function LeadChatTab({
     setTemplateVariables({})
   }
 
+  const handleOpenContactPicker = () => {
+    setIsSelectingContact(true)
+    setContactSearchTerm('')
+    setSelectedContactIds([])
+    setContactPickerError(null)
+  }
+
+  const handleCancelContactPicker = () => {
+    setIsSelectingContact(false)
+    setContactSearchTerm('')
+    setSelectedContactIds([])
+    setContactPickerError(null)
+  }
+
+  const handleToggleContact = (contactId: string) => {
+    setSelectedContactIds((currentContactIds) =>
+      currentContactIds.includes(contactId)
+        ? currentContactIds.filter((currentContactId) => currentContactId !== contactId)
+        : [...currentContactIds, contactId]
+    )
+  }
+
+  const handleSendContacts = async () => {
+    if (!selectedContactIds.length) {
+      return
+    }
+
+    try {
+      setIsSending(true)
+      setContactPickerError(null)
+      if (isWhatsAppChat) {
+        await WebhookService.sendContacts(leadId, selectedContactIds)
+      } else if (outboundMessageChannel) {
+        const selectedContacts = selectedContactIds
+          .map((contactId) => contactOptions.find((contact) => contact.id === contactId))
+          .filter((contact): contact is ContactRecord => Boolean(contact))
+        const contactMessage = selectedContacts
+          .map((contact) => `${contact.name}\n${formatStoredLeadPhoneInput(contact.phone)}`)
+          .join('\n\n')
+
+        if (!contactMessage) {
+          return
+        }
+
+        await WebhookService.sendMessage(
+          leadId,
+          contactMessage,
+          'normal',
+          outboundMessageChannel
+        )
+      }
+      handleCancelContactPicker()
+    } catch (exception: unknown) {
+      const errorMessage =
+        exception instanceof Error ? exception.message : 'Falha ao enviar contatos.'
+      setContactPickerError(errorMessage)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
   const selectedTemplate = messageTemplates.find((t) => t.id === selectedTemplateId)
 
   const handleSendReopening = async () => {
@@ -394,7 +650,12 @@ export function LeadChatTab({
     try {
       setIsSending(true)
       setError(null)
-      await WebhookService.sendMessage(leadId, content)
+      await WebhookService.sendMessage(
+        leadId,
+        content,
+        undefined,
+        outboundMessageChannel
+      )
       setMessage('')
     } catch (exception: unknown) {
       const messageText =
@@ -418,6 +679,7 @@ export function LeadChatTab({
         leadId,
         file: selectedFile,
         type: 'document',
+        ...(outboundMessageChannel ? { channel: outboundMessageChannel } : {}),
         ...(caption ? { caption } : {})
       })
 
@@ -445,6 +707,7 @@ export function LeadChatTab({
         leadId,
         file: selectedFile,
         type: mediaType,
+        ...(outboundMessageChannel ? { channel: outboundMessageChannel } : {}),
         ...(caption ? { caption } : {})
       })
 
@@ -467,7 +730,8 @@ export function LeadChatTab({
       await mediaUploader.uploadMedia({
         leadId,
         file: selectedFile,
-        type: 'audio'
+        type: 'audio',
+        ...(outboundMessageChannel ? { channel: outboundMessageChannel } : {})
       })
     } catch (exception: unknown) {
       const errorMessage =
@@ -528,7 +792,8 @@ export function LeadChatTab({
       await mediaUploader.uploadMedia({
         leadId,
         file: audioFile,
-        type: 'audio'
+        type: 'audio',
+        ...(outboundMessageChannel ? { channel: outboundMessageChannel } : {})
       })
     } catch (exception: unknown) {
       const errorMessage =
@@ -557,6 +822,24 @@ export function LeadChatTab({
 
   const compactComposerControlSize = 'clamp(30px, 7.8vw, 36px)'
   const compactComposerGap = 'clamp(4px, 1.6vw, 8px)'
+  const chatTheme = isDirectChat
+    ? directChatTheme
+    : isMessengerChat
+      ? messengerChatTheme
+    : normalizedLeadSource && greenBorderLeadSources.has(normalizedLeadSource)
+      ? greenChatTheme
+      : null
+  const chatFooterBorderColor = chatTheme?.borderColor ?? '#e5e7eb'
+  const chatFooterInnerHighlight = chatTheme?.innerHighlight ?? 'none'
+  const normalizedContactSearchTerm = contactSearchTerm.trim().toLocaleLowerCase('pt-BR')
+  const filteredContactOptions = contactOptions.filter((contact) => {
+    if (!normalizedContactSearchTerm) {
+      return true
+    }
+
+    return [contact.name, contact.phone, contact.company, contact.instagram]
+      .some((field) => field?.toLocaleLowerCase('pt-BR').includes(normalizedContactSearchTerm))
+  })
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
@@ -566,9 +849,10 @@ export function LeadChatTab({
 
       <div
         style={{
-          background: '#ffffff',
-          border: '1px solid #dde3ee',
+          background: chatTheme?.backgroundColor ?? '#ffffff',
+          border: `1px solid ${chatTheme?.borderColor ?? '#dde3ee'}`,
           borderRadius: 12,
+          boxShadow: chatTheme?.boxShadow ?? 'none',
           flex: 1,
           minHeight: 0,
           display: 'grid',
@@ -576,7 +860,164 @@ export function LeadChatTab({
           overflow: 'hidden'
         }}
       >
-        {isReopeningConversation ? (
+        {isSelectingContact ? (
+          <div style={{ padding: 16, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gap: 16, flexShrink: 0 }}>
+              <div>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 700, color: '#111827' }}>
+                  Enviar Contato
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>
+                  Selecione um contato
+                </p>
+              </div>
+
+              <input
+                type="search"
+                value={contactSearchTerm}
+                onChange={(event) => setContactSearchTerm(event.target.value)}
+                placeholder="Buscar contato"
+                aria-label="Buscar contato para enviar"
+                style={{
+                  width: '100%',
+                  height: 42,
+                  border: '1px solid #d7dce4',
+                  borderRadius: 10,
+                  padding: '0 14px',
+                  color: '#111827',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                  background: '#ffffff',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+              {isLoadingContacts ? (
+                <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>
+                  Carregando contatos...
+                </div>
+              ) : null}
+
+              {!isLoadingContacts && contactPickerError ? (
+                <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>
+                  {contactPickerError}
+                </div>
+              ) : null}
+
+              {!isLoadingContacts && !contactPickerError && filteredContactOptions.length === 0 ? (
+                <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>
+                  Nenhum contato encontrado.
+                </div>
+              ) : null}
+
+              {!isLoadingContacts && !contactPickerError
+                ? filteredContactOptions.map((contact) => {
+                    const isSelected = selectedContactIds.includes(contact.id)
+
+                    return (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        onClick={() => handleToggleContact(contact.id)}
+                        aria-pressed={isSelected}
+                        disabled={isSending}
+                        style={{
+                          width: '100%',
+                          border: `1px solid ${isSelected ? chatTheme?.borderColor ?? '#16a34a' : '#e5e7eb'}`,
+                          borderRadius: 8,
+                          background: isSelected ? chatTheme?.backgroundColor ?? '#f0fdf4' : '#ffffff',
+                          padding: 14,
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr) auto',
+                          alignItems: 'center',
+                          gap: 12,
+                          textAlign: 'left',
+                          cursor: isSending ? 'not-allowed' : 'pointer',
+                          opacity: isSending ? 0.6 : 1
+                        }}
+                      >
+                        <span style={{ minWidth: 0, display: 'grid', gap: 5 }}>
+                          <strong style={{ color: '#111827', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {contact.name}
+                          </strong>
+                          <span style={{ color: '#6b7280', fontSize: 13 }}>
+                            {formatStoredLeadPhoneInput(contact.phone)}
+                          </span>
+                          {contact.company ? (
+                            <span style={{ color: '#6b7280', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {contact.company}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            border: `2px solid ${isSelected ? chatTheme?.borderColor ?? '#16a34a' : '#cbd5e1'}`,
+                            background: isSelected ? chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground : '#ffffff',
+                            boxSizing: 'border-box',
+                            flexShrink: 0
+                          }}
+                        />
+                      </button>
+                    )
+                  })
+                : null}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' }}>
+              <button
+                type="button"
+                onClick={handleCancelContactPicker}
+                disabled={isSending}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: isSending ? 'not-allowed' : 'pointer',
+                  opacity: isSending ? 0.6 : 1
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSendContacts()}
+                disabled={isSending || selectedContactIds.length === 0}
+                style={{
+                  minWidth: 120,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: selectedContactIds.length
+                    ? chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground
+                    : '#9ca3af',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: isSending || selectedContactIds.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: isSending ? 0.7 : 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                {isSending ? <Loader2 size={16} /> : <SendHorizontal size={16} />}
+                {isSending ? 'Enviando...' : `Enviar (${selectedContactIds.length})`}
+              </button>
+            </div>
+          </div>
+        ) : isReopeningConversation ? (
           <div style={{ padding: 16, minHeight: 0, overflowY: 'auto', display: 'grid', gap: 16, alignContent: 'start' }}>
             <div>
               <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 700, color: '#111827' }}>
@@ -695,7 +1136,7 @@ export function LeadChatTab({
                   height: 42,
                   border: 'none',
                   borderRadius: 8,
-                  background: interactionTheme.primaryButtonBackground,
+                  background: chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
                   color: '#ffffff',
                   fontSize: 14,
                   fontWeight: 700,
@@ -748,8 +1189,8 @@ export function LeadChatTab({
                         background: isTemplateMessage
                           ? 'transparent'
                           : isOutbound
-                            ? interactionTheme.primaryButtonBackground
-                            : interactionTheme.clickableCardHoverBackground,
+                            ? chatTheme?.outboundMessageBackground ?? interactionTheme.primaryButtonBackground
+                            : chatTheme?.inboundMessageBackground ?? interactionTheme.clickableCardHoverBackground,
                         color: isTemplateMessage
                           ? '#111827'
                           : isOutbound
@@ -764,8 +1205,8 @@ export function LeadChatTab({
                         <>
                           <div
                             style={{
-                              background: '#f0fdf4',
-                              border: '1px solid #bbf7d0',
+                              background: chatTheme?.templateBackground ?? '#f0fdf4',
+                              border: `1px solid ${chatTheme?.templateBorderColor ?? '#bbf7d0'}`,
                               borderBottomLeftRadius: 0,
                               borderBottomRightRadius: 0,
                               borderTopLeftRadius: 12,
@@ -781,7 +1222,7 @@ export function LeadChatTab({
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div
                                 style={{
-                                  background: '#10b981',
+                                  background: chatTheme?.templateAccentColor ?? '#10b981',
                                   borderRadius: '50%',
                                   width: 28,
                                   height: 28,
@@ -793,15 +1234,15 @@ export function LeadChatTab({
                               >
                                 <FileText size={16} color="#ffffff" />
                               </div>
-                              <span style={{ fontWeight: 700, fontSize: 14, color: '#059669' }}>
+                              <span style={{ fontWeight: 700, fontSize: 14, color: chatTheme?.templateLabelColor ?? '#059669' }}>
                                 Mensagem de template
                               </span>
                             </div>
                           </div>
                           <div
                             style={{
-                              background: '#f0fdf4',
-                              border: '1px solid #bbf7d0',
+                              background: chatTheme?.templateBackground ?? '#f0fdf4',
+                              border: `1px solid ${chatTheme?.templateBorderColor ?? '#bbf7d0'}`,
                               borderTop: 'none',
                               borderBottomLeftRadius: 12,
                               borderBottomRightRadius: 12,
@@ -811,14 +1252,20 @@ export function LeadChatTab({
                               wordBreak: 'break-word'
                             }}
                           >
-                            <MessageContent message={item} />
+                            <MessageContent
+                              message={item}
+                              audioTheme={audioTheme}
+                            />
                           </div>
                           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
                             {formattedTime}
                           </div>
                         </>
                       ) : (
-                        <MessageContent message={item} />
+                        <MessageContent
+                          message={item}
+                          audioTheme={audioTheme}
+                        />
                       )}
                     </div>
                   </div>
@@ -828,7 +1275,31 @@ export function LeadChatTab({
           </div>
         )}
 
-        {!isReopeningConversation && shouldShowTemplateButton && (
+        {!isSelectingContact && !isReopeningConversation && shouldBlockMetaComposer && (
+          <div
+            style={{
+              padding: '14px 16px',
+              borderTop: `1px solid ${chatFooterBorderColor}`,
+              backgroundColor: '#f3f4f6',
+              boxShadow: chatFooterInnerHighlight
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: '#4b5563'
+              }}
+            >
+              {hasNeverConversed
+                ? `Aguarde o cliente enviar uma mensagem para liberar a caixa de texto. Se precisar iniciar o contato, fale com ele pelo ${isDirectChat ? 'Instagram Direct' : 'Messenger da sua Página no Facebook'}.`
+                : `A janela de 24 horas encerrou. Aguarde o cliente voltar a falar para liberar a caixa de texto novamente. Se precisar iniciar o contato, fale com ele pelo ${isDirectChat ? 'Instagram Direct' : 'Messenger da sua Página no Facebook'}.`}
+            </p>
+          </div>
+        )}
+
+        {!isSelectingContact && !isReopeningConversation && shouldShowTemplateButton && !isMetaMessagingChat && (
           <div
             style={{
               display: 'flex',
@@ -836,8 +1307,9 @@ export function LeadChatTab({
               justifyContent: 'space-between',
               flexDirection: isCompactScreen ? 'column' : 'row',
               padding: '12px 16px',
-              borderTop: '1px solid #e5e7eb',
-              backgroundColor: '#f9fafb',
+              borderTop: `1px solid ${chatFooterBorderColor}`,
+              backgroundColor: chatTheme?.backgroundColor ?? '#f9fafb',
+              boxShadow: chatFooterInnerHighlight,
               gap: isCompactScreen ? 10 : 16
             }}
           >
@@ -861,7 +1333,7 @@ export function LeadChatTab({
                 padding: '10px 20px',
                 borderRadius: 8,
                 border: 'none',
-                background: interactionTheme.primaryButtonBackground,
+                background: chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
                 color: '#ffffff',
                 fontSize: 14,
                 fontWeight: 600,
@@ -872,10 +1344,10 @@ export function LeadChatTab({
                 width: isCompactScreen ? '100%' : 'auto'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = interactionTheme.primaryButtonHoverBackground
+                e.currentTarget.style.background = chatTheme?.buttonHoverBackground ?? interactionTheme.primaryButtonHoverBackground
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = interactionTheme.primaryButtonBackground
+                e.currentTarget.style.background = chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground
               }}
             >
               Entrar em contato
@@ -883,13 +1355,14 @@ export function LeadChatTab({
           </div>
         )}
 
-        {!isReopeningConversation && !shouldShowTemplateButton && (
+        {!isSelectingContact && !isReopeningConversation && !shouldShowTemplateButton && (
         <>
           {audioRecorder.isRecording ? (
-            <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: '1px solid #e5e7eb', alignItems: 'center', minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: 10, padding: 12, borderTop: `1px solid ${chatFooterBorderColor}`, boxShadow: chatFooterInnerHighlight, background: chatTheme?.backgroundColor ?? '#ffffff', alignItems: 'center', minWidth: 0 }}>
               <RecordingComposer
                 durationLabel={formatRecordingDuration(audioRecorder.recordingDurationInMs)}
                 isUploading={isAnyUploadActive}
+                accentColor={chatTheme?.recordingAccentColor}
                 onCancel={handleCancelRecording}
                 onFinish={handleFinishRecording}
               />
@@ -928,7 +1401,7 @@ export function LeadChatTab({
                       textAlign: 'left'
                     }}
                   >
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#2f8f55', flexShrink: 0 }}>/{shortcut.key}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: chatTheme?.templateLabelColor ?? '#2f8f55', flexShrink: 0 }}>/{shortcut.key}</span>
                     <span style={{ fontSize: 13, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortcut.value}</span>
                   </button>
                 ))}
@@ -940,7 +1413,9 @@ export function LeadChatTab({
               display: 'flex',
               gap: isCompactScreen ? compactComposerGap : 10,
               padding: 12,
-              borderTop: '1px solid #e5e7eb',
+              borderTop: `1px solid ${chatFooterBorderColor}`,
+              boxShadow: chatFooterInnerHighlight,
+              background: chatTheme?.backgroundColor ?? '#ffffff',
               alignItems: 'center',
               flexWrap: 'nowrap',
               minWidth: 0
@@ -958,7 +1433,7 @@ export function LeadChatTab({
                   borderRadius: 8,
                   border: 'none',
                   background: runtimeMode === 'HUMAN'
-                    ? 'linear-gradient(135deg, #1e7f46 0%, #146737 100%)'
+                    ? chatTheme?.buttonBackground ?? 'linear-gradient(135deg, #1e7f46 0%, #146737 100%)'
                     : 'linear-gradient(135deg, #325dca 0%, #1f46ad 100%)',
                   color: '#ffffff',
                   cursor: isUpdatingRuntimeMode ? 'not-allowed' : 'pointer',
@@ -984,122 +1459,221 @@ export function LeadChatTab({
                 onBlur={() => { setIsInputFocused(false); setShortcutDropdownVisible(false) }}
                 onKeyDown={handleInputKeyDown}
                 placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : ''}
-                disabled={isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'}
+                disabled={isComposerActionDisabled}
                 rows={1}
                 style={{
                   flex: isCompactScreen ? '1 1 auto' : 1,
                   width: isCompactScreen ? 'clamp(44px, 28vw, 220px)' : undefined,
-                  height: 40,
-                  minHeight: 40,
-                  maxHeight: 40,
+                  height: messageInputMinHeight,
+                  minHeight: messageInputMinHeight,
+                  maxHeight: messageInputMaxHeight,
                   minWidth: 0,
                   border: `1px solid ${
                     isInputFocused
-                      ? interactionTheme.inputFocusBorderColor
+                      ? chatTheme?.inputFocusBorderColor ?? interactionTheme.inputFocusBorderColor
                       : '#cfd7e6'
                   }`,
                   borderRadius: 8,
                   padding: '9px 12px',
                   outline: 'none',
                   resize: 'none',
-                  overflowY: 'auto',
+                  overflowY: 'hidden',
                   lineHeight: '20px',
                   fontFamily: 'inherit',
                   boxSizing: 'border-box',
                   boxShadow: isInputFocused
-                    ? interactionTheme.inputFocusBoxShadow
+                    ? chatTheme?.inputFocusBoxShadow ?? interactionTheme.inputFocusBoxShadow
                     : 'none',
                   background: runtimeMode === 'AUTOMATION' ? '#f3f4f6' : undefined,
                   color: runtimeMode === 'AUTOMATION' ? '#9ca3af' : undefined,
                   cursor: runtimeMode === 'AUTOMATION' ? 'not-allowed' : undefined
                 }}
               />
-              <MediaPicker
-                accept=".jpg,.jpeg,.png,.webp,.mp4,.3gp,image/jpeg,image/png,image/webp,video/mp4,video/3gpp"
-                disabled={isSending || isAnyUploadActive}
-                onFileSelected={handleImageSelected}
+              <div
+                ref={attachmentMenuRef}
+                style={{ position: 'relative', flexShrink: 0 }}
               >
-                {({ openPicker }) => (
+                <div
+                  id="chat-attachment-menu"
+                  role="menu"
+                  aria-hidden={!isAttachmentMenuOpen}
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    bottom: 'calc(100% + 8px)',
+                    width: 210,
+                    maxWidth: 'calc(100vw - 24px)',
+                    padding: 6,
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 8,
+                    background: '#ffffff',
+                    boxShadow: '0 -8px 24px rgba(15, 23, 42, 0.16)',
+                    opacity: isAttachmentMenuOpen ? 1 : 0,
+                    visibility: isAttachmentMenuOpen ? 'visible' : 'hidden',
+                    pointerEvents: isAttachmentMenuOpen ? 'auto' : 'none',
+                    transform: isAttachmentMenuOpen ? 'translateY(0)' : 'translateY(4px)',
+                    transition: 'opacity 120ms ease, transform 120ms ease, visibility 120ms ease',
+                    zIndex: 20
+                  }}
+                >
+                  <MediaPicker
+                    accept=".jpg,.jpeg,.png,.webp,.mp4,.3gp,image/jpeg,image/png,image/webp,video/mp4,video/3gpp"
+                    disabled={isComposerActionDisabled}
+                    onFileSelected={handleImageSelected}
+                  >
+                    {({ openPicker }) => (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        tabIndex={isAttachmentMenuOpen ? 0 : -1}
+                        onClick={() => {
+                          openPicker()
+                          setIsAttachmentMenuOpen(false)
+                        }}
+                        onMouseEnter={() => setHoveredAttachmentOption('media')}
+                        onMouseLeave={() => setHoveredAttachmentOption(null)}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 10px',
+                          border: 'none',
+                          borderRadius: 6,
+                          background: hoveredAttachmentOption === 'media' ? '#f1f5f9' : 'transparent',
+                          color: '#1f2937',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <ImagePlus size={18} />
+                        Foto ou vídeo
+                      </button>
+                    )}
+                  </MediaPicker>
+                  <MediaPicker
+                    accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    disabled={isComposerActionDisabled}
+                    onFileSelected={handleDocumentSelected}
+                  >
+                    {({ openPicker }) => (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        tabIndex={isAttachmentMenuOpen ? 0 : -1}
+                        onClick={() => {
+                          openPicker()
+                          setIsAttachmentMenuOpen(false)
+                        }}
+                        onMouseEnter={() => setHoveredAttachmentOption('document')}
+                        onMouseLeave={() => setHoveredAttachmentOption(null)}
+                        style={{
+                          width: '100%',
+                          height: 40,
+                          padding: '0 10px',
+                          border: 'none',
+                          borderRadius: 6,
+                          background: hoveredAttachmentOption === 'document' ? '#f1f5f9' : 'transparent',
+                          color: '#1f2937',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Paperclip size={18} />
+                        Documento
+                      </button>
+                    )}
+                  </MediaPicker>
                   <button
                     type="button"
-                    aria-label="Anexar foto ou vídeo"
-                    onClick={openPicker}
-                    onMouseEnter={() => setIsImageButtonHovered(true)}
-                    onMouseLeave={() => setIsImageButtonHovered(false)}
-                    disabled={isSending || isAnyUploadActive}
+                    role="menuitem"
+                    tabIndex={isAttachmentMenuOpen ? 0 : -1}
+                    onClick={() => {
+                      setIsAttachmentMenuOpen(false)
+                      handleOpenContactPicker()
+                    }}
+                    onMouseEnter={() => setHoveredAttachmentOption('contact')}
+                    onMouseLeave={() => setHoveredAttachmentOption(null)}
+                    disabled={!canSendContacts}
                     style={{
-                      height: isCompactScreen ? compactComposerControlSize : 40,
-                      width: isCompactScreen ? compactComposerControlSize : 40,
-                      minWidth: isCompactScreen ? compactComposerControlSize : 40,
+                      width: '100%',
+                      height: 40,
+                      padding: '0 10px',
                       border: 'none',
-                      borderRadius: 8,
-                      background: isImageButtonHovered
-                        ? interactionTheme.primaryButtonHoverBackground
-                        : interactionTheme.primaryButtonBackground,
-                      color: '#ffffff',
-                      padding: 0,
-                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
-                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
-                      display: 'inline-flex',
+                      borderRadius: 6,
+                      background: hoveredAttachmentOption === 'contact' ? '#f1f5f9' : 'transparent',
+                      color: '#1f2937',
+                      display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      gap: 10,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: canSendContacts ? 'pointer' : 'not-allowed',
+                      opacity: canSendContacts ? 1 : 0.5
                     }}
                   >
-                    {isUploadingImageOrVideo ? <Loader2 size={18} /> : <ImagePlus size={18} />}
+                    <ContactIcon size={18} />
+                    Contato
                   </button>
-                )}
-              </MediaPicker>
-              <MediaPicker
-                accept=".pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                disabled={isSending || isAnyUploadActive}
-                onFileSelected={handleDocumentSelected}
-              >
-                {({ openPicker }) => (
-                  <button
-                    type="button"
-                    aria-label="Anexar documento"
-                    onClick={openPicker}
-                    onMouseEnter={() => setIsAttachmentButtonHovered(true)}
-                    onMouseLeave={() => setIsAttachmentButtonHovered(false)}
-                    disabled={isSending || isAnyUploadActive}
-                    style={{
-                      height: isCompactScreen ? compactComposerControlSize : 40,
-                      width: isCompactScreen ? compactComposerControlSize : 40,
-                      minWidth: isCompactScreen ? compactComposerControlSize : 40,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: isAttachmentButtonHovered
-                        ? interactionTheme.primaryButtonHoverBackground
-                        : interactionTheme.primaryButtonBackground,
-                      color: '#ffffff',
-                      padding: 0,
-                      cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
-                      opacity: isSending || isAnyUploadActive ? 0.7 : 1,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {isUploadingDocument ? <Loader2 size={18} /> : <Paperclip size={18} />}
-                  </button>
-                )}
-              </MediaPicker>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Mais opções"
+                  title="Mais opções"
+                  aria-haspopup="menu"
+                  aria-controls="chat-attachment-menu"
+                  aria-expanded={isAttachmentMenuOpen}
+                  onClick={() => {
+                    setShortcutDropdownVisible(false)
+                    setIsAttachmentMenuOpen((isOpen) => !isOpen)
+                  }}
+                  onMouseEnter={() => setIsAttachmentMenuButtonHovered(true)}
+                  onMouseLeave={() => setIsAttachmentMenuButtonHovered(false)}
+                  disabled={isComposerActionDisabled}
+                  style={{
+                    height: isCompactScreen ? compactComposerControlSize : 40,
+                    width: isCompactScreen ? compactComposerControlSize : 40,
+                    minWidth: isCompactScreen ? compactComposerControlSize : 40,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: isAttachmentMenuButtonHovered || isAttachmentMenuOpen
+                      ? chatTheme?.buttonHoverBackground ?? interactionTheme.primaryButtonHoverBackground
+                      : chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
+                    color: '#ffffff',
+                    padding: 0,
+                    cursor: isComposerActionDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isComposerActionDisabled ? 0.7 : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Ellipsis size={20} />
+                </button>
+              </div>
               <button
                 type="button"
                 aria-label="Gravar áudio"
+                title={audioRecorder.isSupported ? 'Gravar áudio' : 'Gravação de áudio não suportada neste navegador'}
                 onClick={handleStartRecording}
-                disabled={isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION'}
+                disabled={isComposerActionDisabled || audioRecorder.isRecording || !audioRecorder.isSupported}
                 style={{
                   height: isCompactScreen ? compactComposerControlSize : 40,
                   width: isCompactScreen ? compactComposerControlSize : 40,
                   minWidth: isCompactScreen ? compactComposerControlSize : 40,
                   border: 'none',
                   borderRadius: 8,
-                  background: interactionTheme.primaryButtonBackground,
+                  background: chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
                   color: '#ffffff',
                   padding: 0,
-                  cursor: isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION' ? 'not-allowed' : 'pointer',
-                  opacity: isSending || isAnyUploadActive || audioRecorder.isRecording || !audioRecorder.isSupported || runtimeMode === 'AUTOMATION' ? 0.7 : 1,
+                  cursor: isComposerActionDisabled || audioRecorder.isRecording || !audioRecorder.isSupported ? 'not-allowed' : 'pointer',
+                  opacity: isComposerActionDisabled || audioRecorder.isRecording || !audioRecorder.isSupported ? 0.7 : 1,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -1110,7 +1684,7 @@ export function LeadChatTab({
               <div style={{ display: 'none' }}>
                 <MediaPicker
                   accept="audio/*"
-                  disabled={isSending || isAnyUploadActive}
+                  disabled={isComposerActionDisabled}
                   onFileSelected={handleAudioSelected}
                 >
                   {({ openPicker }) => (
@@ -1118,18 +1692,18 @@ export function LeadChatTab({
                       type="button"
                       aria-label="Anexar áudio"
                       onClick={openPicker}
-                      disabled={isSending || isAnyUploadActive}
+                      disabled={isComposerActionDisabled}
                       style={{
                         height: isCompactScreen ? compactComposerControlSize : 40,
                         width: isCompactScreen ? compactComposerControlSize : 40,
                         minWidth: isCompactScreen ? compactComposerControlSize : 40,
                         border: 'none',
                         borderRadius: 8,
-                        background: interactionTheme.primaryButtonBackground,
+                        background: chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
                         color: '#ffffff',
                         padding: 0,
-                        cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
-                        opacity: isSending || isAnyUploadActive ? 0.7 : 1,
+                        cursor: isComposerActionDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isComposerActionDisabled ? 0.7 : 1,
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center'
@@ -1143,7 +1717,7 @@ export function LeadChatTab({
               <button
                 type="submit"
                 aria-label="Enviar mensagem"
-                disabled={isSending || isAnyUploadActive}
+                disabled={isComposerActionDisabled}
                 onMouseEnter={() => setIsSendButtonHovered(true)}
                 onMouseLeave={() => setIsSendButtonHovered(false)}
                 style={{
@@ -1152,14 +1726,13 @@ export function LeadChatTab({
                   minWidth: isCompactScreen ? compactComposerControlSize : 40,
                   border: 'none',
                   borderRadius: 8,
-                  background: isSending || isAnyUploadActive
-                    ? '#9ca3af'
-                    : isSendButtonHovered
-                      ? interactionTheme.primaryButtonHoverBackground
-                      : interactionTheme.primaryButtonBackground,
+                  background: isSendButtonHovered && !isComposerActionDisabled
+                      ? chatTheme?.buttonHoverBackground ?? interactionTheme.primaryButtonHoverBackground
+                      : chatTheme?.buttonBackground ?? interactionTheme.primaryButtonBackground,
                   color: '#ffffff',
                   padding: 0,
-                  cursor: isSending || isAnyUploadActive ? 'not-allowed' : 'pointer',
+                  cursor: isComposerActionDisabled ? 'not-allowed' : 'pointer',
+                  opacity: isComposerActionDisabled ? 0.7 : 1,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center'
