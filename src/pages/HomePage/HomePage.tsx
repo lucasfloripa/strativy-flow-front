@@ -29,7 +29,7 @@ import type {
   UserNotification
 } from '../../features/home/types/home.types'
 
-type NotificationIcon = 'message' | 'lead' | 'followup'
+type NotificationIcon = 'message' | 'lead' | 'followup' | 'expiring' | 'expired'
 
 type Notification = {
   id: string
@@ -41,6 +41,7 @@ type Notification = {
   createdAt: string | Date
   time: string
   color: string
+  iconBackground: string
   icon: NotificationIcon
   messageCount?: number
 }
@@ -108,21 +109,50 @@ const formatRelativeTime = (value?: string | Date | null): string => {
   return formatElapsedHoursAndMinutes(value)
 }
 
+const createMockNotifications = (): UserNotification[] => {
+  const now = Date.now()
+  const createNotification = (
+    type: UserNotification['type'],
+    title: string,
+    description: string,
+    referenceType: UserNotification['referenceType'],
+    minutesAgo: number
+  ): UserNotification => ({
+    id: `mock-${type}`,
+    organizationId: null,
+    userId: 'mock-user',
+    type,
+    title,
+    description,
+    referenceType,
+    referenceId: type === 'FOLLOW_UP_REMINDER_1H' ? 'mock-follow-up' : 'lead-1',
+    isRead: false,
+    readAt: null,
+    createdAt: new Date(now - minutesAgo * 60 * 1000),
+    updatedAt: new Date(now - minutesAgo * 60 * 1000)
+  })
+
+  return [
+    createNotification('LEAD_CREATED', 'Novo lead recebido', 'Mariana Souza entrou na sua base de leads.', 'LEAD', 2),
+    createNotification('MESSAGE_RECEIVED', 'Nova mensagem recebida', 'Mariana Souza: Olá, gostaria de saber mais.', 'MESSAGE', 5),
+    createNotification('FOLLOW_UP_REMINDER_1H', 'Follow-up em 1 hora', 'Apresentar proposta para Rafael Lima às 15:30.', 'FOLLOW_UP', 12),
+    createNotification('CONVERSATION_EXPIRING_1H', 'Conversa expirando em 1 hora', 'A janela de atendimento de Camila Rocha expira em breve.', 'FOLLOW_UP', 20),
+    createNotification('CONVERSATION_EXPIRED', 'Conversa expirada', 'A conversa com Bruno Alves saiu da janela de atendimento.', 'FOLLOW_UP', 30)
+  ]
+}
+
+const isMockNotification = (notification: Notification): boolean =>
+  notification.id.startsWith('mock-')
+
 const mapApiNotification = (notification: UserNotification): Notification => {
-  const isNewMessage = notification.type === 'MESSAGE_RECEIVED'
-  const isFollowUpReminder = notification.type === 'FOLLOW_UP_REMINDER_1H'
-
-  const icon: NotificationIcon = isNewMessage
-    ? 'message'
-    : isFollowUpReminder
-      ? 'followup'
-      : 'lead'
-
-  const color = isNewMessage
-    ? '#22c55e'
-    : isFollowUpReminder
-      ? '#f59e0b'
-      : '#3b82f6'
+  const presentationByType: Record<UserNotification['type'], { color: string; iconBackground: string; icon: NotificationIcon }> = {
+    LEAD_CREATED: { color: '#3b82f6', iconBackground: '#dbeafe', icon: 'lead' },
+    MESSAGE_RECEIVED: { color: '#22c55e', iconBackground: '#dcfce7', icon: 'message' },
+    FOLLOW_UP_REMINDER_1H: { color: '#f59e0b', iconBackground: '#fef3c7', icon: 'followup' },
+    CONVERSATION_EXPIRING_1H: { color: '#f59e0b', iconBackground: '#fef3c7', icon: 'expiring' },
+    CONVERSATION_EXPIRED: { color: '#ef4444', iconBackground: '#fee2e2', icon: 'expired' }
+  }
+  const presentation = presentationByType[notification.type]
 
   return {
     id: notification.id,
@@ -133,8 +163,9 @@ const mapApiNotification = (notification: UserNotification): Notification => {
     description: notification.description,
     createdAt: notification.createdAt,
     time: formatRelativeTime(notification.createdAt),
-    color,
-    icon
+    color: presentation.color,
+    iconBackground: presentation.iconBackground,
+    icon: presentation.icon
   }
 }
 
@@ -308,9 +339,13 @@ export default function HomePage() {
         return
       }
 
-      if (notificationsRequest.status === 'fulfilled') {
-        setNotifications(groupUnreadNotifications(notificationsRequest.value))
-      }
+      const apiNotifications = notificationsRequest.status === 'fulfilled'
+        ? notificationsRequest.value
+        : []
+      setNotifications(groupUnreadNotifications([
+        ...createMockNotifications(),
+        ...apiNotifications
+      ]))
 
       if (summaryRequest.status === 'fulfilled') {
         setDashboardSummary(summaryRequest.value)
@@ -376,16 +411,18 @@ export default function HomePage() {
   const handleNotificationClick = async (notification: Notification) => {
     setSelectedNotificationId(notification.id)
 
-    try {
-      if (notification.type === 'MESSAGE_RECEIVED') {
-        await HomeService.markAllMessageNotificationsAsRead(
-          notification.referenceId
-        )
-      } else {
-        await HomeService.markNotificationAsRead(notification.id)
+    if (!isMockNotification(notification)) {
+      try {
+        if (notification.type === 'MESSAGE_RECEIVED') {
+          await HomeService.markAllMessageNotificationsAsRead(
+            notification.referenceId
+          )
+        } else {
+          await HomeService.markNotificationAsRead(notification.id)
+        }
+      } catch {
+        return
       }
-    } catch {
-      return
     }
 
     setNotifications((currentNotifications) => {
@@ -411,10 +448,12 @@ export default function HomePage() {
       return
     }
 
-    try {
-      await HomeService.markAllNotificationsAsRead()
-    } catch {
-      return
+    if (notifications.some((notification) => !isMockNotification(notification))) {
+      try {
+        await HomeService.markAllNotificationsAsRead()
+      } catch {
+        return
+      }
     }
 
     setNotifications([])
@@ -422,14 +461,16 @@ export default function HomePage() {
   }
 
   const handleDeleteNotification = async (notification: Notification) => {
-    try {
-      if (notification.type === 'MESSAGE_RECEIVED') {
-        await HomeService.deleteAllMessageNotifications(notification.referenceId)
-      } else {
-        await HomeService.deleteNotification(notification.id)
+    if (!isMockNotification(notification)) {
+      try {
+        if (notification.type === 'MESSAGE_RECEIVED') {
+          await HomeService.deleteAllMessageNotifications(notification.referenceId)
+        } else {
+          await HomeService.deleteNotification(notification.id)
+        }
+      } catch {
+        return
       }
-    } catch {
-      return
     }
 
     setNotifications((currentNotifications) => {
@@ -889,27 +930,30 @@ export default function HomePage() {
               }}
             >
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                {activity.icon === 'message' ? (
-                  <MessageCircle size={20} color={activity.color} />
-                ) : activity.icon === 'followup' ? (
-                  activity.title === 'Conversa expira em 1 hora' ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
-                      <TimerReset size={20} color={activity.color} />
-                    </span>
-                  ) : activity.title === 'Conversa expirada' ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
-                      <TriangleAlert size={20} color={activity.color} />
-                    </span>
+                <span
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: activity.iconBackground,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  {activity.icon === 'message' ? (
+                    <MessageCircle size={20} color={activity.color} />
+                  ) : activity.icon === 'followup' ? (
+                    <CalendarClock size={20} color={activity.color} />
+                  ) : activity.icon === 'expiring' ? (
+                    <TimerReset size={20} color={activity.color} />
+                  ) : activity.icon === 'expired' ? (
+                    <TriangleAlert size={20} color={activity.color} />
                   ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
-                      <CalendarClock size={20} color={activity.color} />
-                    </span>
-                  )
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
                     <UserPlus size={20} color={activity.color} />
-                  </span>
-                )}
+                  )}
+                </span>
 
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.title}</p>
