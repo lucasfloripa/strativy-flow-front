@@ -107,7 +107,7 @@ export default function LoginPage() {
                 color: '#111827',
                 background: '#ffffff',
                 outline: 'none',
-                fontSize: 14,
+                fontSize: isMobile ? 16 : 14,
                 boxSizing: 'border-box',
                 boxShadow: isEmailFocused ? interactionTheme.inputFocusBoxShadow : 'none'
               }}
@@ -131,7 +131,7 @@ export default function LoginPage() {
                 color: '#111827',
                 background: '#ffffff',
                 outline: 'none',
-                fontSize: 14,
+                fontSize: isMobile ? 16 : 14,
                 boxSizing: 'border-box',
                 boxShadow: isPasswordFocused ? interactionTheme.inputFocusBoxShadow : 'none'
               }}
