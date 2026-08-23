@@ -16,6 +16,8 @@ import 'react-day-picker/style.css'
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import {
   initialFollowUpActionDraft,
@@ -1617,7 +1619,8 @@ export default function AgendaPage() {
         ) : null}
 
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreatingAgendaFollowUp ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {paginatedAgendaRows.map((row) => {
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && paginatedAgendaRows.map((row) => {
             const isHovered = hoveredFollowUpId === row.followUpId
             const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
             const lifecycleStatusTag = getFollowUpStatusPresentation(row.status, row.actions)
@@ -1803,9 +1806,6 @@ export default function AgendaPage() {
 
           {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
             <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum follow-up encontrado.</div>
-          ) : null}
-          {isLoading ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando...</div>
           ) : null}
           {error ? (
             <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
@@ -2431,7 +2431,20 @@ export default function AgendaPage() {
             </thead>
 
             <tbody>
-              {paginatedAgendaRows.map((row) => {
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '78%' },
+                    { width: '70%' },
+                    { width: '72%' },
+                    { width: '68%', align: 'center' },
+                    { width: '72%', align: 'center' },
+                    { width: '68%', align: 'center' },
+                    { width: 32, align: 'center' }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && paginatedAgendaRows.map((row) => {
                 const isHovered = hoveredFollowUpId === row.followUpId
                 const lifecycleStatusTag = getFollowUpStatusPresentation(row.status, row.actions)
                 const channelTagPresentation = getAgendaChannelTagPresentation(row.actions)

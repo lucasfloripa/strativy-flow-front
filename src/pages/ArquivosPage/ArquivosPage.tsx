@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { formatDate, getApiDateTimestamp } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
@@ -457,7 +459,8 @@ export default function ArquivosPage() {
         </div>
 
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {paginatedArquivos.map((arquivo) => {
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && paginatedArquivos.map((arquivo) => {
             const isHovered = hoveredArquivoId === arquivo.id
 
             if (confirmingDeleteArquivoId === arquivo.id) {
@@ -604,9 +607,6 @@ export default function ArquivosPage() {
 
           {!isLoading && !error && filteredArquivos.length === 0 ? (
             <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum arquivo encontrado.</div>
-          ) : null}
-          {isLoading ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando...</div>
           ) : null}
           {error ? (
             <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
@@ -910,7 +910,20 @@ export default function ArquivosPage() {
             </thead>
 
             <tbody>
-              {paginatedArquivos.map((arquivo) => {
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '78%' },
+                    { width: '58%', align: 'center' },
+                    { width: '62%', align: 'center' },
+                    { width: '72%' },
+                    { width: '76%' },
+                    { width: '72%' },
+                    { width: 32, align: 'center' }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && paginatedArquivos.map((arquivo) => {
                 const rowBackground =
                   hoveredArquivoId === arquivo.id
                     ? interactionTheme.clickableCardHoverBackground

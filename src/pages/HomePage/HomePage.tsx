@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import Skeleton from 'react-loading-skeleton'
+import 'react-loading-skeleton/dist/skeleton.css'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 
 import type { AuthenticatedLayoutOutletContext } from '../../app/layouts/AuthenticatedLayout'
@@ -275,6 +277,7 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null)
   const [conversations, setConversations] = useState<DashboardConversation[]>([])
+  const [isConversationsLoading, setIsConversationsLoading] = useState<boolean>(true)
   const [conversationCounts, setConversationCounts] = useState<Record<ConversationFilter, number>>({
     all: 0,
     new: 0,
@@ -323,8 +326,11 @@ export default function HomePage() {
 
   useEffect(() => {
     let isActive = true
+    let keepLoadingForNextFilter = false
 
     const loadConversations = async () => {
+      setIsConversationsLoading(true)
+
       try {
         const response = await HomeService.getDashboardConversations(
           selectedConversationFilter
@@ -342,6 +348,7 @@ export default function HomePage() {
             conversationFilterPriority.find((filter) => response.counts[filter] > 0) ?? 'today'
 
           if (initialConversationFilter !== selectedConversationFilter) {
+            keepLoadingForNextFilter = true
             setSelectedConversationFilter(initialConversationFilter)
             return
           }
@@ -351,6 +358,10 @@ export default function HomePage() {
       } catch {
         if (isActive) {
           setConversations([])
+        }
+      } finally {
+        if (isActive && !keepLoadingForNextFilter) {
+          setIsConversationsLoading(false)
         }
       }
     }
@@ -555,7 +566,41 @@ export default function HomePage() {
         </div>
 
         <div style={{ minHeight: 0, flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 8px', marginTop: 4 }}>
-          {conversations.map((item, index) => {
+          {isConversationsLoading ? (
+            <div aria-label="Carregando últimas conversas">
+              {Array.from({ length: 5 }, (_, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile
+                      ? 'minmax(0, 1fr) 132px'
+                      : 'minmax(0, 1fr) 76px 168px',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: '10px 8px',
+                    marginBottom: index < 4 ? 6 : 0
+                  }}
+                >
+                  <span style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+                    <Skeleton width="42%" height={14} />
+                    <Skeleton width="78%" height={11} />
+                  </span>
+
+                  {!isMobile ? (
+                    <span style={{ justifySelf: 'end', width: 48 }}>
+                      <Skeleton height={24} borderRadius={6} />
+                    </span>
+                  ) : null}
+
+                  <span style={{ display: 'grid', gap: 7, justifySelf: 'end', width: isMobile ? 104 : 126 }}>
+                    <Skeleton width="68%" height={11} containerClassName="skeleton-align-right" />
+                    <Skeleton height={26} borderRadius={6} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : conversations.map((item, index) => {
             const sourceTagPresentation = getLeadSourceTagPresentation(
               item.source,
               'Não informada'
@@ -687,7 +732,7 @@ export default function HomePage() {
             )
           })}
 
-          {conversations.length === 0 ? (
+          {!isConversationsLoading && conversations.length === 0 ? (
             <div style={{ padding: '16px 8px', color: '#64748b', fontSize: 13, fontWeight: 600 }}>
               Nenhuma conversa encontrada neste filtro.
             </div>

@@ -7,6 +7,11 @@ export const ContactsService = {
     return data
   },
 
+  async getContact(contactId: string): Promise<Contact> {
+    const { data } = await appApiClient.get<Contact>(`/contacts/${contactId}`)
+    return data
+  },
+
   async createContact(contact: CreateContactInput): Promise<Contact> {
     const { data } = await appApiClient.post<Contact>('/contacts', contact)
     return data

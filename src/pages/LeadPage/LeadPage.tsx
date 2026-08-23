@@ -43,6 +43,13 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import {
+  LeadActionsSkeleton,
+  LeadFollowUpTabSkeleton,
+  LeadGeneralTabSkeleton,
+  LeadHeaderSkeleton,
+  LeadTabsSkeleton
+} from '../../core/components/LeadDetailsSkeleton'
+import {
   fromFollowUpActionResponse,
   initialFollowUpActionDraft,
   isFollowUpActionDraftValid,
@@ -943,6 +950,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const requestedInitialBusinessId = locationState?.initialBusinessId ?? null
   const requestedInitialBusinessTab = locationState?.initialBusinessTab ?? null
   const requestedInitialBusinessFollowUpId = locationState?.initialBusinessFollowUpId ?? null
+  const isRequestedAgendaFollowUp =
+    location.pathname.startsWith('/agenda') &&
+    requestedInitialTab === 'negocios' &&
+    requestedInitialBusinessTab === 'followups' &&
+    Boolean(requestedInitialBusinessFollowUpId)
   const closeLeadPath = location.pathname.startsWith('/negocios')
     ? '/negocios'
     : location.pathname.startsWith('/agenda')
@@ -1557,6 +1569,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     setFollowUpsTotalItems(leadRelatedFollowUps.length)
     setBusinessesError(null)
   }
+
+  const isLeadSkeletonVisible = isLoading
 
   useEffect(() => {
     if (!leadId || isCreateLeadMode) return
@@ -7946,6 +7960,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         leadSource={leadData?.source}
         runtimeMode={currentRuntimeMode}
         isUpdatingRuntimeMode={isUpdatingRuntimeMode}
+        showLoadingSkeleton={
+          location.pathname.startsWith('/conversas') && requestedInitialTab === 'chat'
+        }
         onToggleRuntimeMode={handleToggleRuntimeMode}
       />
     )
@@ -7971,6 +7988,10 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const shouldHideLeadTabs =
     activeTab === 'negocios' &&
     Boolean(selectedBusinessId)
+  const shouldShowAgendaFollowUpTabSkeleton =
+    isMobile &&
+    isRequestedAgendaFollowUp &&
+    isLeadSkeletonVisible
 
   useEffect(() => {
     if (isCreateLeadMode) {
@@ -8522,7 +8543,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
               textOverflow: 'ellipsis'
             }}
           >
-            {selectedHeaderBusiness?.title?.trim() || leadData?.name?.trim() || '-'}
+            {isLeadSkeletonVisible && !selectedHeaderBusiness ? (
+              <LeadHeaderSkeleton isMobile={isMobile} />
+            ) : (
+              selectedHeaderBusiness?.title?.trim() || leadData?.name?.trim() || '-'
+            )}
           </h1>
           {!selectedHeaderBusiness && isMobileLeadFavorite ? (
             <span
@@ -8659,28 +8684,32 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             </div>
           ) : (
           <div ref={generalActionsRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-            <button
-              type="button"
-              onClick={() => setIsGeneralActionsOpen((current) => !current)}
-              style={{
-                height: 32,
-                width: 32,
-                border: 'none',
-                borderRadius: 8,
-                background: 'transparent',
-                color: '#111827',
-                padding: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-              aria-label="Abrir ações do lead"
-            >
-              <MoreVertical size={20} />
-            </button>
+            {isLeadSkeletonVisible ? (
+              <LeadActionsSkeleton />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsGeneralActionsOpen((current) => !current)}
+                style={{
+                  height: 32,
+                  width: 32,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  color: '#111827',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                aria-label="Abrir ações do lead"
+              >
+                <MoreVertical size={20} />
+              </button>
+            )}
 
-            {isGeneralActionsOpen ? (
+            {!isLeadSkeletonVisible && isGeneralActionsOpen ? (
               <div
                 style={{
                   position: 'absolute',
@@ -8851,7 +8880,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
                   minWidth: isMobile ? 'max-content' : 0
                 }}
               >
-                {leadTabs.map((tab) => (
+                {isLeadSkeletonVisible ? (
+                  <LeadTabsSkeleton isMobile={isMobile} />
+                ) : leadTabs.map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
@@ -8938,9 +8969,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           className={!isMobile && activeTab === 'geral' ? 'scrollbar-hidden' : undefined}
           style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: !isMobile && activeTab === 'geral' ? 'auto' : undefined }}
         >
-          {isLoading ? <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p> : null}
+          {isLeadSkeletonVisible && activeTab === 'geral' ? (
+            <LeadGeneralTabSkeleton isMobile={isMobile} />
+          ) : null}
+          {shouldShowAgendaFollowUpTabSkeleton ? <LeadFollowUpTabSkeleton /> : null}
+          {isLeadSkeletonVisible && activeTab !== 'geral' && !shouldShowAgendaFollowUpTabSkeleton ? (
+            <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p>
+          ) : null}
           {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
-          {!isLoading && !error ? renderTabContent() : null}
+          {!isLeadSkeletonVisible && !shouldShowAgendaFollowUpTabSkeleton && !error ? renderTabContent() : null}
         </div>
       </div>
     </section>

@@ -16,6 +16,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import { getApiDateTimestamp } from '../../core/utils/dateTime'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
@@ -1875,7 +1877,8 @@ export default function NegociosPage() {
         ) : null}
 
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateBusinessMode ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {paginatedNegocios.map((negocio) => {
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && paginatedNegocios.map((negocio) => {
             const isHovered = hoveredNegocioId === negocio.id
             const isSelected = selectedBusinessId === negocio.id
             const businessTypeLabel =
@@ -2061,11 +2064,8 @@ export default function NegociosPage() {
             )
           })}
 
-          {!isLoadingNegocios && !negociosError && sortedNegocios.length === 0 ? (
+          {!isLoading && !negociosError && sortedNegocios.length === 0 ? (
             <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum negócio encontrado.</div>
-          ) : null}
-          {isLoadingNegocios ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando negócios...</div>
           ) : null}
           {negociosError ? (
             <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{negociosError}</div>
@@ -2504,7 +2504,22 @@ export default function NegociosPage() {
             </thead>
 
             <tbody>
-              {paginatedNegocios.map((negocio) => {
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '76%' },
+                    { width: '70%' },
+                    { width: '66%', align: 'center' },
+                    { width: '68%', align: 'center' },
+                    { width: '72%', align: 'center' },
+                    { width: '70%', align: 'center' },
+                    { width: '68%', align: 'center' },
+                    { width: '66%', align: 'center' },
+                    { width: 32, align: 'center' }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && paginatedNegocios.map((negocio) => {
                 const isHovered = hoveredNegocioId === negocio.id
                 const isSelected = selectedBusinessId === negocio.id
                 const businessTypeLabel =

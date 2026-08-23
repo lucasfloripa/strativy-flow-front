@@ -4,6 +4,7 @@ import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { appApiClient } from '../../../core/api/appApiClient'
+import { LeadChatTabSkeleton } from '../../../core/components/LeadDetailsSkeleton'
 import { useRealtime } from '../../../core/realtime/useRealtime'
 import { formatChatMessageTimestamp } from '../../../core/utils/dateTime'
 import { formatStoredLeadPhoneInput } from '../../../core/utils/leadPhone'
@@ -22,6 +23,7 @@ type LeadChatTabProps = {
   leadSource?: string | null
   runtimeMode?: LeadRuntimeMode
   isUpdatingRuntimeMode?: boolean
+  showLoadingSkeleton?: boolean
   onToggleRuntimeMode?: () => void
 }
 
@@ -99,6 +101,7 @@ export function LeadChatTab({
   leadSource,
   runtimeMode = 'AUTOMATION',
   isUpdatingRuntimeMode = false,
+  showLoadingSkeleton = false,
   onToggleRuntimeMode
 }: LeadChatTabProps) {
   const realtime = useRealtime()
@@ -840,6 +843,10 @@ export function LeadChatTab({
     return [contact.name, contact.phone, contact.company, contact.instagram]
       .some((field) => field?.toLocaleLowerCase('pt-BR').includes(normalizedContactSearchTerm))
   })
+
+  if (isLoading && showLoadingSkeleton) {
+    return <LeadChatTabSkeleton isMobile={isCompactScreen} />
+  }
 
   return (
     <section style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>

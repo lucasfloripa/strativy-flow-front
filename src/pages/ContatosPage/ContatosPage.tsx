@@ -1,9 +1,12 @@
-import { Instagram, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { ContactDetailsSkeleton } from '../../core/components/ContactDetailsSkeleton'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import {
   formatLeadPhoneInput,
   formatStoredLeadPhoneInput,
@@ -59,22 +62,6 @@ const InstagramTag = ({ value }: { value: string | null | undefined }) => {
         lineHeight: 1.1
       }}
     >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 5,
-          background: 'linear-gradient(135deg, #833ab4, #c13584 35%, #fd1d1d 68%, #fcb045)',
-          color: '#ffffff',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0
-        }}
-      >
-        <Instagram size={12} strokeWidth={2.2} />
-      </span>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {formatInstagramDisplay(value)}
       </span>
@@ -90,6 +77,8 @@ export default function ContatosPage() {
   const location = useLocation()
   const { contactId } = useParams<{ contactId?: string }>()
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [selectedContactDetails, setSelectedContactDetails] = useState<Contact | null>(null)
+  const [isContactDetailsLoading, setIsContactDetailsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [sortKey, setSortKey] = useState<ContactSortKey>('name')
@@ -108,10 +97,10 @@ export default function ContatosPage() {
   const [company, setCompany] = useState('')
   const [instagram, setInstagram] = useState('')
   const selectedContact = contactId
-    ? contacts.find((contact) => contact.id === contactId) ?? null
+    ? selectedContactDetails ?? contacts.find((contact) => contact.id === contactId) ?? null
     : null
-  const isViewingSelectedContact = Boolean(selectedContact && !isCreateModalOpen)
-  const isContactPanelOpen = isCreateModalOpen || Boolean(selectedContact)
+  const isViewingSelectedContact = Boolean(contactId && !isCreateModalOpen)
+  const isContactPanelOpen = isCreateModalOpen || Boolean(contactId)
 
   const loadContacts = async () => {
     try {
@@ -127,6 +116,43 @@ export default function ContatosPage() {
   useEffect(() => {
     void loadContacts()
   }, [])
+
+  useEffect(() => {
+    if (!contactId) {
+      setSelectedContactDetails(null)
+      setIsContactDetailsLoading(false)
+      return
+    }
+
+    let isMounted = true
+    setSelectedContactDetails(null)
+    setIsContactDetailsLoading(true)
+
+    void ContactsService.getContact(contactId)
+      .then((contact) => {
+        if (!isMounted) return
+
+        setSelectedContactDetails(contact)
+        setContacts((currentContacts) => {
+          const hasContact = currentContacts.some((currentContact) => currentContact.id === contact.id)
+          return hasContact
+            ? currentContacts.map((currentContact) =>
+                currentContact.id === contact.id ? contact : currentContact
+              )
+            : [contact, ...currentContacts]
+        })
+      })
+          .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) {
+          setIsContactDetailsLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [contactId])
 
   useEffect(() => {
     if (!isContactPanelOpen || isMobile) {
@@ -390,10 +416,10 @@ export default function ContatosPage() {
             lineHeight: 1
           }}
         >
-          {isMobile
-            ? 'Adicionar Contato'
-            : isViewingSelectedContact
-              ? selectedContact?.name
+          {isViewingSelectedContact
+            ? selectedContact?.name
+            : isMobile
+              ? 'Adicionar Contato'
               : 'Novo contato'}
         </h2>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -607,6 +633,22 @@ export default function ContatosPage() {
     </>
   ) : null
 
+  const selectedContactPanel = isViewingSelectedContact && isMobile ? (
+    <aside
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 50,
+        background: '#ffffff',
+        overflow: 'hidden'
+      }}
+    >
+      {isContactDetailsLoading || !selectedContact
+        ? <ContactDetailsSkeleton isMobile />
+        : createContactForm}
+    </aside>
+  ) : null
+
   if (isMobile) {
     return (
       <section style={{ height: '100%', padding: '24px 16px 16px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafbfd', boxSizing: 'border-box', position: 'relative', overflow: 'hidden' }}>
@@ -633,9 +675,18 @@ export default function ContatosPage() {
         </div>
 
         <div style={{ minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+          {isLoading ? <MobileListSkeleton /> : null}
           {!isLoading && filteredContacts.length > 0
             ? filteredContacts.map((contact) => (
-                <article key={contact.id} style={{ background: confirmingDeleteContactId === contact.id ? interactionTheme.clickableCardHoverBackground : '#ffffff', border: '1px solid #f1f5f9', borderRadius: 18, boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)', padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <article
+                  key={contact.id}
+                  onClick={() => {
+                    if (confirmingDeleteContactId !== contact.id) {
+                      navigate(`/contatos/${contact.id}${location.search}`)
+                    }
+                  }}
+                  style={{ background: confirmingDeleteContactId === contact.id ? interactionTheme.clickableCardHoverBackground : '#ffffff', border: '1px solid #f1f5f9', borderRadius: 18, boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)', padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: confirmingDeleteContactId === contact.id ? 'default' : 'pointer' }}
+                >
                   {confirmingDeleteContactId === contact.id ? (
                     <>
                       <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Contato?</strong>
@@ -648,7 +699,15 @@ export default function ContatosPage() {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                         <h2 style={{ margin: 0, minWidth: 0, flex: 1, color: '#111827', fontSize: 20, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contact.name}</h2>
-                        <button type="button" aria-label="Excluir contato" onClick={() => setConfirmingDeleteContactId(contact.id)} style={{ ...actionButtonStyle, height: 34, width: 34, borderRadius: 8, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          aria-label="Excluir contato"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setConfirmingDeleteContactId(contact.id)
+                          }}
+                          style={{ ...actionButtonStyle, height: 34, width: 34, borderRadius: 8, flexShrink: 0 }}
+                        >
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -659,9 +718,12 @@ export default function ContatosPage() {
                   )}
                 </article>
               ))
-            : renderEmptyState()}
+            : !isLoading
+              ? renderEmptyState()
+              : null}
         </div>
         {createModal}
+        {selectedContactPanel}
       </section>
     )
   }
@@ -727,6 +789,17 @@ export default function ContatosPage() {
             </tr>
           </thead>
           <tbody>
+            {isLoading ? (
+              <DesktopTableSkeleton
+                columns={[
+                  { width: '70%' },
+                  { width: '66%' },
+                  { width: '68%', align: 'center' },
+                  { width: '64%', align: 'center' },
+                  { width: 32, align: 'center' }
+                ]}
+              />
+            ) : null}
             {!isLoading && sortedFilteredContacts.length > 0
               ? sortedFilteredContacts.map((contact) => (
                   <tr
@@ -841,7 +914,9 @@ export default function ContatosPage() {
               transition: `transform ${contactPanelTransitionMs}ms ease`
             }}
           >
-            {createContactForm}
+            {isViewingSelectedContact && (isContactDetailsLoading || !selectedContact)
+              ? <ContactDetailsSkeleton isMobile={false} />
+              : createContactForm}
           </aside>
         </>
       ) : null}

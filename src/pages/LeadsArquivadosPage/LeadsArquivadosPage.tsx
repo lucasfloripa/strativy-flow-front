@@ -4,6 +4,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
 import LeadPage from '../LeadPage'
@@ -272,7 +274,8 @@ export default function LeadsArquivadosPage() {
         />
 
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {paginatedLeads.map((lead) => {
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && paginatedLeads.map((lead) => {
             const isHovered = hoveredLeadId === lead.id
 
             if (confirmingDeleteLeadId === lead.id) {
@@ -409,10 +412,6 @@ export default function LeadsArquivadosPage() {
 
           {!isLoading && !error && archivedLeads.length === 0 ? (
             <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead arquivado encontrado.</div>
-          ) : null}
-
-          {isLoading ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando arquivados...</div>
           ) : null}
 
           {error ? (
@@ -588,7 +587,16 @@ export default function LeadsArquivadosPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedLeads.map((lead) => {
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '58%' },
+                    { width: '34%', align: 'center' },
+                    { width: 72 }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && paginatedLeads.map((lead) => {
                 if (confirmingDeleteLeadId === lead.id) {
                   return (
                     <tr

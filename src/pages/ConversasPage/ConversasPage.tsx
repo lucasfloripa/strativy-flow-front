@@ -5,6 +5,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import { formatDateTime, parseApiDateToBrowserDate } from '../../core/utils/dateTime'
 import { HomeService } from '../../features/home/services/HomeService'
@@ -752,7 +754,8 @@ export default function ConversasPage() {
         {filterPanel}
         {activeFilterTag}
         <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {sortedConversations.map((conversation) => (
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && sortedConversations.map((conversation) => (
             <article
               key={conversation.leadId}
               onClick={() => openConversation(conversation.leadId)}
@@ -795,7 +798,7 @@ export default function ConversasPage() {
               </div>
             </article>
           ))}
-          {renderStatus()}
+          {!isLoading ? renderStatus() : null}
         </div>
         {isLeadSelected ? (
           <aside
@@ -871,7 +874,19 @@ export default function ConversasPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedConversations.map((conversation) => (
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '68%' },
+                    { width: '84%' },
+                    { width: '68%', align: 'center' },
+                    { width: '72%', align: 'center' },
+                    { width: '68%', align: 'center' },
+                    { width: '66%', align: 'center' }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && sortedConversations.map((conversation) => (
                 <tr
                   key={conversation.leadId}
                   onClick={() => openConversation(conversation.leadId)}
@@ -897,7 +912,7 @@ export default function ConversasPage() {
               ))}
             </tbody>
           </table>
-          {renderStatus()}
+          {!isLoading ? renderStatus() : null}
         </div>
 
         <div

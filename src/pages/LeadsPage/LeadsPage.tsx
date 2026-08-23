@@ -6,6 +6,8 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import {
   formatDateTime,
@@ -1243,7 +1245,8 @@ export default function LeadsPage() {
         ) : null}
 
         <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateLeadFormOpen ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
-          {paginatedLeads.map((lead) => {
+          {isLoading ? <MobileListSkeleton /> : null}
+          {!isLoading && paginatedLeads.map((lead) => {
             const isArchivedLead = lead.state === 'archived'
             const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
             const interactionTagPresentation = getInteractionTagPresentation(
@@ -1526,9 +1529,6 @@ export default function LeadsPage() {
 
           {!isLoading && !error && filteredLeads.length === 0 ? (
             <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead encontrado.</div>
-          ) : null}
-          {isLoading ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando leads...</div>
           ) : null}
           {error ? (
             <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
@@ -1913,7 +1913,19 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedLeads.map((lead) => {
+              {isLoading ? (
+                <DesktopTableSkeleton
+                  columns={[
+                    { width: '72%' },
+                    { width: '68%', align: 'center' },
+                    { width: '76%', align: 'center' },
+                    { width: '70%', align: 'center' },
+                    { width: '64%', align: 'center' },
+                    { width: 32, align: 'center' }
+                  ]}
+                />
+              ) : null}
+              {!isLoading && paginatedLeads.map((lead) => {
                 const isArchivedLead = lead.state === 'archived'
                 const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
                 const interactionTagPresentation = getInteractionTagPresentation(
