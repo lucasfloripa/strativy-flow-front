@@ -137,7 +137,13 @@ export function LeadChatTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   return (
     <section
       aria-label="Carregando chat do lead"
-      style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        flex: 1,
+        marginBottom: isMobile ? 5 : 0
+      }}
     >
       <div
         style={{
