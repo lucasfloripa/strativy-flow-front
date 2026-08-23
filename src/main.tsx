@@ -39,7 +39,22 @@ const setupIosSafariBrowserMode = () => {
     return
   }
 
+  const hasFocusedEditableElement = () => {
+    const activeElement = document.activeElement
+
+    return (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement ||
+      activeElement instanceof HTMLElement && activeElement.isContentEditable
+    )
+  }
+
   const nudgeToolbar = () => {
+    if (window.location.pathname === '/login' || hasFocusedEditableElement()) {
+      return
+    }
+
     window.requestAnimationFrame(() => {
       window.scrollTo(0, 1)
       window.setTimeout(() => {
