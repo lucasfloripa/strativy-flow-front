@@ -7,16 +7,13 @@ type TotalCountProps = {
 }
 
 export function TotalCount({ isLoading, total }: TotalCountProps) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-      <span>Total</span>
-      {isLoading ? (
-        <span style={{ display: 'inline-block', width: 18, lineHeight: 1 }}>
-          <Skeleton height={12} borderRadius={5} />
-        </span>
-      ) : (
-        <span>{total}</span>
-      )}
-    </span>
-  )
+  if (isLoading) {
+    return (
+      <span style={{ display: 'inline-block', width: 48, lineHeight: 1 }}>
+        <Skeleton height={12} borderRadius={5} />
+      </span>
+    )
+  }
+
+  return <span style={{ whiteSpace: 'nowrap' }}>Total {total}</span>
 }
