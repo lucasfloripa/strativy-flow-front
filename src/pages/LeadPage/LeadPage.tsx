@@ -951,7 +951,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const lastSavedNotesRef = useRef<string>('')
   const isSavingNotesRef = useRef<boolean>(false)
   const locationState = location.state as LeadPageLocationState | null
-  const requestedInitialTab = locationState?.initialLeadTab ?? 'geral'
+  const requestedInitialTab = locationState?.initialLeadTab ?? (
+    location.pathname.startsWith('/conversas') ? 'chat' : 'geral'
+  )
   const requestedInitialBusinessId = locationState?.initialBusinessId ?? null
   const requestedInitialBusinessTab = locationState?.initialBusinessTab ?? null
   const requestedInitialBusinessFollowUpId = locationState?.initialBusinessFollowUpId ?? null
@@ -8039,7 +8041,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     isRequestedBusinessInformation &&
     isLeadSkeletonVisible
   const shouldShowDirectChatSkeleton =
-    requestedInitialTab === 'chat' &&
+    activeTab === 'chat' &&
     isLeadSkeletonVisible
 
   useEffect(() => {
