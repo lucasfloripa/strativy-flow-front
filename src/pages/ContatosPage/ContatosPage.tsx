@@ -383,7 +383,7 @@ export default function ContatosPage() {
         textAlign: 'center'
       }}
     >
-      {isLoading ? 'Carregando...' : 'Nenhum contato encontrado.'}
+      Nenhum contato encontrado.
     </div>
   )
 
@@ -866,10 +866,10 @@ export default function ContatosPage() {
                   </tr>
                 ))
               : null}
-            {isLoading || filteredContacts.length === 0 ? (
+            {!isLoading && filteredContacts.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ padding: '14px 16px', color: '#6b7280' }}>
-                  {isLoading ? 'Carregando...' : 'Nenhum contato encontrado.'}
+                  Nenhum contato encontrado.
                 </td>
               </tr>
             ) : null}

@@ -2389,16 +2389,6 @@ export default function LeadsPage() {
                   </td>
                 </tr>
               ) : null}
-              {isLoading ? (
-                <tr>
-                  <td
-                      colSpan={6}
-                    style={{ padding: '14px 16px', color: '#6b7280' }}
-                  >
-                    Carregando leads...
-                  </td>
-                </tr>
-              ) : null}
               {error ? (
                 <tr>
                   <td

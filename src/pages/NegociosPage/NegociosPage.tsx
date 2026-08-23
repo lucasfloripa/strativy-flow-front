@@ -2920,7 +2920,6 @@ export default function NegociosPage() {
           <TotalCount isLoading={isLoading} total={sortedNegocios.length} />
         </div>
 
-        {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}
         {error ? <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p> : null}
 
         {isBusinessPanelOpen ? (

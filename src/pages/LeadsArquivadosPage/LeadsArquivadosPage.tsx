@@ -796,14 +796,6 @@ export default function LeadsArquivadosPage() {
                 </tr>
               ) : null}
 
-              {isLoading ? (
-                <tr>
-                  <td colSpan={3} style={{ padding: '14px 16px', color: '#6b7280' }}>
-                    Carregando arquivados...
-                  </td>
-                </tr>
-              ) : null}
-
               {error ? (
                 <tr>
                   <td colSpan={3} style={{ padding: '14px 16px', color: '#b91c1c' }}>

@@ -77,3 +77,40 @@ export function MessageShortcutsSkeleton() {
     </div>
   )
 }
+
+export function NotificationChannelsSkeleton({ isMobile }: SettingsLoadingSkeletonProps) {
+  return (
+    <div aria-label="Preferências de canais pendentes">
+      <div style={{ padding: '12px 16px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'grid', gap: 6, flex: 1 }}>
+            <Skeleton width={isMobile ? 148 : 190} height={18} borderRadius={6} />
+            <Skeleton width={isMobile ? '82%' : 320} height={12} borderRadius={6} />
+          </div>
+          <Skeleton width={isMobile ? 76 : 132} height={34} borderRadius={8} />
+        </div>
+      </div>
+      <div style={{ padding: '12px 16px' }}>
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr auto auto' : 'auto 1fr auto auto',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: 44
+              }}
+            >
+              {!isMobile ? <Skeleton circle width={20} height={20} /> : null}
+              <Skeleton width={isMobile ? '76%' : 150} height={14} borderRadius={6} />
+              <Skeleton width={isMobile ? 42 : 18} height={14} borderRadius={6} />
+              <Skeleton width={isMobile ? 42 : 18} height={14} borderRadius={6} />
+            </div>
+            {index < 2 ? <div style={{ height: 1, background: '#e5e7eb' }} /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

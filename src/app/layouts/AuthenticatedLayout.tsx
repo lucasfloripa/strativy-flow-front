@@ -10,6 +10,7 @@ import { appApiClient } from '../../core/api/appApiClient'
 import { authApiClient } from '../../core/api/authApiClient'
 import {
   MessageShortcutsSkeleton,
+  NotificationChannelsSkeleton,
   NotificationTogglesSkeleton
 } from '../../core/components/SettingsLoadingSkeletons'
 import { useRealtime } from '../../core/realtime/useRealtime'
@@ -2291,9 +2292,7 @@ export function AuthenticatedLayout() {
                   {selectedNotificationsTab === 'canais' ? (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       {isLoadingNotifications ? (
-                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
-                          Carregando dados de notificações...
-                        </div>
+                        <NotificationChannelsSkeleton isMobile={isMobile} />
                       ) : (
                         <>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>

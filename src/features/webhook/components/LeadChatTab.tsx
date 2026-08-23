@@ -1,6 +1,8 @@
 import type { FormEvent } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, Paperclip, SendHorizontal, Bot, User, FileText, Mic, Contact as ContactIcon, Ellipsis } from 'lucide-react'
+import Skeleton from 'react-loading-skeleton'
+import 'react-loading-skeleton/dist/skeleton.css'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
 import { appApiClient } from '../../../core/api/appApiClient'
@@ -23,7 +25,6 @@ type LeadChatTabProps = {
   leadSource?: string | null
   runtimeMode?: LeadRuntimeMode
   isUpdatingRuntimeMode?: boolean
-  showLoadingSkeleton?: boolean
   onToggleRuntimeMode?: () => void
 }
 
@@ -101,7 +102,6 @@ export function LeadChatTab({
   leadSource,
   runtimeMode = 'AUTOMATION',
   isUpdatingRuntimeMode = false,
-  showLoadingSkeleton = false,
   onToggleRuntimeMode
 }: LeadChatTabProps) {
   const realtime = useRealtime()
@@ -817,9 +817,7 @@ export function LeadChatTab({
     }
   }
 
-  const statusText = isLoading
-    ? 'Carregando mensagens...'
-    : messages.length === 0
+  const statusText = messages.length === 0
       ? 'Nenhuma mensagem ainda'
       : null
 
@@ -844,7 +842,7 @@ export function LeadChatTab({
       .some((field) => field?.toLocaleLowerCase('pt-BR').includes(normalizedContactSearchTerm))
   })
 
-  if (isLoading && showLoadingSkeleton) {
+  if (isLoading) {
     return <LeadChatTabSkeleton isMobile={isCompactScreen} />
   }
 
@@ -902,8 +900,27 @@ export function LeadChatTab({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
               {isLoadingContacts ? (
-                <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>
-                  Carregando contatos...
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        padding: 14,
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        alignItems: 'center',
+                        gap: 12
+                      }}
+                    >
+                      <span style={{ display: 'grid', gap: 7 }}>
+                        <Skeleton width="54%" height={14} borderRadius={6} />
+                        <Skeleton width="38%" height={12} borderRadius={6} />
+                      </span>
+                      <Skeleton circle width={20} height={20} />
+                    </div>
+                  ))}
                 </div>
               ) : null}
 

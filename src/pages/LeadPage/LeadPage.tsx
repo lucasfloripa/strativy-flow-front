@@ -34,9 +34,11 @@ import {
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
+import Skeleton from 'react-loading-skeleton'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import 'react-day-picker/style.css'
+import 'react-loading-skeleton/dist/skeleton.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -4508,7 +4510,27 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         {isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {isBusinessAttachmentsLoading ? (
-              <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando arquivos...</div>
+              Array.from({ length: 3 }, (_, index) => (
+                <article
+                  key={index}
+                  style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 18,
+                    padding: 16,
+                    display: 'grid',
+                    gridTemplateColumns: '40px minmax(0, 1fr) 28px',
+                    alignItems: 'center',
+                    gap: 12
+                  }}
+                >
+                  <Skeleton width={40} height={40} borderRadius={10} />
+                  <span style={{ display: 'grid', gap: 7 }}>
+                    <Skeleton width={index === 1 ? '72%' : '86%'} height={14} borderRadius={6} />
+                    <Skeleton width="52%" height={11} borderRadius={6} />
+                  </span>
+                  <Skeleton circle width={28} height={28} />
+                </article>
+              ))
             ) : businessAttachments.length === 0 ? (
               <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum arquivo cadastrado.</div>
             ) : (
@@ -4651,9 +4673,26 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
 
           <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
             {isBusinessAttachmentsLoading ? (
-              <div style={{ padding: '10px 12px' }}>
-                <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Carregando arquivos...</p>
-              </div>
+              Array.from({ length: 4 }, (_, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: filesColumns,
+                    alignItems: 'center',
+                    columnGap: 8,
+                    padding: '0 12px',
+                    minHeight: filesRowMinHeight,
+                    borderBottom: index === 3 ? 'none' : '1px solid #f0f0f0'
+                  }}
+                >
+                  <Skeleton width={index % 2 === 0 ? '82%' : '68%'} height={13} borderRadius={6} />
+                  <Skeleton width={56} height={13} borderRadius={6} />
+                  <Skeleton width={48} height={13} borderRadius={6} />
+                  <Skeleton width={82} height={13} borderRadius={6} />
+                  <Skeleton circle width={26} height={26} />
+                </div>
+              ))
             ) : businessAttachments.length === 0 ? (
               <div style={{ padding: '10px 12px' }}>
                 <p style={{ margin: 0, color: '#555555', fontSize: 13 }}>Nenhum arquivo cadastrado.</p>
@@ -7968,7 +8007,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         leadSource={leadData?.source}
         runtimeMode={currentRuntimeMode}
         isUpdatingRuntimeMode={isUpdatingRuntimeMode}
-        showLoadingSkeleton={requestedInitialTab === 'chat'}
         onToggleRuntimeMode={handleToggleRuntimeMode}
       />
     )
@@ -8993,7 +9031,25 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           ) : null}
           {shouldShowDirectChatSkeleton ? <LeadChatTabSkeleton isMobile={isMobile} /> : null}
           {isLeadSkeletonVisible && activeTab !== 'geral' && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowBusinessInformationSkeleton && !shouldShowDirectChatSkeleton ? (
-            <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p>
+            <section style={{ display: 'grid', gap: 18, padding: isMobile ? '6px 4px 24px' : '6px 0 24px' }}>
+              <Skeleton width={isMobile ? 138 : 184} height={20} borderRadius={6} />
+              {Array.from({ length: isMobile ? 4 : 5 }, (_, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    alignItems: 'center',
+                    gap: 16,
+                    minHeight: 44,
+                    borderBottom: '1px solid #f1f5f9'
+                  }}
+                >
+                  <Skeleton width={index % 2 === 0 ? '58%' : '72%'} height={14} borderRadius={6} />
+                  <Skeleton width={64} height={14} borderRadius={6} />
+                </div>
+              ))}
+            </section>
           ) : null}
           {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
           {!isLeadSkeletonVisible && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowBusinessInformationSkeleton && !shouldShowDirectChatSkeleton && !error ? renderTabContent() : null}

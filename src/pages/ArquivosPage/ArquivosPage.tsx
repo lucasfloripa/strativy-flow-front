@@ -1154,7 +1154,6 @@ export default function ArquivosPage() {
           <TotalCount isLoading={isLoading} total={filteredArquivos.length} />
         </div>
 
-        {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}
         {error ? <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p> : null}
 
         {isCreateArquivoPanelOpen ? (

@@ -509,10 +509,6 @@ export default function ConversasPage() {
     Number(selectedSourceFilters.length > 0)
 
   const renderStatus = () => {
-    if (isLoading) {
-      return <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Carregando conversas...</div>
-    }
-
     if (error) {
       return <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
     }

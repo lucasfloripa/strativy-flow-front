@@ -1,4 +1,6 @@
 import { useEffect, useEffectEvent, useState } from 'react'
+import Skeleton from 'react-loading-skeleton'
+import 'react-loading-skeleton/dist/skeleton.css'
 
 import { formatLeadPhoneInput, formatStoredLeadPhoneInput } from '../utils/leadPhone'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
@@ -184,6 +186,9 @@ export function FollowUpActionFields({
 
               <div style={{ display: 'grid', gap: 8 }}>
                 <label style={labelStyle}>Template</label>
+                {isLoadingTemplates ? (
+                  <Skeleton height={isMobile ? 46 : 42} borderRadius={10} />
+                ) : (
                 <select
                   value={value.templateId}
                   onChange={(event) => {
@@ -198,17 +203,18 @@ export function FollowUpActionFields({
                         .map((variable) => variable.key)
                     })
                   }}
-                  disabled={isLoadingTemplates || readOnly}
+                  disabled={readOnly}
                   style={{ ...controlStyle, color: readOnly || !value.templateId ? '#64748b' : '#111827', fontWeight: 600 }}
                 >
-                  <option value="">{isLoadingTemplates ? 'Carregando templates...' : 'Selecione um template...'}</option>
-                  {value.templateId && !selectedTemplate && !isLoadingTemplates ? (
+                  <option value="">Selecione um template...</option>
+                  {value.templateId && !selectedTemplate ? (
                     <option value={value.templateId}>Template indisponível</option>
                   ) : null}
                   {messageTemplates.map((template) => (
                     <option key={template.id} value={template.id}>{template.name}</option>
                   ))}
                 </select>
+                )}
                 {templatesError ? <span style={{ color: '#b91c1c', fontSize: 12 }}>{templatesError}</span> : null}
               </div>
 
