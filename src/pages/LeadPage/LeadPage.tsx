@@ -43,6 +43,7 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import {
+  BusinessInformationSkeleton,
   BusinessTabsSkeleton,
   LeadActionsSkeleton,
   LeadChatTabSkeleton,
@@ -957,6 +958,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     requestedInitialTab === 'negocios' &&
     requestedInitialBusinessTab === 'followups' &&
     Boolean(requestedInitialBusinessFollowUpId)
+  const isRequestedBusinessInformation =
+    location.pathname.startsWith('/negocios') &&
+    requestedInitialTab === 'negocios' &&
+    requestedInitialBusinessTab === 'informacoes' &&
+    Boolean(requestedInitialBusinessId)
   const closeLeadPath = location.pathname.startsWith('/negocios')
     ? '/negocios'
     : location.pathname.startsWith('/agenda')
@@ -7991,6 +7997,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const shouldShowAgendaFollowUpTabSkeleton =
     isRequestedAgendaFollowUp &&
     isLeadSkeletonVisible
+  const shouldShowBusinessInformationSkeleton =
+    isRequestedBusinessInformation &&
+    isLeadSkeletonVisible
   const shouldShowDirectChatSkeleton =
     requestedInitialTab === 'chat' &&
     isLeadSkeletonVisible
@@ -8783,7 +8792,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         </div>
       </header>
 
-      {selectedHeaderBusiness || shouldShowAgendaFollowUpTabSkeleton ? (
+      {selectedHeaderBusiness || shouldShowAgendaFollowUpTabSkeleton || shouldShowBusinessInformationSkeleton ? (
         <div style={{ display: 'grid', gap: 0 }}>
           <nav
             className={isMobile ? 'mobile-tabs-scrollbar-hidden' : undefined}
@@ -8793,7 +8802,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 4, minWidth: 0 }}>
-              {shouldShowAgendaFollowUpTabSkeleton ? (
+              {shouldShowAgendaFollowUpTabSkeleton || shouldShowBusinessInformationSkeleton ? (
                 <BusinessTabsSkeleton isMobile={isMobile} />
               ) : [
                 { key: 'informacoes' as const, label: 'Informações' },
@@ -8979,12 +8988,15 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           {shouldShowAgendaFollowUpTabSkeleton ? (
             <LeadFollowUpTabSkeleton isMobile={isMobile} />
           ) : null}
+          {shouldShowBusinessInformationSkeleton ? (
+            <BusinessInformationSkeleton isMobile={isMobile} />
+          ) : null}
           {shouldShowDirectChatSkeleton ? <LeadChatTabSkeleton isMobile={isMobile} /> : null}
-          {isLeadSkeletonVisible && activeTab !== 'geral' && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowDirectChatSkeleton ? (
+          {isLeadSkeletonVisible && activeTab !== 'geral' && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowBusinessInformationSkeleton && !shouldShowDirectChatSkeleton ? (
             <p style={{ margin: 0, color: '#4b5563' }}>Carregando...</p>
           ) : null}
           {error ? <p style={{ margin: 0, color: '#b91c1c' }}>{error}</p> : null}
-          {!isLeadSkeletonVisible && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowDirectChatSkeleton && !error ? renderTabContent() : null}
+          {!isLeadSkeletonVisible && !shouldShowAgendaFollowUpTabSkeleton && !shouldShowBusinessInformationSkeleton && !shouldShowDirectChatSkeleton && !error ? renderTabContent() : null}
         </div>
       </div>
     </section>

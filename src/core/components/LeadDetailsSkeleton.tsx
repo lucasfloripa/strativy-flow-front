@@ -83,6 +83,54 @@ export function LeadGeneralTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   )
 }
 
+export function BusinessInformationSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
+  const renderSection = (rows: number, key: string) => (
+    <section key={key} style={{ display: 'grid', gap: 8, width: '100%', minWidth: 0 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <Skeleton circle width={15} height={15} />
+        <Skeleton width={isMobile ? 112 : 128} height={15} borderRadius={6} />
+      </div>
+      <div style={{ borderTop: '1px solid #e5e7eb' }}>
+        {Array.from({ length: rows }, (_, index) => (
+          <div
+            key={index}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto',
+              alignItems: 'center',
+              gap: 12,
+              minHeight: 42,
+              padding: '0 2px',
+              borderBottom: index === rows - 1 ? 'none' : '1px solid #f1f5f9'
+            }}
+          >
+            <Skeleton width={index % 2 === 0 ? 82 : 104} height={13} borderRadius={6} />
+            <Skeleton width={index % 3 === 0 ? 92 : 68} height={16} borderRadius={6} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+
+  return (
+    <div
+      aria-label="Carregando informações do negócio"
+      style={{
+        display: 'grid',
+        alignContent: 'start',
+        gap: 18,
+        width: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        padding: isMobile ? '6px 0 24px' : '6px 6px 24px 0'
+      }}
+    >
+      {renderSection(7, 'overview')}
+      {renderSection(3, 'history')}
+    </div>
+  )
+}
+
 export function LeadChatTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   const messageWidths = isMobile ? ['72%', '58%', '80%', '52%'] : ['42%', '34%', '48%', '30%']
 
