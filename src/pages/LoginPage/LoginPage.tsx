@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -14,68 +14,6 @@ export default function LoginPage() {
   const [isSubmitHovered, setIsSubmitHovered] = useState<boolean>(false)
   const { email, password, error, isSubmitting, setEmail, setPassword, submit } =
     useLoginForm()
-
-  useEffect(() => {
-    if (!isMobile) {
-      return
-    }
-
-    const htmlStyle = document.documentElement.style
-    const bodyStyle = document.body.style
-    const rootElement = document.getElementById('root')
-    const rootStyle = rootElement?.style
-    const scrollY = window.scrollY
-    const previousStyles = {
-      htmlHeight: htmlStyle.height,
-      htmlMinHeight: htmlStyle.minHeight,
-      htmlOverflow: htmlStyle.overflow,
-      bodyHeight: bodyStyle.height,
-      bodyMinHeight: bodyStyle.minHeight,
-      bodyOverflow: bodyStyle.overflow,
-      bodyPosition: bodyStyle.position,
-      bodyInset: bodyStyle.inset,
-      bodyWidth: bodyStyle.width,
-      rootHeight: rootStyle?.height ?? '',
-      rootMinHeight: rootStyle?.minHeight ?? '',
-      rootOverflow: rootStyle?.overflow ?? ''
-    }
-
-    htmlStyle.height = '100%'
-    htmlStyle.minHeight = '100%'
-    htmlStyle.overflow = 'hidden'
-    bodyStyle.height = '100%'
-    bodyStyle.minHeight = '100%'
-    bodyStyle.overflow = 'hidden'
-    bodyStyle.position = 'fixed'
-    bodyStyle.inset = '0'
-    bodyStyle.width = '100%'
-
-    if (rootStyle) {
-      rootStyle.height = '100%'
-      rootStyle.minHeight = '100%'
-      rootStyle.overflow = 'hidden'
-    }
-
-    return () => {
-      htmlStyle.height = previousStyles.htmlHeight
-      htmlStyle.minHeight = previousStyles.htmlMinHeight
-      htmlStyle.overflow = previousStyles.htmlOverflow
-      bodyStyle.height = previousStyles.bodyHeight
-      bodyStyle.minHeight = previousStyles.bodyMinHeight
-      bodyStyle.overflow = previousStyles.bodyOverflow
-      bodyStyle.position = previousStyles.bodyPosition
-      bodyStyle.inset = previousStyles.bodyInset
-      bodyStyle.width = previousStyles.bodyWidth
-
-      if (rootStyle) {
-        rootStyle.height = previousStyles.rootHeight
-        rootStyle.minHeight = previousStyles.rootMinHeight
-        rootStyle.overflow = previousStyles.rootOverflow
-      }
-
-      window.scrollTo(0, scrollY)
-    }
-  }, [isMobile])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

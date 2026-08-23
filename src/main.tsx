@@ -39,10 +39,22 @@ const setupIosSafariBrowserMode = () => {
     return
   }
 
+  const hasFocusedLoginInput = () =>
+    window.location.pathname === '/login' &&
+    document.activeElement instanceof HTMLInputElement
+
   const nudgeToolbar = () => {
     window.requestAnimationFrame(() => {
+      if (hasFocusedLoginInput()) {
+        return
+      }
+
       window.scrollTo(0, 1)
       window.setTimeout(() => {
+        if (hasFocusedLoginInput()) {
+          return
+        }
+
         window.scrollTo(0, 1)
       }, 120)
     })
