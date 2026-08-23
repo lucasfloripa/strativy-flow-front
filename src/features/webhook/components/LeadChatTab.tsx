@@ -847,7 +847,15 @@ export function LeadChatTab({
   }
 
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+    <section
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        flex: 1,
+        marginBottom: isCompactScreen ? 5 : 0
+      }}
+    >
       {error ? (
         <div style={{ color: '#b91c1c', marginBottom: 12, fontSize: 13 }}>{error}</div>
       ) : null}
@@ -1482,7 +1490,7 @@ export function LeadChatTab({
                 onFocus={() => setIsInputFocused(true)}
                 onBlur={() => { setIsInputFocused(false); setShortcutDropdownVisible(false) }}
                 onKeyDown={handleInputKeyDown}
-                placeholder={runtimeMode === 'AUTOMATION' ? 'Modo automação ativo...' : ''}
+                placeholder={runtimeMode === 'AUTOMATION' ? 'Automação ativa' : ''}
                 disabled={isComposerActionDisabled}
                 rows={1}
                 style={{
@@ -1508,8 +1516,10 @@ export function LeadChatTab({
                   boxShadow: isInputFocused
                     ? chatTheme?.inputFocusBoxShadow ?? interactionTheme.inputFocusBoxShadow
                     : 'none',
-                  background: runtimeMode === 'AUTOMATION' ? '#f3f4f6' : undefined,
-                  color: runtimeMode === 'AUTOMATION' ? '#9ca3af' : undefined,
+                  background: runtimeMode === 'AUTOMATION' ? '#f3f4f6' : '#ffffff',
+                  color: '#111827',
+                  fontSize: 14,
+                  opacity: 1,
                   cursor: runtimeMode === 'AUTOMATION' ? 'not-allowed' : undefined
                 }}
               />
