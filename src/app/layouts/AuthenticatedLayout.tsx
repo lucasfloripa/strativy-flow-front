@@ -8,6 +8,10 @@ import { useViewportBreakpoint } from '../theme/useViewportBreakpoint'
 import { authUserEmailAtom } from '../../core/state/authUserEmailAtom'
 import { appApiClient } from '../../core/api/appApiClient'
 import { authApiClient } from '../../core/api/authApiClient'
+import {
+  MessageShortcutsSkeleton,
+  NotificationTogglesSkeleton
+} from '../../core/components/SettingsLoadingSkeletons'
 import { useRealtime } from '../../core/realtime/useRealtime'
 import { AuthService } from '../../features/auth/services/AuthService'
 
@@ -2108,9 +2112,7 @@ export function AuthenticatedLayout() {
                       </div>
 
                       {isLoadingNotifications ? (
-                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
-                          Carregando dados de notificações...
-                        </div>
+                        <NotificationTogglesSkeleton isMobile={isMobile} />
                       ) : (
                         <>
                           <div
@@ -2797,47 +2799,47 @@ export function AuthenticatedLayout() {
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      {isLoadingShortcuts ? (
-                        <div style={{ padding: '12px 16px', color: '#666', fontSize: 14 }}>
-                          Carregando atalhos...
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                        <div>
+                          <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                            Atalhos
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
+                            Digite <strong style={{ color: '#111827' }}>/</strong> no início de uma mensagem no chat para ver e usar seus atalhos rapidamente
+                          </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingShortcut(true)}
+                          disabled={isLoadingShortcuts}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            background: '#2f8f55',
+                            color: '#ffffff',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            cursor: isLoadingShortcuts ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            border: 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            opacity: isLoadingShortcuts ? 0.6 : 1
+                          }}
+                        >
+                          + Adicionar atalho
+                        </button>
+                      </div>
+                    </div>
+
+                      {isLoadingShortcuts ? (
+                        <MessageShortcutsSkeleton />
                       ) : (
                         <>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                              <div>
-                                <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
-                                  Atalhos
-                                </div>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
-                                  Digite <strong style={{ color: '#111827' }}>/</strong> no início de uma mensagem no chat para ver e usar seus atalhos rapidamente
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setIsAddingShortcut(true)}
-                                style={{
-                                  padding: '8px 14px',
-                                  borderRadius: 8,
-                                  background: '#2f8f55',
-                                  color: '#ffffff',
-                                  fontSize: 14,
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: 6,
-                                  border: 'none',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0
-                                }}
-                              >
-                                + Adicionar atalho
-                              </button>
-                            </div>
-                          </div>
-
                           <div style={{ padding: '12px 16px' }}>
                             {isAddingShortcut ? (
                               <div
