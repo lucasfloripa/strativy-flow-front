@@ -27,14 +27,18 @@ export default function LoginPage() {
   return (
     <main
       style={{
-        minHeight: '100vh',
-        display: isMobile ? 'grid' : 'grid',
+        minHeight: isMobile ? '100svh' : '100vh',
+        height: isMobile ? '100svh' : undefined,
+        display: 'grid',
         gridTemplateColumns: isMobile
           ? 'minmax(0, 1fr)'
           : '40% 60%',
         columnGap: 0,
         placeItems: isMobile ? 'center' : undefined,
         padding: isMobile ? 24 : 0,
+        overflowY: isMobile ? 'auto' : undefined,
+        overscrollBehavior: isMobile ? 'none' : undefined,
+        WebkitOverflowScrolling: isMobile ? 'touch' : undefined,
         background: isMobile
           ? '#f3f4f6'
           : 'linear-gradient(to bottom, #D8EBDD 0%, #EEF7F0 100%)',
@@ -45,7 +49,8 @@ export default function LoginPage() {
         style={{
           width: '100%',
           maxWidth: 'none',
-          height: isMobile ? 'auto' : '100vh',
+          height: isMobile ? '100%' : '100vh',
+          minHeight: 0,
           display: 'grid',
           placeItems: isMobile ? 'center' : 'stretch',
           padding: 0,
