@@ -30,6 +30,16 @@ export function LeadTabsSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   ))
 }
 
+export function BusinessTabsSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
+  const tabWidths = isMobile ? [96, 82, 76, 62] : [88, 78, 70, 56]
+
+  return tabWidths.map((width, index) => (
+    <span key={index} style={{ display: 'block', width }}>
+      <Skeleton height={isMobile ? 38 : 30} borderRadius={isMobile ? 8 : 6} />
+    </span>
+  ))
+}
+
 export function LeadGeneralTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   return (
     <section
@@ -139,7 +149,7 @@ export function LeadChatTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   )
 }
 
-export function LeadFollowUpTabSkeleton() {
+export function LeadFollowUpTabSkeleton({ isMobile }: LeadDetailsSkeletonProps) {
   return (
     <section
       aria-label="Carregando follow-up"
@@ -157,12 +167,12 @@ export function LeadFollowUpTabSkeleton() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 12,
-          padding: '6px 6px 18px',
+          padding: isMobile ? '6px 6px 18px' : '0 0 18px',
           flexShrink: 0
         }}
       >
         <span style={{ display: 'block', width: 132 }}>
-          <Skeleton height={24} borderRadius={6} />
+          <Skeleton height={isMobile ? 24 : 26} borderRadius={6} />
         </span>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <Skeleton circle width={30} height={30} />
@@ -175,14 +185,14 @@ export function LeadFollowUpTabSkeleton() {
           display: 'grid',
           alignContent: 'start',
           gap: 16,
-          padding: '0 6px 28px',
+          padding: isMobile ? '0 6px 28px' : '0 6px 28px 0',
           overflow: 'hidden'
         }}
       >
         {Array.from({ length: 5 }, (_, index) => (
           <div key={index} style={{ display: 'grid', gap: 8 }}>
             <Skeleton width={index === 2 ? 72 : 58} height={12} borderRadius={6} />
-            <Skeleton height={46} borderRadius={10} />
+            <Skeleton height={isMobile ? 46 : 42} borderRadius={10} />
           </div>
         ))}
       </div>
