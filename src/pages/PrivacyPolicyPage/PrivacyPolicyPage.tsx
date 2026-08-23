@@ -1,4 +1,40 @@
+import { useEffect } from 'react'
+
 export default function PrivacyPolicyPage() {
+  useEffect(() => {
+    const elements = [
+      document.documentElement,
+      document.body,
+      document.getElementById('root')
+    ].filter((element): element is HTMLElement => element !== null)
+    const previousStyles = elements.map((element) => ({
+      element,
+      height: element.style.height,
+      minHeight: element.style.minHeight,
+      overflow: element.style.overflow,
+      overflowY: element.style.overflowY,
+      overflowX: element.style.overflowX
+    }))
+
+    for (const element of elements) {
+      element.style.height = 'auto'
+      element.style.minHeight = '100%'
+      element.style.overflow = 'visible'
+      element.style.overflowY = 'auto'
+      element.style.overflowX = 'hidden'
+    }
+
+    return () => {
+      for (const previousStyle of previousStyles) {
+        previousStyle.element.style.height = previousStyle.height
+        previousStyle.element.style.minHeight = previousStyle.minHeight
+        previousStyle.element.style.overflow = previousStyle.overflow
+        previousStyle.element.style.overflowY = previousStyle.overflowY
+        previousStyle.element.style.overflowX = previousStyle.overflowX
+      }
+    }
+  }, [])
+
   return (
     <main
       style={{

@@ -109,41 +109,6 @@ const formatRelativeTime = (value?: string | Date | null): string => {
   return formatElapsedHoursAndMinutes(value)
 }
 
-const createMockNotifications = (): UserNotification[] => {
-  const now = Date.now()
-  const createNotification = (
-    type: UserNotification['type'],
-    title: string,
-    description: string,
-    referenceType: UserNotification['referenceType'],
-    minutesAgo: number
-  ): UserNotification => ({
-    id: `mock-${type}`,
-    organizationId: null,
-    userId: 'mock-user',
-    type,
-    title,
-    description,
-    referenceType,
-    referenceId: type === 'FOLLOW_UP_REMINDER_1H' ? 'mock-follow-up' : 'lead-1',
-    isRead: false,
-    readAt: null,
-    createdAt: new Date(now - minutesAgo * 60 * 1000),
-    updatedAt: new Date(now - minutesAgo * 60 * 1000)
-  })
-
-  return [
-    createNotification('LEAD_CREATED', 'Novo lead recebido', 'Mariana Souza entrou na sua base de leads.', 'LEAD', 2),
-    createNotification('MESSAGE_RECEIVED', 'Nova mensagem recebida', 'Mariana Souza: Olá, gostaria de saber mais.', 'MESSAGE', 5),
-    createNotification('FOLLOW_UP_REMINDER_1H', 'Follow-up em 1 hora', 'Apresentar proposta para Rafael Lima às 15:30.', 'FOLLOW_UP', 12),
-    createNotification('CONVERSATION_EXPIRING_1H', 'Conversa expirando em 1 hora', 'A janela de atendimento de Camila Rocha expira em breve.', 'FOLLOW_UP', 20),
-    createNotification('CONVERSATION_EXPIRED', 'Conversa expirada', 'A conversa com Bruno Alves saiu da janela de atendimento.', 'FOLLOW_UP', 30)
-  ]
-}
-
-const isMockNotification = (notification: Notification): boolean =>
-  notification.id.startsWith('mock-')
-
 const mapApiNotification = (notification: UserNotification): Notification => {
   const presentationByType: Record<UserNotification['type'], { color: string; iconBackground: string; icon: NotificationIcon }> = {
     LEAD_CREATED: { color: '#3b82f6', iconBackground: '#dbeafe', icon: 'lead' },
@@ -342,10 +307,7 @@ export default function HomePage() {
       const apiNotifications = notificationsRequest.status === 'fulfilled'
         ? notificationsRequest.value
         : []
-      setNotifications(groupUnreadNotifications([
-        ...createMockNotifications(),
-        ...apiNotifications
-      ]))
+      setNotifications(groupUnreadNotifications(apiNotifications))
 
       if (summaryRequest.status === 'fulfilled') {
         setDashboardSummary(summaryRequest.value)
@@ -411,18 +373,16 @@ export default function HomePage() {
   const handleNotificationClick = async (notification: Notification) => {
     setSelectedNotificationId(notification.id)
 
-    if (!isMockNotification(notification)) {
-      try {
-        if (notification.type === 'MESSAGE_RECEIVED') {
-          await HomeService.markAllMessageNotificationsAsRead(
-            notification.referenceId
-          )
-        } else {
-          await HomeService.markNotificationAsRead(notification.id)
-        }
-      } catch {
-        return
+    try {
+      if (notification.type === 'MESSAGE_RECEIVED') {
+        await HomeService.markAllMessageNotificationsAsRead(
+          notification.referenceId
+        )
+      } else {
+        await HomeService.markNotificationAsRead(notification.id)
       }
+    } catch {
+      return
     }
 
     setNotifications((currentNotifications) => {
@@ -448,12 +408,10 @@ export default function HomePage() {
       return
     }
 
-    if (notifications.some((notification) => !isMockNotification(notification))) {
-      try {
-        await HomeService.markAllNotificationsAsRead()
-      } catch {
-        return
-      }
+    try {
+      await HomeService.markAllNotificationsAsRead()
+    } catch {
+      return
     }
 
     setNotifications([])
@@ -461,16 +419,14 @@ export default function HomePage() {
   }
 
   const handleDeleteNotification = async (notification: Notification) => {
-    if (!isMockNotification(notification)) {
-      try {
-        if (notification.type === 'MESSAGE_RECEIVED') {
-          await HomeService.deleteAllMessageNotifications(notification.referenceId)
-        } else {
-          await HomeService.deleteNotification(notification.id)
-        }
-      } catch {
-        return
+    try {
+      if (notification.type === 'MESSAGE_RECEIVED') {
+        await HomeService.deleteAllMessageNotifications(notification.referenceId)
+      } else {
+        await HomeService.deleteNotification(notification.id)
       }
+    } catch {
+      return
     }
 
     setNotifications((currentNotifications) => {

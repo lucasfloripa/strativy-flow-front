@@ -79,13 +79,13 @@ export default function LoginPage() {
           }}
         >
           <div style={{ display: 'grid', gap: 6, textAlign: 'center' }}>
-            <h1 style={{ margin: 0, color: '#374151', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
-              Entrar no{' '}
+            <h1 style={{ margin: 0, color: '#374151', fontSize: 28, fontWeight: 700, lineHeight: 1.2, fontFamily: 'Canela, serif', fontStyle: 'italic' }}>
+              Entre no{' '}
               <span>Flow</span>
             </h1>
             <p style={{ margin: 0, color: '#64748b', fontSize: 13, lineHeight: 1.4 }}>
               Bem-vindo ao{' '}
-              <span style={{ fontFamily: 'Canela, serif', fontStyle: 'italic', fontWeight: 500 }}>StrativyFlow</span>! Entre com suas credenciais para continuar.
+              <span style={{ fontFamily: 'Canela, serif', fontStyle: 'italic', fontWeight: 500, fontSize: 15 }}>StrativyFlow</span>! Entre com suas credenciais para continuar.
             </p>
           </div>
 
