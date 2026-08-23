@@ -6,6 +6,7 @@ import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
 import { formatDate, getApiDateTimestamp } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
@@ -403,7 +404,7 @@ export default function ArquivosPage() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Arquivos</h1>
           <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            Total {filteredArquivos.length}
+            <TotalCount isLoading={isLoading} total={filteredArquivos.length} />
           </span>
         </header>
 
@@ -1150,7 +1151,7 @@ export default function ArquivosPage() {
             padding: '0 8px'
           }}
         >
-          <span>Total {filteredArquivos.length}</span>
+          <TotalCount isLoading={isLoading} total={filteredArquivos.length} />
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}

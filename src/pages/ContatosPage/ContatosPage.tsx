@@ -7,6 +7,7 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { ContactDetailsSkeleton } from '../../core/components/ContactDetailsSkeleton'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
 import {
   formatLeadPhoneInput,
   formatStoredLeadPhoneInput,
@@ -655,7 +656,7 @@ export default function ContatosPage() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Contatos</h1>
           <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            Total {filteredContacts.length}
+            <TotalCount isLoading={isLoading} total={filteredContacts.length} />
           </span>
         </header>
 
@@ -874,6 +875,18 @@ export default function ContatosPage() {
             ) : null}
           </tbody>
         </table>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginTop: -6,
+          color: '#6b7280',
+          fontSize: 13,
+          padding: '0 8px'
+        }}
+      >
+        <TotalCount isLoading={isLoading} total={filteredContacts.length} />
       </div>
       {isContactPanelOpen ? (
         <>

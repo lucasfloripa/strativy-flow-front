@@ -7,6 +7,7 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
 import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import { formatDateTime, parseApiDateToBrowserDate } from '../../core/utils/dateTime'
 import { HomeService } from '../../features/home/services/HomeService'
@@ -744,7 +745,7 @@ export default function ConversasPage() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Conversas</h1>
           <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            Total {filteredConversations.length}
+            <TotalCount isLoading={isLoading} total={filteredConversations.length} />
           </span>
         </header>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px', gap: 12 }}>
@@ -926,7 +927,7 @@ export default function ConversasPage() {
             padding: '0 8px'
           }}
         >
-          <span>Total {filteredConversations.length}</span>
+          <TotalCount isLoading={isLoading} total={filteredConversations.length} />
         </div>
       </div>
       {isLeadSelected ? (

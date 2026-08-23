@@ -18,6 +18,7 @@ import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
 import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import {
   initialFollowUpActionDraft,
@@ -1213,7 +1214,7 @@ export default function AgendaPage() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Agenda</h1>
           <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            Total {filteredAgendaRows.length}
+            <TotalCount isLoading={isLoading} total={filteredAgendaRows.length} />
           </span>
         </header>
 
@@ -2796,7 +2797,7 @@ export default function AgendaPage() {
             padding: '0 8px'
           }}
         >
-          <span>Total {filteredAgendaRows.length}</span>
+          <TotalCount isLoading={isLoading} total={filteredAgendaRows.length} />
         </div>
 
         {isLoading ? <p style={{ margin: '12px 0 0', color: '#4b5563' }}>Carregando...</p> : null}

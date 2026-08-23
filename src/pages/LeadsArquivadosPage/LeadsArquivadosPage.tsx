@@ -6,6 +6,7 @@ import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
 import LeadPage from '../LeadPage'
@@ -239,7 +240,7 @@ export default function LeadsArquivadosPage() {
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads Arquivados</h1>
           <span style={{ width: 52, flexShrink: 0, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            Total {archivedLeads.length}
+            <TotalCount isLoading={isLoading} total={archivedLeads.length} />
           </span>
         </header>
 
@@ -825,7 +826,7 @@ export default function LeadsArquivadosPage() {
           }}
         >
           <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 8 }}>
-            Total {archivedLeads.length}
+            <TotalCount isLoading={isLoading} total={archivedLeads.length} />
           </span>
 
         </div>
