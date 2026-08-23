@@ -1,4 +1,10 @@
-import { type FormEvent, useState } from 'react'
+import {
+  type FocusEvent,
+  type FormEvent,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -12,8 +18,55 @@ export default function LoginPage() {
   const [isEmailFocused, setIsEmailFocused] = useState<boolean>(false)
   const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false)
   const [isSubmitHovered, setIsSubmitHovered] = useState<boolean>(false)
+  const scrollPositionBeforeFocusRef = useRef<number>(0)
+  const restoreScrollTimeoutRef = useRef<number | null>(null)
   const { email, password, error, isSubmitting, setEmail, setPassword, submit } =
     useLoginForm()
+
+  useEffect(() => {
+    return () => {
+      if (restoreScrollTimeoutRef.current !== null) {
+        window.clearTimeout(restoreScrollTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const isLoginInput = (target: EventTarget | null): boolean =>
+    target instanceof HTMLInputElement &&
+    (target.id === 'email' || target.id === 'password')
+
+  const handleInputFocus = (event: FocusEvent<HTMLInputElement>) => {
+    if (restoreScrollTimeoutRef.current !== null) {
+      window.clearTimeout(restoreScrollTimeoutRef.current)
+      restoreScrollTimeoutRef.current = null
+    }
+
+    if (!isLoginInput(event.relatedTarget)) {
+      scrollPositionBeforeFocusRef.current = window.scrollY
+    }
+
+    if (event.currentTarget.id === 'email') {
+      setIsEmailFocused(true)
+    } else {
+      setIsPasswordFocused(true)
+    }
+  }
+
+  const handleInputBlur = (event: FocusEvent<HTMLInputElement>) => {
+    if (event.currentTarget.id === 'email') {
+      setIsEmailFocused(false)
+    } else {
+      setIsPasswordFocused(false)
+    }
+
+    restoreScrollTimeoutRef.current = window.setTimeout(() => {
+      if (!isLoginInput(document.activeElement)) {
+        window.scrollTo(0, scrollPositionBeforeFocusRef.current)
+      }
+
+      restoreScrollTimeoutRef.current = null
+    }, 450)
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -99,8 +152,8 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              onFocus={() => setIsEmailFocused(true)}
-              onBlur={() => setIsEmailFocused(false)}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               placeholder="E-mail"
               autoComplete="email"
               style={{
@@ -123,8 +176,8 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              onFocus={() => setIsPasswordFocused(true)}
-              onBlur={() => setIsPasswordFocused(false)}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               placeholder="Senha"
               autoComplete="current-password"
               style={{
