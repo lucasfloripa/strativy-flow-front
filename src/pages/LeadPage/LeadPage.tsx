@@ -80,8 +80,6 @@ import { LeadChatTab } from '../../features/webhook/components/LeadChatTab'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
   CreateNegotiationPayload,
-  FollowUpDateSortOrder,
-  FollowUpSortFocus,
   LeadFollowUpResponse,
   LeadResponse,
   LeadSocialLinkKey,
@@ -862,9 +860,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   const [followUpsError, setFollowUpsError] = useState<string | null>(null)
   const [leadData, setLeadData] = useState<LeadResponse | null>(null)
   const [followUpsTotalItems, setFollowUpsTotalItems] = useState<number>(0)
-  const [statusSortFocus, setStatusSortFocus] = useState<FollowUpSortFocus>('overdue')
-  const [dateSortOrder, setDateSortOrder] = useState<FollowUpDateSortOrder>('asc')
-  const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(null)
   const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] = useState<boolean>(false)
   const [agendaFollowUpDraft, setAgendaFollowUpDraft] = useState<AgendaFollowUpDraft>(
     initialAgendaFollowUpDraft
@@ -926,6 +921,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     useState<boolean>(false)
   const [hoveredBusinessNoteIndex, setHoveredBusinessNoteIndex] = useState<number | null>(null)
   const [confirmingDeleteBusinessFollowUpId, setConfirmingDeleteBusinessFollowUpId] = useState<string | null>(null)
+  const [hoveredAgendaFollowUpId, setHoveredAgendaFollowUpId] = useState<string | null>(null)
   const [hoveredBusinessFollowUpId, setHoveredBusinessFollowUpId] = useState<string | null>(null)
   const [hoveredBusinessFileId, setHoveredBusinessFileId] = useState<string | null>(null)
   const [businessAttachments, setBusinessAttachments] = useState<NegotiationAttachmentResponse[]>([])
@@ -985,12 +981,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       isCreatingBusiness ||
       isCreatingLeadTabNote ||
       isCreatingBusinessNote)
-  const getCurrentMonthStart = () => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  }
-  const [agendaCalendarMonth, setAgendaCalendarMonth] = useState<Date>(() => getCurrentMonthStart())
-
   const formatFollowUpDate = (dateValue: string): string => {
     return dateValue ? formatDateTime(dateValue) : '-'
   }
@@ -1558,11 +1548,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     }
   }
 
-  const resetFollowUpSorting = () => {
-    setStatusSortFocus('overdue')
-    setDateSortOrder('asc')
-  }
-
   const refreshLeadNegotiations = async (targetLeadId: string) => {
     const [negotiations, followUps] = await Promise.all([
       WebhookService.loadNegotiations(),
@@ -1595,6 +1580,8 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }, [isCreateLeadMode, leadId])
 
   const handleLeadTabChange = (nextTab: LeadTabKey) => {
+    setHoveredAgendaFollowUpId(null)
+
     if (nextTab === activeTab) return
 
     if (activeTab === 'notas' && nextTab !== 'notas') {
@@ -1620,7 +1607,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setActiveBusinessTab('informacoes')
       setNewBusinessDraft(initialNewBusinessDraft)
     }
-    resetFollowUpSorting()
     setIsGeneralActionsOpen(false)
     setIsEditingLeadInfo(false)
     setIsConfirmingLeadDelete(false)
@@ -2693,7 +2679,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
   }
 
   const renderFollowUpsTab = () => {
-    const businessNameById = new Map(leadNegotiations.map((business) => [business.id, business.title ?? 'Negócio sem nome']))
     const hasSelectedAgendaBusiness = Boolean(agendaFollowUpDraft.negotiationId)
     const canCreateAgendaFollowUp =
       Boolean(agendaFollowUpDraft.negotiationId) &&
@@ -2701,87 +2686,100 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       isFollowUpActionDraftValid(agendaFollowUpDraft.action) &&
       Boolean(agendaFollowUpDraft.dueAt)
     const shouldShowDesktopCreateOnly = !isMobile && isCreatingAgendaFollowUp
-    const visualStatusOrder: FollowUpVisualStatus[] = [
-      statusSortFocus as FollowUpVisualStatus,
-      ...(['overdue', 'today', 'scheduled', 'completed'] as FollowUpVisualStatus[]).filter(
-        (status) => status !== statusSortFocus
-      )
-    ]
-    const visualStatusPriority = new Map(visualStatusOrder.map((status, index) => [status, index]))
-    const agendaFollowUps = [...negotiationFollowUps].sort((firstItem, secondItem) => {
-      const firstVisualStatus = getFollowUpVisualStatus({
-        ...firstItem,
-        leadId: leadId ?? ''
-      })
-      const secondVisualStatus = getFollowUpVisualStatus({
-        ...secondItem,
-        leadId: leadId ?? ''
-      })
-      const firstStatusPriority = visualStatusPriority.get(firstVisualStatus) ?? 0
-      const secondStatusPriority = visualStatusPriority.get(secondVisualStatus) ?? 0
+    const businessNameById = new Map(
+      leadNegotiations.map((business) => [
+        business.id,
+        business.title?.trim() || 'Negócio sem nome'
+      ])
+    )
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+    const startOfTomorrow = new Date(startOfToday)
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+    const startOfNextWeek = new Date(startOfToday)
+    const daysUntilNextMonday = (8 - startOfToday.getDay()) % 7 || 7
+    startOfNextWeek.setDate(startOfNextWeek.getDate() + daysUntilNextMonday)
+    const startOfFollowingWeek = new Date(startOfNextWeek)
+    startOfFollowingWeek.setDate(startOfFollowingWeek.getDate() + 7)
+    const sortedAgendaFollowUps = [...negotiationFollowUps].sort(
+      (firstItem, secondItem) =>
+        getApiDateTimestamp(firstItem.dueAt) -
+        getApiDateTimestamp(secondItem.dueAt)
+    )
+    const agendaGroups = sortedAgendaFollowUps.reduce<
+      Array<{
+        dateKey: string
+        date: Date | null
+        followUps: NegotiationFollowUpResponse[]
+      }>
+    >((groups, followUp) => {
+      const date = parsePersistedUtcClockToBrowserDate(followUp.dueAt)
+      const dateKey = date
+        ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+        : 'without-date'
+      const currentGroup = groups.at(-1)
 
-      if (firstStatusPriority !== secondStatusPriority) {
-        return firstStatusPriority - secondStatusPriority
+      if (currentGroup?.dateKey === dateKey) {
+        currentGroup.followUps.push(followUp)
+      } else {
+        groups.push({ dateKey, date, followUps: [followUp] })
       }
 
-      const firstDate = getApiDateTimestamp(firstItem.dueAt)
-      const secondDate = getApiDateTimestamp(secondItem.dueAt)
-      return dateSortOrder === 'asc' ? firstDate - secondDate : secondDate - firstDate
-    })
+      return groups
+    }, [])
+    const agendaSections = [
+      {
+        title: 'Esta semana',
+        groups: agendaGroups.filter(
+          (group) => group.date === null || group.date < startOfNextWeek
+        )
+      },
+      {
+        title: 'Próxima semana',
+        groups: agendaGroups.filter(
+          (group) =>
+            group.date !== null &&
+            group.date >= startOfNextWeek &&
+            group.date < startOfFollowingWeek
+        )
+      },
+      {
+        title: 'Agendado',
+        groups: agendaGroups.filter(
+          (group) =>
+            group.date !== null && group.date >= startOfFollowingWeek
+        )
+      }
+    ].filter((section) => section.groups.length > 0)
 
-    const toDateKey = (date: Date) => {
-      const year = date.getFullYear()
-      const month = `${date.getMonth() + 1}`.padStart(2, '0')
-      const day = `${date.getDate()}`.padStart(2, '0')
-      return `${year}-${month}-${day}`
+    const getAgendaGroupHeading = (date: Date | null) => {
+      if (!date) {
+        return { title: 'Sem data', detail: '' }
+      }
+
+      const dateStart = new Date(date)
+      dateStart.setHours(0, 0, 0, 0)
+      const title =
+        dateStart.getTime() === startOfToday.getTime()
+          ? 'Hoje'
+          : dateStart.getTime() === startOfTomorrow.getTime()
+            ? 'Amanhã'
+            : new Intl.DateTimeFormat('pt-BR', {
+                weekday: 'long'
+              }).format(dateStart)
+      const normalizedTitle = title.charAt(0).toUpperCase() + title.slice(1)
+      const detail = new Intl.DateTimeFormat('pt-BR', {
+        day: 'numeric',
+        month: 'long'
+      }).format(dateStart)
+
+      return { title: normalizedTitle, detail }
     }
 
-    const monthStart = new Date(agendaCalendarMonth.getFullYear(), agendaCalendarMonth.getMonth(), 1)
-    const monthEnd = new Date(agendaCalendarMonth.getFullYear(), agendaCalendarMonth.getMonth() + 1, 0)
-    const daysInMonth = monthEnd.getDate()
-    const leadingBlankDays = monthStart.getDay()
-    const calendarCellCount = Math.ceil((leadingBlankDays + daysInMonth) / 7) * 7
-    const todayDateKey = toDateKey(new Date())
-    const monthLabelRaw = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(
-      monthStart
-    )
-    const monthLabel = monthLabelRaw.charAt(0).toUpperCase() + monthLabelRaw.slice(1)
-    const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
-
-    const followUpsByDate = new Map<string, NegotiationFollowUpResponse[]>()
-    agendaFollowUps.forEach((followUp) => {
-      const parsedDate = parsePersistedUtcClockToBrowserDate(followUp.dueAt)
-      if (!parsedDate) {
-        return
-      }
-
-      const dateKey = toDateKey(parsedDate)
-      const items = followUpsByDate.get(dateKey)
-      if (items) {
-        items.push(followUp)
-      } else {
-        followUpsByDate.set(dateKey, [followUp])
-      }
-    })
-
-    const calendarCells = Array.from({ length: calendarCellCount }, (_, cellIndex) => {
-      const dayNumber = cellIndex - leadingBlankDays + 1
-      if (dayNumber < 1 || dayNumber > daysInMonth) {
-        return null
-      }
-
-      const date = new Date(monthStart.getFullYear(), monthStart.getMonth(), dayNumber)
-      const dateKey = toDateKey(date)
-      return {
-        dayNumber,
-        date,
-        dateKey,
-        isToday: dateKey === todayDateKey,
-        followUps: followUpsByDate.get(dateKey) ?? []
-      }
-    })
-
-    const navigateToFollowUp = (followUp: NegotiationFollowUpResponse) => {
+    const navigateToAgendaFollowUp = (
+      followUp: NegotiationFollowUpResponse
+    ) => {
+      setHoveredAgendaFollowUpId(null)
       setIsCreatingBusiness(false)
       setIsEditingBusiness(false)
       setIsBusinessActionsOpen(false)
@@ -2794,7 +2792,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setActiveBusinessTab('followups')
       setActiveTab('negocios')
     }
-
     const agendaFollowUpCreateForm = (
       <section
         style={{
@@ -3006,7 +3003,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             )}
 
             <span style={{ color: '#6b7280', fontSize: 13, padding: '0 8px' }}>
-              {agendaFollowUps.length} follow-up{agendaFollowUps.length === 1 ? '' : 's'}
+              {negotiationFollowUps.length} follow-up{negotiationFollowUps.length === 1 ? '' : 's'}
             </span>
           </div>
         ) : null}
@@ -3099,267 +3096,460 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         {!shouldShowDesktopCreateOnly ? (
           <div
             style={{
-              background: '#ffffff',
-              border: '1px solid #eeeeee',
-              borderRadius: 8,
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
+              display: 'grid',
+              gap: 10,
+              overflowY: 'auto',
+              padding: '2px',
+              minHeight: 0
             }}
           >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: '#f3f4f6',
-              borderBottom: '1px solid #ececec',
-              padding: '10px 12px'
-            }}
-          >
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#334155' }}>{monthLabel}</span>
-
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setAgendaCalendarMonth((currentMonth) =>
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
-                  )
-                }}
+            {agendaSections.map((section) => (
+              <section
+                key={section.title}
                 style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  background: '#ffffff',
-                  height: 28,
-                  width: 28,
-                  padding: 0,
-                  color: '#475569',
-                  cursor: 'pointer'
-                }}
-                aria-label="Mês anterior"
-              >
-                {'<'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setAgendaCalendarMonth(getCurrentMonthStart())}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  background: '#ffffff',
-                  height: 28,
-                  padding: '0 8px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#475569',
-                  cursor: 'pointer'
+                  display: 'grid',
+                  gap: 10,
+                  padding: isMobile ? 10 : 12,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 8,
+                  background: '#f8fafc'
                 }}
               >
-                Hoje
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAgendaCalendarMonth((currentMonth) =>
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-                  )
-                }}
-                style={{
-                  border: '1px solid #d1d5db',
-                  borderRadius: 6,
-                  background: '#ffffff',
-                  height: 28,
-                  width: 28,
-                  padding: 0,
-                  color: '#475569',
-                  cursor: 'pointer'
-                }}
-                aria-label="Próximo mês"
-              >
-                {'>'}
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              maxHeight: 460,
-              overflowY: 'auto'
-            }}
-          >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                borderBottom: '1px solid #ececec',
-                background: '#f8fafc',
-                position: 'sticky',
-                top: 0,
-                zIndex: 1
-              }}
-            >
-              {weekdayLabels.map((weekday) => (
                 <div
-                  key={weekday}
                   style={{
-                    minHeight: 30,
-                    borderRight: '1px solid #eef2f7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#64748b',
+                    color: '#475569',
                     fontSize: 12,
-                    fontWeight: 700
+                    fontWeight: 800
                   }}
                 >
-                  {weekday}
+                  {section.title}
                 </div>
-              ))}
-            </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))'
-              }}
-            >
-              {calendarCells.map((cell, cellIndex) => {
-                if (!cell) {
-                  return (
-                    <div
-                      key={`blank-${cellIndex}`}
-                      style={{
-                        height: 112,
-                        borderRight: '1px solid #eef2f7',
-                        borderBottom: '1px solid #eef2f7',
-                        background: '#f8fafc'
-                      }}
-                    />
-                  )
-                }
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {section.groups.map((group) => {
+                    const heading = getAgendaGroupHeading(group.date)
 
-                return (
+                    return (
+                      <section
+                        key={group.dateKey}
+                        style={{ display: 'grid', gap: 6 }}
+                      >
                   <div
-                    key={cell.dateKey}
                     style={{
-                      height: 112,
-                      borderRight: '1px solid #eef2f7',
-                      borderBottom: '1px solid #eef2f7',
-                      padding: '8px 8px 10px',
-                      boxSizing: 'border-box',
-                      background: cell.isToday ? '#f0fdf4' : '#ffffff',
                       display: 'flex',
-                      flexDirection: 'column',
+                      alignItems: 'baseline',
                       gap: 6,
-                      overflow: 'hidden'
+                      color: '#475569',
+                      fontSize: 12
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        color: cell.isToday ? '#166534' : '#334155',
-                        lineHeight: 1
-                      }}
-                    >
-                      {cell.dayNumber}{cell.followUps.length > 0 ? ` (${cell.followUps.length})` : ''}
-                    </div>
+                    <strong style={{ color: '#334155', fontWeight: 800 }}>
+                      {heading.title}
+                    </strong>
+                    {heading.detail ? <span>• {heading.detail}</span> : null}
+                  </div>
 
-                    <div
-                      style={{
-                        display: 'grid',
-                        gap: 4,
-                        alignContent: 'start',
-                        minHeight: 0,
-                        overflowY: 'auto',
-                        paddingRight: 2
-                      }}
-                    >
-                      {cell.followUps.length === 0 ? (
-                        <span style={{ fontSize: 11, color: '#cbd5e1' }}>-</span>
-                      ) : (
-                        cell.followUps.map((followUp) => {
-                          const visualStatus = getFollowUpVisualStatus({
-                            ...followUp,
-                            leadId: leadId ?? ''
-                          })
-                          const followUpDateTagColors = getFollowUpDateTagColors(visualStatus)
-                          const dueTime = followUp.dueAt
-                            ? formatDateTime(followUp.dueAt)
-                            : '--:--'
-                          const isHovered = hoveredFollowUpId === followUp.id
-                          const cardBorderColor = isHovered
-                            ? `${followUpDateTagColors.textColor}66`
-                            : `${followUpDateTagColors.textColor}44`
-                          const cardBackgroundColor = isHovered
-                            ? `${followUpDateTagColors.textColor}22`
-                            : followUpDateTagColors.background
+                  <div
+                    style={{
+                      overflow: isMobile ? 'visible' : 'hidden',
+                      border: isMobile ? 'none' : '1px solid #e5e7eb',
+                      borderRadius: 7,
+                      background: isMobile ? 'transparent' : '#ffffff',
+                      display: isMobile ? 'grid' : undefined,
+                      gap: isMobile ? 14 : undefined
+                    }}
+                  >
+                    {group.followUps.map((followUp, followUpIndex) => {
+                      const date = parsePersistedUtcClockToBrowserDate(
+                        followUp.dueAt
+                      )
+                      const visualStatus = getFollowUpVisualStatus({
+                        ...followUp,
+                        leadId: leadId ?? ''
+                      })
+                      const indicatorColors =
+                        getFollowUpDateTagColors(visualStatus)
+                      const statusPresentation =
+                        getFollowUpStatusPresentation(
+                          followUp.status,
+                          followUp.actions,
+                          visualStatus === 'overdue'
+                        )
+                      const channelPresentation =
+                        getFollowUpChannelTagPresentation(followUp.actions)
+                      const isHovered = hoveredAgendaFollowUpId === followUp.id
 
-                          return (
-                            <button
-                              key={followUp.id}
-                              type="button"
-                              onClick={() => navigateToFollowUp(followUp)}
-                              onMouseEnter={() => setHoveredFollowUpId(followUp.id)}
-                              onMouseLeave={() => setHoveredFollowUpId(null)}
+                      return (
+                        <article
+                          key={followUp.id}
+                          onClick={() => navigateToAgendaFollowUp(followUp)}
+                          onKeyDown={(event) => {
+                            if (
+                              event.target === event.currentTarget &&
+                              (event.key === 'Enter' || event.key === ' ')
+                            ) {
+                              event.preventDefault()
+                              navigateToAgendaFollowUp(followUp)
+                            }
+                          }}
+                          onMouseEnter={() =>
+                            setHoveredAgendaFollowUpId(followUp.id)
+                          }
+                          onMouseLeave={() => setHoveredAgendaFollowUpId(null)}
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            width: '100%',
+                            minHeight: isMobile ? 0 : 64,
+                            border: isMobile
+                              ? '1px solid #f1f5f9'
+                              : 'none',
+                            borderTop:
+                              isMobile
+                                ? '1px solid #f1f5f9'
+                                : followUpIndex === 0
+                                  ? 'none'
+                                  : '1px solid #eef2f7',
+                            borderRadius: isMobile ? 18 : 0,
+                            boxShadow: isMobile
+                              ? '0 12px 26px rgba(15, 23, 42, 0.06)'
+                              : 'none',
+                            background: isHovered
+                              ? interactionTheme.clickableCardHoverBackground
+                              : '#ffffff',
+                            padding: isMobile ? 16 : '12px 14px',
+                            display: 'grid',
+                            gridTemplateColumns: isMobile
+                              ? 'auto auto minmax(0, 1fr) auto'
+                              : 'minmax(0, 1fr) 72px 112px 112px 68px',
+                            alignItems: 'center',
+                            columnGap: isMobile ? 8 : 10,
+                            rowGap: isMobile ? 18 : 8,
+                            color: '#111827',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'background-color 120ms ease'
+                          }}
+                        >
+                          <span
+                            style={{
+                              minWidth: 0,
+                              display: 'grid',
+                              gap: isMobile ? 8 : 4,
+                              gridColumn: isMobile ? '1 / 4' : undefined,
+                              gridRow: isMobile ? '1' : undefined
+                            }}
+                          >
+                            <strong
                               style={{
-                                width: '100%',
-                                border: `1px solid ${cardBorderColor}`,
-                                borderRadius: 6,
-                                background: cardBackgroundColor,
-                                padding: '4px 6px',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                display: 'grid',
-                                gap: 2,
-                                lineHeight: 1.1
+                                color: '#1f2937',
+                                fontSize: isMobile ? 18 : 13,
+                                lineHeight: isMobile ? 1.2 : '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                               }}
-                              title={`${businessNameById.get(followUp.negotiationId) ?? 'Negócio sem nome'} - ${followUp.title} - ${dueTime}`}
                             >
                               <span
+                                aria-hidden="true"
                                 style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  minWidth: 0,
-                                  color: followUpDateTagColors.textColor,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  width: 7,
+                                  height: 7,
+                                  borderRadius: '50%',
+                                  background:
+                                    followUp.status === 'done'
+                                      ? '#22c55e'
+                                      : visualStatus === 'overdue'
+                                        ? '#ef4444'
+                                        : visualStatus === 'scheduled'
+                                          ? '#3b82f6'
+                                          : indicatorColors.textColor,
+                                  flexShrink: 0
                                 }}
-                              >
-                                {followUp.title}
-                              </span>
-
+                              />
                               <span
                                 style={{
-                                  color: '#475569',
-                                  fontSize: 10,
-                                  fontWeight: 700,
+                                  minWidth: 0,
                                   overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  textOverflow: 'ellipsis'
                                 }}
                               >
-                                {dueTime} • {businessNameById.get(followUp.negotiationId) ?? 'Negócio sem nome'}
+                                {followUp.title || 'Follow-up sem nome'}
                               </span>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
+                            </strong>
+                            <span
+                              style={{
+                                color: '#64748b',
+                                fontSize: isMobile ? 14 : 11,
+                                lineHeight: 1.25,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {businessNameById.get(followUp.negotiationId) ??
+                                'Negócio sem nome'}
+                            </span>
+                          </span>
+
+                          <span
+                            style={{
+                              gridColumn: isMobile ? '1' : undefined,
+                              gridRow: isMobile ? '2' : undefined,
+                              display: 'flex',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              minWidth: 0,
+                              color: '#334155',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              lineHeight: 1,
+                              padding: isMobile ? '7px 12px' : 0,
+                              borderRadius: isMobile ? 6 : 0,
+                              background: isMobile ? '#f1f5f9' : 'transparent'
+                            }}
+                          >
+                            {date
+                              ? date.toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : '--:--'}
+                          </span>
+
+                          <span
+                            style={{
+                              gridColumn: isMobile ? '2' : undefined,
+                              gridRow: isMobile ? '2' : undefined,
+                              display: 'flex',
+                              justifyContent: isMobile ? 'stretch' : 'center',
+                              alignItems: 'center',
+                              minWidth: 0
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 'auto',
+                                padding: isMobile ? '7px 12px' : '5px 8px',
+                                borderRadius: isMobile ? 6 : 5,
+                                background: statusPresentation.background,
+                                color: statusPresentation.textColor,
+                                fontSize: isMobile ? 12 : 11,
+                                fontWeight: 700,
+                                lineHeight: 1,
+                                textAlign: 'center',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              {statusPresentation.label}
+                            </span>
+
+                          </span>
+
+                          <span
+                            style={{
+                              gridColumn: isMobile ? '3 / 5' : undefined,
+                              gridRow: isMobile ? '2' : undefined,
+                              display: 'flex',
+                              justifyContent: isMobile ? 'stretch' : 'center',
+                              alignItems: 'center',
+                              minWidth: 0
+                            }}
+                          >
+                            {channelPresentation ? (
+                              <span
+                                style={{
+                                  width: 'auto',
+                                  padding: isMobile ? '7px 12px' : '5px 8px',
+                                  borderRadius: isMobile ? 6 : 5,
+                                  background:
+                                    channelPresentation.backgroundColor,
+                                  color: channelPresentation.textColor,
+                                  fontSize: isMobile ? 12 : 11,
+                                  fontWeight: 700,
+                                  lineHeight: 1,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 4,
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {channelPresentation.icon}
+                                {channelPresentation.label}
+                              </span>
+                            ) : (
+                              <span aria-hidden="true" />
+                            )}
+                          </span>
+
+                          <span
+                            style={{
+                              gridColumn: isMobile ? '4' : undefined,
+                              gridRow: isMobile ? '1' : undefined,
+                              alignSelf: isMobile ? 'start' : undefined,
+                              display: 'flex',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              gap: 4,
+                              minWidth: 0
+                            }}
+                          >
+                            {confirmingDeleteBusinessFollowUpId ===
+                            followUp.id ? (
+                              <>
+                                <button
+                                  type="button"
+                                  aria-label="Cancelar exclusão de follow-up"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setConfirmingDeleteBusinessFollowUpId(null)
+                                  }}
+                                  style={{
+                                    width: isMobile ? 32 : 26,
+                                    height: isMobile ? 32 : 26,
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: isMobile ? 8 : 6,
+                                    background: '#ffffff',
+                                    color: '#4b5563',
+                                    padding: 0,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  X
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Confirmar exclusão de follow-up"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void handleDeleteNegotiationFollowUp(
+                                      followUp.id
+                                    )
+                                  }}
+                                  style={{
+                                    width: isMobile ? 32 : 26,
+                                    height: isMobile ? 32 : 26,
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: isMobile ? 8 : 6,
+                                    background: '#ffffff',
+                                    color: '#4b5563',
+                                    padding: 0,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ✓
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  aria-label="Excluir follow-up"
+                                  title="Excluir follow-up"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setConfirmingDeleteBusinessFollowUpId(
+                                      followUp.id
+                                    )
+                                  }}
+                                  style={{
+                                    width: isMobile ? 34 : 24,
+                                    height: isMobile ? 34 : 24,
+                                    border: isMobile
+                                      ? '1px solid #e5e7eb'
+                                      : 'none',
+                                    borderRadius: isMobile ? 8 : 0,
+                                    background: isMobile
+                                      ? '#ffffff'
+                                      : 'transparent',
+                                    color: '#4b5563',
+                                    padding: 0,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={
+                                    followUp.status === 'done'
+                                      ? 'Desfazer conclusão do follow-up'
+                                      : 'Concluir follow-up'
+                                  }
+                                  title={
+                                    followUp.status === 'done'
+                                      ? 'Desfazer conclusão'
+                                      : 'Concluir follow-up'
+                                  }
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    void handleToggleNegotiationFollowUpStatus(
+                                      followUp.id,
+                                      followUp.status
+                                    )
+                                  }}
+                                  style={{
+                                    width: isMobile ? 34 : 24,
+                                    height: isMobile ? 34 : 24,
+                                    border: isMobile
+                                      ? '1px solid #e5e7eb'
+                                      : 'none',
+                                    borderRadius: isMobile ? 8 : 0,
+                                    background: isMobile
+                                      ? '#ffffff'
+                                      : 'transparent',
+                                    color:
+                                      followUp.status === 'done'
+                                        ? '#16a34a'
+                                        : '#4b5563',
+                                    padding: 0,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  ✓
+                                </button>
+                              </>
+                            )}
+                          </span>
+                        </article>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
+                      </section>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+
+            {agendaGroups.length === 0 ? (
+              <div
+                style={{
+                  padding: 24,
+                  color: '#6b7280',
+                  fontSize: 13,
+                  textAlign: 'center'
+                }}
+              >
+                Nenhum follow-up encontrado.
+              </div>
+            ) : null}
           </div>
-        </div>
         ) : null}
+
       </section>
     )
   }
@@ -3376,6 +3566,7 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
     const isManagingBusinessFollowUp =
       isCreatingBusinessFollowUp || editingBusinessFollowUp !== null || viewedBusinessFollowUp !== null
     const shouldShowDesktopCreateOnly = !isMobile && isManagingBusinessFollowUp
+    const shouldShowLegacyBusinessFollowUpLists = false
     const selectedFollowUpBusiness = leadNegotiations.find((business) => business.id === businessId) ?? null
     const selectedFollowUpBusinessTitle = selectedFollowUpBusiness?.title?.trim() || 'Negócio sem nome'
     const canCreateBusinessFollowUp =
@@ -3392,6 +3583,101 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         const secondDate = getApiDateTimestamp(secondItem.dueAt)
         return firstDate - secondDate
       })
+    const businessFollowUpStartOfToday = new Date()
+    businessFollowUpStartOfToday.setHours(0, 0, 0, 0)
+    const businessFollowUpStartOfTomorrow = new Date(
+      businessFollowUpStartOfToday
+    )
+    businessFollowUpStartOfTomorrow.setDate(
+      businessFollowUpStartOfTomorrow.getDate() + 1
+    )
+    const businessFollowUpStartOfNextWeek = new Date(
+      businessFollowUpStartOfToday
+    )
+    const businessFollowUpDaysUntilNextMonday =
+      (8 - businessFollowUpStartOfToday.getDay()) % 7 || 7
+    businessFollowUpStartOfNextWeek.setDate(
+      businessFollowUpStartOfNextWeek.getDate() +
+        businessFollowUpDaysUntilNextMonday
+    )
+    const businessFollowUpStartOfFollowingWeek = new Date(
+      businessFollowUpStartOfNextWeek
+    )
+    businessFollowUpStartOfFollowingWeek.setDate(
+      businessFollowUpStartOfFollowingWeek.getDate() + 7
+    )
+    const businessFollowUpGroups = businessFollowUps.reduce<
+      Array<{
+        dateKey: string
+        date: Date | null
+        followUps: NegotiationFollowUpResponse[]
+      }>
+    >((groups, followUp) => {
+      const date = parsePersistedUtcClockToBrowserDate(followUp.dueAt)
+      const dateKey = date
+        ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+        : 'without-date'
+      const currentGroup = groups.at(-1)
+
+      if (currentGroup?.dateKey === dateKey) {
+        currentGroup.followUps.push(followUp)
+      } else {
+        groups.push({ dateKey, date, followUps: [followUp] })
+      }
+
+      return groups
+    }, [])
+    const businessFollowUpSections = [
+      {
+        title: 'Esta semana',
+        groups: businessFollowUpGroups.filter(
+          (group) =>
+            group.date === null ||
+            group.date < businessFollowUpStartOfNextWeek
+        )
+      },
+      {
+        title: 'Próxima semana',
+        groups: businessFollowUpGroups.filter(
+          (group) =>
+            group.date !== null &&
+            group.date >= businessFollowUpStartOfNextWeek &&
+            group.date < businessFollowUpStartOfFollowingWeek
+        )
+      },
+      {
+        title: 'Agendado',
+        groups: businessFollowUpGroups.filter(
+          (group) =>
+            group.date !== null &&
+            group.date >= businessFollowUpStartOfFollowingWeek
+        )
+      }
+    ].filter((section) => section.groups.length > 0)
+
+    const getBusinessFollowUpGroupHeading = (date: Date | null) => {
+      if (!date) {
+        return { title: 'Sem data', detail: '' }
+      }
+
+      const dateStart = new Date(date)
+      dateStart.setHours(0, 0, 0, 0)
+      const title =
+        dateStart.getTime() === businessFollowUpStartOfToday.getTime()
+          ? 'Hoje'
+          : dateStart.getTime() === businessFollowUpStartOfTomorrow.getTime()
+            ? 'Amanhã'
+            : new Intl.DateTimeFormat('pt-BR', {
+                weekday: 'long'
+              }).format(dateStart)
+      const normalizedTitle = title.charAt(0).toUpperCase() + title.slice(1)
+      const detail = new Intl.DateTimeFormat('pt-BR', {
+        day: 'numeric',
+        month: 'long'
+      }).format(dateStart)
+
+      return { title: normalizedTitle, detail }
+    }
 
     const handleCancelBusinessFollowUpCreation = () => {
       const editedFollowUpId = editingBusinessFollowUp?.id ?? null
@@ -3769,6 +4055,478 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       </section>
     ) : null
 
+    const businessFollowUpAgendaList = (
+      <div
+        style={{
+          display: 'grid',
+          gap: 10,
+          overflowY: 'auto',
+          padding: 2,
+          minHeight: 0
+        }}
+      >
+        {businessFollowUpSections.map((section) => (
+          <section
+            key={section.title}
+            style={{
+              display: 'grid',
+              gap: 10,
+              padding: isMobile ? 10 : 12,
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              background: '#f8fafc'
+            }}
+          >
+            <div
+              style={{
+                color: '#475569',
+                fontSize: 12,
+                fontWeight: 800
+              }}
+            >
+              {section.title}
+            </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              {section.groups.map((group) => {
+                const heading = getBusinessFollowUpGroupHeading(group.date)
+
+                return (
+                  <section
+                    key={group.dateKey}
+                    style={{ display: 'grid', gap: 6 }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 6,
+                        color: '#475569',
+                        fontSize: 12
+                      }}
+                    >
+                      <strong style={{ color: '#334155', fontWeight: 800 }}>
+                        {heading.title}
+                      </strong>
+                      {heading.detail ? <span>• {heading.detail}</span> : null}
+                    </div>
+
+                    <div
+                      style={{
+                        overflow: isMobile ? 'visible' : 'hidden',
+                        border: isMobile ? 'none' : '1px solid #e5e7eb',
+                        borderRadius: 7,
+                        background: isMobile ? 'transparent' : '#ffffff',
+                        display: isMobile ? 'grid' : undefined,
+                        gap: isMobile ? 14 : undefined
+                      }}
+                    >
+                      {group.followUps.map((followUp, followUpIndex) => {
+                        const date = parsePersistedUtcClockToBrowserDate(
+                          followUp.dueAt
+                        )
+                        const visualStatus = getFollowUpVisualStatus({
+                          ...followUp,
+                          leadId: leadId ?? ''
+                        })
+                        const indicatorColors =
+                          getFollowUpDateTagColors(visualStatus)
+                        const statusPresentation =
+                          getFollowUpStatusPresentation(
+                            followUp.status,
+                            followUp.actions,
+                            visualStatus === 'overdue'
+                          )
+                        const channelPresentation =
+                          getFollowUpChannelTagPresentation(followUp.actions)
+                        const isHovered =
+                          hoveredBusinessFollowUpId === followUp.id
+
+                        return (
+                          <article
+                            key={followUp.id}
+                            onClick={() => {
+                              setConfirmingDeleteBusinessFollowUpId(null)
+                              setEditingBusinessFollowUpId(null)
+                              setIsConfirmingViewedBusinessFollowUpDelete(false)
+                              setViewingBusinessFollowUpId(followUp.id)
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                event.target === event.currentTarget &&
+                                (event.key === 'Enter' || event.key === ' ')
+                              ) {
+                                event.preventDefault()
+                                setConfirmingDeleteBusinessFollowUpId(null)
+                                setEditingBusinessFollowUpId(null)
+                                setIsConfirmingViewedBusinessFollowUpDelete(false)
+                                setViewingBusinessFollowUpId(followUp.id)
+                              }
+                            }}
+                            onMouseEnter={() =>
+                              setHoveredBusinessFollowUpId(followUp.id)
+                            }
+                            onMouseLeave={() =>
+                              setHoveredBusinessFollowUpId(null)
+                            }
+                            role="button"
+                            tabIndex={0}
+                            style={{
+                              width: '100%',
+                              minHeight: isMobile ? 0 : 64,
+                              border: isMobile
+                                ? '1px solid #f1f5f9'
+                                : 'none',
+                              borderTop:
+                                isMobile
+                                  ? '1px solid #f1f5f9'
+                                  : followUpIndex === 0
+                                    ? 'none'
+                                    : '1px solid #eef2f7',
+                              borderRadius: isMobile ? 18 : 0,
+                              boxShadow: isMobile
+                                ? '0 12px 26px rgba(15, 23, 42, 0.06)'
+                                : 'none',
+                              background: isHovered
+                                ? interactionTheme.clickableCardHoverBackground
+                                : '#ffffff',
+                              padding: isMobile ? 16 : '12px 14px',
+                              display: 'grid',
+                              gridTemplateColumns: isMobile
+                                ? 'auto auto minmax(0, 1fr) auto'
+                                : 'minmax(0, 1fr) 72px 112px 112px 68px',
+                              alignItems: 'center',
+                              columnGap: isMobile ? 8 : 10,
+                              rowGap: isMobile ? 18 : 8,
+                              color: '#111827',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              transition: 'background-color 120ms ease'
+                            }}
+                          >
+                            <span
+                              style={{
+                                minWidth: 0,
+                                display: 'grid',
+                                gap: isMobile ? 8 : 4,
+                                gridColumn: isMobile ? '1 / 4' : undefined,
+                                gridRow: isMobile ? '1' : undefined
+                              }}
+                            >
+                              <strong
+                                style={{
+                                  color: '#1f2937',
+                                  fontSize: isMobile ? 18 : 13,
+                                  lineHeight: isMobile ? 1.2 : '16px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    width: 7,
+                                    height: 7,
+                                    borderRadius: '50%',
+                                    background:
+                                      followUp.status === 'done'
+                                        ? '#22c55e'
+                                        : visualStatus === 'overdue'
+                                          ? '#ef4444'
+                                          : visualStatus === 'scheduled'
+                                            ? '#3b82f6'
+                                            : indicatorColors.textColor,
+                                    flexShrink: 0
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    minWidth: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                  }}
+                                >
+                                  {followUp.title || 'Follow-up sem nome'}
+                                </span>
+                              </strong>
+                              <span
+                                style={{
+                                  color: '#64748b',
+                                  fontSize: isMobile ? 14 : 11,
+                                  lineHeight: 1.25,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {selectedFollowUpBusinessTitle}
+                              </span>
+                            </span>
+
+                            <span
+                              style={{
+                                gridColumn: isMobile ? '1' : undefined,
+                                gridRow: isMobile ? '2' : undefined,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                minWidth: 0,
+                                color: '#334155',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                lineHeight: 1,
+                                padding: isMobile ? '7px 12px' : 0,
+                                borderRadius: isMobile ? 6 : 0,
+                                background: isMobile
+                                  ? '#f1f5f9'
+                                  : 'transparent'
+                              }}
+                            >
+                              {date
+                                ? date.toLocaleTimeString('pt-BR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : '--:--'}
+                            </span>
+
+                            <span
+                              style={{
+                                gridColumn: isMobile ? '2' : undefined,
+                                gridRow: isMobile ? '2' : undefined,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                minWidth: 0
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 'auto',
+                                  padding: isMobile ? '7px 12px' : '5px 8px',
+                                  borderRadius: isMobile ? 6 : 5,
+                                  background: statusPresentation.background,
+                                  color: statusPresentation.textColor,
+                                  fontSize: isMobile ? 12 : 11,
+                                  fontWeight: 700,
+                                  lineHeight: 1,
+                                  textAlign: 'center',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {statusPresentation.label}
+                              </span>
+                            </span>
+
+                            <span
+                              style={{
+                                gridColumn: isMobile ? '3 / 5' : undefined,
+                                gridRow: isMobile ? '2' : undefined,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                minWidth: 0
+                              }}
+                            >
+                              {channelPresentation ? (
+                                <span
+                                  style={{
+                                    width: 'auto',
+                                    padding: isMobile
+                                      ? '7px 12px'
+                                      : '5px 8px',
+                                    borderRadius: isMobile ? 6 : 5,
+                                    background:
+                                      channelPresentation.backgroundColor,
+                                    color: channelPresentation.textColor,
+                                    fontSize: isMobile ? 12 : 11,
+                                    fontWeight: 700,
+                                    lineHeight: 1,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 4,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    boxSizing: 'border-box'
+                                  }}
+                                >
+                                  {channelPresentation.icon}
+                                  {channelPresentation.label}
+                                </span>
+                              ) : (
+                                <span aria-hidden="true" />
+                              )}
+                            </span>
+
+                            <span
+                              style={{
+                                gridColumn: isMobile ? '4' : undefined,
+                                gridRow: isMobile ? '1' : undefined,
+                                alignSelf: isMobile ? 'start' : undefined,
+                                display: 'flex',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                gap: 4,
+                                minWidth: 0
+                              }}
+                            >
+                              {confirmingDeleteBusinessFollowUpId ===
+                              followUp.id ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label="Cancelar exclusão de follow-up"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setConfirmingDeleteBusinessFollowUpId(
+                                        null
+                                      )
+                                    }}
+                                    style={{
+                                      width: isMobile ? 32 : 26,
+                                      height: isMobile ? 32 : 26,
+                                      border: '1px solid #e5e7eb',
+                                      borderRadius: isMobile ? 8 : 6,
+                                      background: '#ffffff',
+                                      color: '#4b5563',
+                                      padding: 0,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    X
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="Confirmar exclusão de follow-up"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void handleDeleteNegotiationFollowUp(
+                                        followUp.id
+                                      )
+                                    }}
+                                    style={{
+                                      width: isMobile ? 32 : 26,
+                                      height: isMobile ? 32 : 26,
+                                      border: '1px solid #e5e7eb',
+                                      borderRadius: isMobile ? 8 : 6,
+                                      background: '#ffffff',
+                                      color: '#4b5563',
+                                      padding: 0,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    ✓
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label="Excluir follow-up"
+                                    title="Excluir follow-up"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setConfirmingDeleteBusinessFollowUpId(
+                                        followUp.id
+                                      )
+                                    }}
+                                    style={{
+                                      width: isMobile ? 34 : 24,
+                                      height: isMobile ? 34 : 24,
+                                      border: isMobile
+                                        ? '1px solid #e5e7eb'
+                                        : 'none',
+                                      borderRadius: isMobile ? 8 : 0,
+                                      background: isMobile
+                                        ? '#ffffff'
+                                        : 'transparent',
+                                      color: '#4b5563',
+                                      padding: 0,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={
+                                      followUp.status === 'done'
+                                        ? 'Desfazer conclusão do follow-up'
+                                        : 'Concluir follow-up'
+                                    }
+                                    title={
+                                      followUp.status === 'done'
+                                        ? 'Desfazer conclusão'
+                                        : 'Concluir follow-up'
+                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void handleToggleNegotiationFollowUpStatus(
+                                        followUp.id,
+                                        followUp.status
+                                      )
+                                    }}
+                                    style={{
+                                      width: isMobile ? 34 : 24,
+                                      height: isMobile ? 34 : 24,
+                                      border: isMobile
+                                        ? '1px solid #e5e7eb'
+                                        : 'none',
+                                      borderRadius: isMobile ? 8 : 0,
+                                      background: isMobile
+                                        ? '#ffffff'
+                                        : 'transparent',
+                                      color:
+                                        followUp.status === 'done'
+                                          ? '#16a34a'
+                                          : '#4b5563',
+                                      padding: 0,
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    ✓
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          </section>
+        ))}
+
+        {businessFollowUpGroups.length === 0 ? (
+          <div
+            style={{
+              padding: 24,
+              color: '#6b7280',
+              fontSize: 13,
+              textAlign: 'center'
+            }}
+          >
+            Nenhum follow-up cadastrado.
+          </div>
+        ) : null}
+      </div>
+    )
+
     return (
       <section
         style={{
@@ -3995,7 +4753,11 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           </>
         ) : null}
 
-        {!shouldShowDesktopCreateOnly && isMobile ? (
+        {!shouldShowDesktopCreateOnly ? businessFollowUpAgendaList : null}
+
+        {shouldShowLegacyBusinessFollowUpLists &&
+        !shouldShowDesktopCreateOnly &&
+        isMobile ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {businessFollowUps.length === 0 ? (
               <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>
@@ -4141,7 +4903,9 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
           </div>
         ) : null}
 
-        {!shouldShowDesktopCreateOnly && !isMobile ? (
+        {shouldShowLegacyBusinessFollowUpLists &&
+        !shouldShowDesktopCreateOnly &&
+        !isMobile ? (
         <div
           style={{
             background: '#ffffff',
@@ -8052,9 +8816,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setBusinessesError(null)
       setLeadData(null)
       setFollowUpsTotalItems(0)
-      setStatusSortFocus('overdue')
-      setDateSortOrder('asc')
-      setHoveredFollowUpId(null)
       setIsCreatingAgendaFollowUp(false)
       setAgendaFollowUpDraft(initialAgendaFollowUpDraft)
       setInfoDraft(initialLeadInfoDraft)
@@ -8098,8 +8859,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
       setLeadNegotiations([])
       setNegotiationFollowUps([])
       setFollowUpsTotalItems(0)
-      setStatusSortFocus('overdue')
-      setDateSortOrder('asc')
       setIsUpdatingRuntimeMode(false)
       setNotesDraft('')
       notesDraftRef.current = ''
@@ -8113,10 +8872,6 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
         setIsLoading(true)
         setError(null)
         setFollowUpsError(null)
-        const initialStatusSortFocus: FollowUpSortFocus = 'overdue'
-        const initialDateSortOrder: FollowUpDateSortOrder = 'asc'
-        setStatusSortFocus(initialStatusSortFocus)
-        setDateSortOrder(initialDateSortOrder)
         setIsUpdatingRuntimeMode(false)
         const lead = await WebhookService.loadLead(leadId)
         setLeadData(lead)
@@ -8582,24 +9337,36 @@ export default function LeadPage({ onLeadUpdated, onLeadCreated }: LeadPageProps
             </button>
           ) : null}
 
-          <h1
-            style={{
-              margin: 0,
-              color: '#111827',
-              fontSize: 20,
-              fontWeight: 800,
-              lineHeight: 1.15,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-          >
-            {isLeadSkeletonVisible && !selectedHeaderBusiness ? (
-              <LeadHeaderSkeleton isMobile={isMobile} />
-            ) : (
-              selectedHeaderBusiness?.title?.trim() || leadData?.name?.trim() || '-'
-            )}
-          </h1>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span
+              style={{
+                color: '#94a3b8',
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1
+              }}
+            >
+              {selectedHeaderBusiness ? 'Negócio' : 'Lead'}
+            </span>
+            <h1
+              style={{
+                margin: 0,
+                color: '#111827',
+                fontSize: 20,
+                fontWeight: 800,
+                lineHeight: 1.15,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {isLeadSkeletonVisible && !selectedHeaderBusiness ? (
+                <LeadHeaderSkeleton isMobile={isMobile} />
+              ) : (
+                selectedHeaderBusiness?.title?.trim() || leadData?.name?.trim() || '-'
+              )}
+            </h1>
+          </div>
           {!selectedHeaderBusiness && isMobileLeadFavorite ? (
             <span
               style={{

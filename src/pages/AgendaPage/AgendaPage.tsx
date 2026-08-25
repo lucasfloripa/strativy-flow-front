@@ -1624,7 +1624,11 @@ export default function AgendaPage() {
           {!isLoading && paginatedAgendaRows.map((row) => {
             const isHovered = hoveredFollowUpId === row.followUpId
             const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
-            const lifecycleStatusTag = getFollowUpStatusPresentation(row.status, row.actions)
+            const lifecycleStatusTag = getFollowUpStatusPresentation(
+              row.status,
+              row.actions,
+              visualStatus === 'overdue'
+            )
             const dateTagColors = getAgendaDateTagColors(visualStatus)
             const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
             const channelTagPresentation = getAgendaChannelTagPresentation(row.actions)
@@ -2447,7 +2451,12 @@ export default function AgendaPage() {
               ) : null}
               {!isLoading && paginatedAgendaRows.map((row) => {
                 const isHovered = hoveredFollowUpId === row.followUpId
-                const lifecycleStatusTag = getFollowUpStatusPresentation(row.status, row.actions)
+                const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
+                const lifecycleStatusTag = getFollowUpStatusPresentation(
+                  row.status,
+                  row.actions,
+                  visualStatus === 'overdue'
+                )
                 const channelTagPresentation = getAgendaChannelTagPresentation(row.actions)
 
                 if (confirmingDeleteFollowUpId === row.followUpId) {

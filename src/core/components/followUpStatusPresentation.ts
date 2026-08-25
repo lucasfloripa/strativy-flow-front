@@ -11,7 +11,8 @@ export type FollowUpStatusPresentation = {
 
 export const getFollowUpStatusPresentation = (
   status: LeadFollowUpStatus,
-  actions: FollowUpActionResponse[] = []
+  actions: FollowUpActionResponse[] = [],
+  isOverdue = false
 ): FollowUpStatusPresentation => {
   if (actions.some((action) => action.status === 'manual_required')) {
     return {
@@ -50,6 +51,14 @@ export const getFollowUpStatusPresentation = (
       label: 'Ignorado',
       textColor: '#7c2d12',
       background: '#ffedd5'
+    }
+  }
+
+  if (status === 'pending' && isOverdue) {
+    return {
+      label: 'Pendente',
+      textColor: '#b91c1c',
+      background: '#fee2e2'
     }
   }
 
