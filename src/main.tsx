@@ -16,6 +16,8 @@ import ContatosPage from './pages/ContatosPage'
 import InformacoesPage from './pages/InformacoesPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import LoginPage from './pages/LoginPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import ForgetPasswordPage from './pages/ForgetPasswordPage'
 
 const setupIosSafariBrowserMode = () => {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
@@ -83,6 +85,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Route path="/" element={<Navigate to="/inicio" replace />} />
       <Route path="/home" element={<Navigate to="/inicio" replace />} />
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+      <Route path="/forget-password" element={<ForgetPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       <Route element={<AuthenticatedLayout />}>
         <Route path="/inicio" element={<HomePage />} />

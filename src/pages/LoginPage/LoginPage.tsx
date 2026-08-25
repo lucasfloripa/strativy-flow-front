@@ -6,7 +6,7 @@ import {
   useState
 } from 'react'
 
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -15,13 +15,39 @@ import { useLoginForm } from '../../features/auth/hooks/useLoginForm'
 export default function LoginPage() {
   const { isMobile } = useViewportBreakpoint()
   const navigate = useNavigate()
+  const location = useLocation()
   const [isEmailFocused, setIsEmailFocused] = useState<boolean>(false)
   const [isPasswordFocused, setIsPasswordFocused] = useState<boolean>(false)
   const [isSubmitHovered, setIsSubmitHovered] = useState<boolean>(false)
+  const [isForgotPasswordHovered, setIsForgotPasswordHovered] =
+    useState<boolean>(false)
+  const [passwordResetSuccessMessage, setPasswordResetSuccessMessage] =
+    useState<string | null>(() => {
+      const state = location.state as {
+        passwordResetSuccessMessage?: unknown
+      } | null
+
+      return typeof state?.passwordResetSuccessMessage === 'string'
+        ? state.passwordResetSuccessMessage
+        : null
+    })
   const scrollPositionBeforeFocusRef = useRef<number>(0)
   const restoreScrollTimeoutRef = useRef<number | null>(null)
   const { email, password, error, isSubmitting, setEmail, setPassword, submit } =
     useLoginForm()
+
+  useEffect(() => {
+    if (!passwordResetSuccessMessage) {
+      return
+    }
+
+    navigate('/login', { replace: true, state: null })
+    const timeout = window.setTimeout(() => {
+      setPasswordResetSuccessMessage(null)
+    }, 5000)
+
+    return () => window.clearTimeout(timeout)
+  }, [navigate, passwordResetSuccessMessage])
 
   useEffect(() => {
     return () => {
@@ -195,9 +221,44 @@ export default function LoginPage() {
               }}
           />
 
-          <p style={{ margin: '-4px 0 0', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
-            Esqueceu sua Senha ?
-          </p>
+          {passwordResetSuccessMessage ? (
+            <p
+              role="status"
+              style={{
+                margin: '-4px 0 0',
+                justifySelf: 'center',
+                color: interactionTheme.activeIconColor,
+                fontSize: 12,
+                fontWeight: 700,
+                lineHeight: 1.5,
+                textAlign: 'center'
+              }}
+            >
+              {passwordResetSuccessMessage}
+            </p>
+          ) : (
+            <Link
+              to="/forget-password"
+              onMouseEnter={() => setIsForgotPasswordHovered(true)}
+              onMouseLeave={() => setIsForgotPasswordHovered(false)}
+              style={{
+                margin: '-4px 0 0',
+                justifySelf: 'center',
+                color: isForgotPasswordHovered
+                  ? interactionTheme.activeIconColor
+                  : '#64748b',
+                fontSize: 12,
+                fontWeight: isForgotPasswordHovered ? 700 : 400,
+                lineHeight: 1.5,
+                textAlign: 'center',
+                textDecoration: isForgotPasswordHovered ? 'underline' : 'none',
+                textUnderlineOffset: 3,
+                transition: 'color 160ms ease, font-weight 160ms ease'
+              }}
+            >
+              Esqueceu sua Senha ?
+            </Link>
+          )}
 
           {error ? (
             <div
