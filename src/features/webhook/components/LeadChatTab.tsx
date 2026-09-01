@@ -23,6 +23,7 @@ import type { ChatMessage, ChatMessageApi, LeadRuntimeMode, MessageTemplateRespo
 type LeadChatTabProps = {
   leadId: string
   leadSource?: string | null
+  focusMessageId?: string | null
   runtimeMode?: LeadRuntimeMode
   isUpdatingRuntimeMode?: boolean
   onToggleRuntimeMode?: () => void
@@ -100,6 +101,7 @@ const directChatTheme = {
 export function LeadChatTab({
   leadId,
   leadSource,
+  focusMessageId = null,
   runtimeMode = 'AUTOMATION',
   isUpdatingRuntimeMode = false,
   onToggleRuntimeMode
@@ -163,7 +165,10 @@ export function LeadChatTab({
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   const [conversationWindowNow, setConversationWindowNow] = useState<number>(() => Date.now())
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const messageElementRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const lastFocusedMessageIdRef = useRef<string | null>(null)
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
+    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -388,6 +393,28 @@ export function LeadChatTab({
 
     container.scrollTop = container.scrollHeight
   }, [isLoading, messages])
+
+  useEffect(() => {
+    if (!focusMessageId) {
+      lastFocusedMessageIdRef.current = null
+      return
+    }
+
+    if (isLoading || lastFocusedMessageIdRef.current === focusMessageId) return
+
+    const messageElement = messageElementRefs.current[focusMessageId]
+    if (!messageElement) return
+
+    lastFocusedMessageIdRef.current = focusMessageId
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedMessageId(focusMessageId)
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedMessageId(null)
+    }, 2500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [focusMessageId, isLoading, messages])
 
   useEffect(() => {
     const handleResize = () => {
@@ -1198,12 +1225,21 @@ export function LeadChatTab({
                 return (
                   <div
                     key={item.id}
+                    ref={(element) => {
+                      messageElementRefs.current[item.id] = element
+                    }}
                     style={{
                       marginBottom: 16,
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: isOutbound ? 'flex-end' : 'flex-start',
-                      alignItems: isOutbound ? 'flex-end' : 'flex-start'
+                      alignItems: isOutbound ? 'flex-end' : 'flex-start',
+                      borderRadius: 12,
+                      outline: highlightedMessageId === item.id
+                        ? '2px solid #f59e0b'
+                        : '2px solid transparent',
+                      outlineOffset: 4,
+                      transition: 'outline-color 180ms ease'
                     }}
                   >
                     {!isTemplateMessage && (

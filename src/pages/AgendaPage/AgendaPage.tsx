@@ -5,7 +5,9 @@ import {
   Mail,
   MessageCircle,
   Plus,
-  Trash2
+  Save,
+  Trash2,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
@@ -23,7 +25,7 @@ import { FollowUpActionFields } from '../../core/components/FollowUpActionFields
 import {
   initialFollowUpActionDraft,
   isFollowUpActionDraftValid,
-  toFollowUpActionPayload
+  toFollowUpActionPayload,
 } from '../../core/components/followUpActionDraft'
 import type { FollowUpActionDraft } from '../../core/components/followUpActionDraft'
 import { getFollowUpStatusPresentation } from '../../core/components/followUpStatusPresentation'
@@ -31,13 +33,13 @@ import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTa
 import {
   formatDateTime,
   getApiDateTimestamp,
-  parseApiDateToBrowserDate
+  parseApiDateToBrowserDate,
 } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
   NegotiationFollowUpResponse,
-  NegotiationResponse
+  NegotiationResponse,
 } from '../../features/webhook/types/webhook.types'
 import LeadPage from '../LeadPage'
 
@@ -51,6 +53,15 @@ type AgendaDateSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
 type AgendaStatusSortFocus = 'overdue' | 'today' | 'scheduled' | 'completed'
 
 const AGENDA_TABLE_ROW_HEIGHT_PX = 60
+const agendaFollowUpStatusOptions: Array<{
+  value: AgendaRow['status']
+  label: string
+}> = [
+  { value: 'pending', label: 'Pendente' },
+  { value: 'done', label: 'Concluído' },
+  { value: 'canceled', label: 'Cancelado' },
+  { value: 'skipped', label: 'Ignorado' },
+]
 
 const rotateValues = <T,>(values: T[], startValue: T | null): T[] => {
   if (!values.length || startValue === null) {
@@ -88,23 +99,81 @@ type AgendaFollowUpDraft = {
   dueAt: string
 }
 
+type AgendaStatusTagProps = {
+  disabled: boolean
+  presentation: ReturnType<typeof getFollowUpStatusPresentation>
+  status: AgendaRow['status']
+  onChange: (status: AgendaRow['status']) => void
+}
+
+const AgendaStatusTag = ({
+  disabled,
+  presentation,
+  status,
+  onChange,
+}: AgendaStatusTagProps) => (
+  <span
+    style={{
+      position: 'relative',
+      fontSize: 12,
+      fontWeight: 700,
+      color: presentation.textColor,
+      whiteSpace: 'nowrap',
+      background: presentation.background,
+      border: `1px solid ${presentation.textColor}`,
+      borderRadius: 6,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '7px 12px',
+      lineHeight: 1.1,
+      opacity: disabled ? 0.65 : 1,
+    }}
+    onClick={(event) => event.stopPropagation()}
+  >
+    {presentation.label}
+    <select
+      aria-label="Alterar status do follow-up"
+      value={status}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value as AgendaRow['status'])}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        border: 'none',
+        padding: 0,
+        cursor: disabled ? 'wait' : 'pointer',
+        appearance: 'none',
+        opacity: 0,
+      }}
+    >
+      {agendaFollowUpStatusOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </span>
+)
+
 const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   leadId: '',
   negotiationId: '',
   title: '',
   action: initialFollowUpActionDraft,
-  dueAt: ''
+  dueAt: '',
 }
 
 type AgendaDateTimeInputProps = {
   value: string
   onChange: (nextValue: string) => void
   isMobile: boolean
-  compact?: boolean
 }
 
 const parseDateTimeLocalValue = (
-  value: string
+  value: string,
 ): { date: Date | null; time: string } => {
   const normalizedValue = value.trim()
   if (!normalizedValue) {
@@ -136,7 +205,7 @@ const parseDateTimeLocalValue = (
 
   return {
     date: parsedDate,
-    time: timePart.slice(0, 5)
+    time: timePart.slice(0, 5),
   }
 }
 
@@ -157,7 +226,7 @@ const formatDatePickerLabel = (date: Date | null): string => {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric'
+    year: 'numeric',
   }).format(date)
 }
 
@@ -165,13 +234,12 @@ function AgendaDateTimeInput({
   value,
   onChange,
   isMobile,
-  compact = false
 }: AgendaDateTimeInputProps) {
   const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false)
   const [draftTime, setDraftTime] = useState<string>('09:00')
   const pickerContainerRef = useRef<HTMLDivElement | null>(null)
   const parsedValue = parseDateTimeLocalValue(value)
-  const fieldHeight = compact ? 36 : isMobile ? 48 : 42
+  const fieldHeight = isMobile ? 46 : 42
 
   useEffect(() => {
     if (parsedValue.time) {
@@ -207,7 +275,7 @@ function AgendaDateTimeInput({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        width: '100%'
+        width: '100%',
       }}
     >
       <button
@@ -218,10 +286,10 @@ function AgendaDateTimeInput({
           minWidth: 0,
           height: fieldHeight,
           border: '1px solid #d7dce4',
-          borderRadius: compact ? 8 : 12,
+          borderRadius: 10,
           padding: '0 12px',
           color: parsedValue.date ? '#111827' : '#6b7280',
-          fontSize: compact ? 14 : 15,
+          fontSize: isMobile ? 17 / 1.2 : 14,
           fontWeight: 600,
           background: '#ffffff',
           cursor: 'pointer',
@@ -229,7 +297,7 @@ function AgendaDateTimeInput({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         }}
         aria-label="Selecionar data do follow-up"
       >
@@ -239,7 +307,7 @@ function AgendaDateTimeInput({
             minWidth: 0,
             overflow: 'hidden',
             whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis'
+            textOverflow: 'ellipsis',
           }}
         >
           {formatDatePickerLabel(parsedValue.date)}
@@ -258,15 +326,15 @@ function AgendaDateTimeInput({
           }
         }}
         style={{
-          width: compact ? 96 : 108,
+          width: isMobile ? 108 : 104,
           height: fieldHeight,
           border: '1px solid #d7dce4',
-          borderRadius: compact ? 8 : 12,
+          borderRadius: 10,
           padding: '0 10px',
           color: '#111827',
-          fontSize: compact ? 14 : 15,
+          fontSize: isMobile ? 17 / 1.2 : 14,
           boxSizing: 'border-box',
-          background: '#ffffff'
+          background: '#ffffff',
         }}
         aria-label="Selecionar horário do follow-up"
       />
@@ -282,7 +350,7 @@ function AgendaDateTimeInput({
             background: '#ffffff',
             boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
             padding: 12,
-            zIndex: 60
+            zIndex: 60,
           }}
         >
           <DayPicker
@@ -320,7 +388,7 @@ const getFilterOptionStyle = (isSelected: boolean) => ({
   textAlign: 'left' as const,
   cursor: 'pointer',
   outline: 'none',
-  WebkitTapHighlightColor: 'transparent'
+  WebkitTapHighlightColor: 'transparent',
 })
 
 const formatAgendaDateTimeLabel = (value?: string | null): string => {
@@ -333,7 +401,7 @@ const formatAgendaDateTimeLabel = (value?: string | null): string => {
 
 const getAgendaVisualStatus = (
   status: AgendaRow['status'],
-  dueAt: string
+  dueAt: string,
 ): AgendaVisualStatus => {
   if (status !== 'pending') {
     return 'completed'
@@ -345,7 +413,15 @@ const getAgendaVisualStatus = (
   }
 
   const now = new Date()
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+    999,
+  )
 
   if (parsedDate < now) {
     return 'overdue'
@@ -359,37 +435,39 @@ const getAgendaVisualStatus = (
 }
 
 const getAgendaDateTagColors = (
-  status: AgendaVisualStatus
+  status: AgendaVisualStatus,
 ): { textColor: string; background: string } => {
   if (status === 'overdue') {
     return {
       textColor: '#b91c1c',
-      background: '#fee2e2'
+      background: '#fee2e2',
     }
   }
 
   if (status === 'today') {
     return {
       textColor: '#b45309',
-      background: '#fef3c7'
+      background: '#fef3c7',
     }
   }
 
   if (status === 'completed') {
     return {
       textColor: '#166534',
-      background: '#dcfce7'
+      background: '#dcfce7',
     }
   }
 
   return {
     textColor: '#1d4ed8',
-    background: '#dbeafe'
+    background: '#dbeafe',
   }
 }
 
 const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
-  const channel = actions.find((action) => action.type === 'send_message')?.channel
+  const channel = actions.find(
+    (action) => action.type === 'send_message',
+  )?.channel
 
   if (channel === 'Agenda') {
     return {
@@ -397,7 +475,7 @@ const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
       textColor: '#6d28d9',
       backgroundColor: '#f5f3ff',
       borderColor: '#ddd6fe',
-      icon: <CalendarClock size={12} />
+      icon: <CalendarClock size={12} />,
     }
   }
 
@@ -411,7 +489,7 @@ const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
       textColor: '#1d4ed8',
       backgroundColor: '#eff6ff',
       borderColor: '#bfdbfe',
-      icon: <Mail size={12} />
+      icon: <Mail size={12} />,
     }
   }
 
@@ -420,7 +498,7 @@ const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
 
 const matchesFollowUpFilter = (
   row: AgendaRow,
-  filter: AgendaFollowUpFilter
+  filter: AgendaFollowUpFilter,
 ): boolean => {
   if (filter === 'all') {
     return true
@@ -455,17 +533,22 @@ const toSafeText = (value: unknown): string => {
   return ''
 }
 
-const toSafeFollowUpStatus = (
-  value: unknown
-): AgendaRow['status'] => {
-  if (value === 'pending' || value === 'done' || value === 'canceled' || value === 'skipped') {
+const toSafeFollowUpStatus = (value: unknown): AgendaRow['status'] => {
+  if (
+    value === 'pending' ||
+    value === 'done' ||
+    value === 'canceled' ||
+    value === 'skipped'
+  ) {
     return value
   }
 
   return 'pending'
 }
 
-const toSortableTimestamp = (value: string | Date | null | undefined): number => {
+const toSortableTimestamp = (
+  value: string | Date | null | undefined,
+): number => {
   if (!value) {
     return Number.POSITIVE_INFINITY
   }
@@ -482,7 +565,7 @@ const toSortableTimestamp = (value: string | Date | null | undefined): number =>
 const getAgendaStatusSortRank = (
   row: AgendaRow,
   sortFocus: AgendaStatusSortFocus,
-  availableStatusSortValues: AgendaStatusSortFocus[]
+  availableStatusSortValues: AgendaStatusSortFocus[],
 ): number => {
   const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
   const orderedStatuses = rotateValues(availableStatusSortValues, sortFocus)
@@ -513,35 +596,61 @@ export default function AgendaPage() {
       ? requestedFollowUpFilter
       : 'all'
 
-  const { data: leadsData, isLoading: isLeadsLoading, error: leadsError } = useLeadsBootstrap()
+  const {
+    data: leadsData,
+    isLoading: isLeadsLoading,
+    error: leadsError,
+  } = useLeadsBootstrap()
   const [negocios, setNegocios] = useState<NegotiationResponse[]>([])
   const [followUps, setFollowUps] = useState<NegotiationFollowUpResponse[]>([])
   const [isLoadingAgenda, setIsLoadingAgenda] = useState<boolean>(true)
   const [agendaError, setAgendaError] = useState<string | null>(null)
 
-  const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
-  const [isFiltersButtonHovered, setIsFiltersButtonHovered] = useState<boolean>(false)
+  const [isSearchInputFocused, setIsSearchInputFocused] =
+    useState<boolean>(false)
+  const [isFiltersButtonHovered, setIsFiltersButtonHovered] =
+    useState<boolean>(false)
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(false)
-  const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState<string>('')
-  const [followUpFilter, setFollowUpFilter] = useState<AgendaFollowUpFilter>(initialFollowUpFilter)
-  const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] = useState<boolean>(false)
-  const [isAgendaFollowUpPanelEntering, setIsAgendaFollowUpPanelEntering] = useState<boolean>(false)
-  const [shouldRefreshOnAgendaClose, setShouldRefreshOnAgendaClose] = useState<boolean>(false)
-  const [agendaFollowUpError, setAgendaFollowUpError] = useState<string | null>(null)
-  const [agendaFollowUpDraft, setAgendaFollowUpDraft] = useState<AgendaFollowUpDraft>(
-    initialAgendaFollowUpDraft
+  const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(
+    null,
   )
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [followUpFilter, setFollowUpFilter] = useState<AgendaFollowUpFilter>(
+    initialFollowUpFilter,
+  )
+  const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] =
+    useState<boolean>(false)
+  const [isAgendaFollowUpPanelEntering, setIsAgendaFollowUpPanelEntering] =
+    useState<boolean>(false)
+  const [shouldRefreshOnAgendaClose, setShouldRefreshOnAgendaClose] =
+    useState<boolean>(false)
+  const [agendaFollowUpError, setAgendaFollowUpError] = useState<string | null>(
+    null,
+  )
+  const [agendaFollowUpDraft, setAgendaFollowUpDraft] =
+    useState<AgendaFollowUpDraft>(initialAgendaFollowUpDraft)
 
-  const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(null)
-  const [confirmingDeleteFollowUpId, setConfirmingDeleteFollowUpId] = useState<string | null>(null)
-  const [wrappedAgendaLeadNames, setWrappedAgendaLeadNames] = useState<Record<string, boolean>>({})
+  const [hoveredFollowUpId, setHoveredFollowUpId] = useState<string | null>(
+    null,
+  )
+  const [confirmingDeleteFollowUpId, setConfirmingDeleteFollowUpId] = useState<
+    string | null
+  >(null)
+  const [updatingFollowUpStatusId, setUpdatingFollowUpStatusId] = useState<
+    string | null
+  >(null)
+  const [wrappedAgendaLeadNames, setWrappedAgendaLeadNames] = useState<
+    Record<string, boolean>
+  >({})
   const [sortKey, setSortKey] = useState<AgendaSortKey>('status')
   const [sortDirection, setSortDirection] = useState<AgendaSortDirection>('asc')
-  const [dateSortFocus, setDateSortFocus] = useState<AgendaDateSortFocus>('oldestFirst')
-  const [statusSortFocus, setStatusSortFocus] = useState<AgendaStatusSortFocus>('overdue')
+  const [dateSortFocus, setDateSortFocus] =
+    useState<AgendaDateSortFocus>('oldestFirst')
+  const [statusSortFocus, setStatusSortFocus] =
+    useState<AgendaStatusSortFocus>('overdue')
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
-  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
+  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] =
+    useState<boolean>(false)
   const [agendaReloadVersion, setAgendaReloadVersion] = useState<number>(0)
   const previousIsAgendaFollowUpPanelOpenRef = useRef<boolean>(false)
   const previousIsLeadSelectedRef = useRef<boolean>(false)
@@ -550,52 +659,58 @@ export default function AgendaPage() {
   const activeLeads = useMemo(
     () =>
       (leadsData.leads ?? []).filter(
-        (lead) => (lead.state ?? 'active').trim().toLowerCase() !== 'archived'
+        (lead) => (lead.state ?? 'active').trim().toLowerCase() !== 'archived',
       ),
-    [leadsData.leads]
+    [leadsData.leads],
   )
 
-  const activeFiltersCount =
-    Number(followUpFilter !== 'all')
+  const activeFiltersCount = Number(followUpFilter !== 'all')
 
-  const activeFilterTags = followUpFilter === 'all'
-    ? []
-    : [{
-        key: `followup-${followUpFilter}`,
-        label:
-          followUpFilter === 'none'
-            ? 'Sem follow-up'
-            : followUpFilter === 'scheduled'
-              ? 'Agendados'
-              : followUpFilter === 'today'
-                ? 'Hoje'
-                : 'Atrasados',
-        textColor:
-          followUpFilter === 'none'
-            ? '#475569'
-            : followUpFilter === 'scheduled'
-              ? '#1d4ed8'
-              : followUpFilter === 'today'
-                ? '#b45309'
-                : '#b91c1c',
-        background:
-          followUpFilter === 'none'
-            ? '#e2e8f0'
-            : followUpFilter === 'scheduled'
-              ? '#dbeafe'
-              : followUpFilter === 'today'
-                ? '#fef3c7'
-                : '#fee2e2',
-        onRemove: () => setFollowUpFilter('all')
-      }]
+  const activeFilterTags =
+    followUpFilter === 'all'
+      ? []
+      : [
+          {
+            key: `followup-${followUpFilter}`,
+            label:
+              followUpFilter === 'none'
+                ? 'Sem follow-up'
+                : followUpFilter === 'scheduled'
+                  ? 'Agendados'
+                  : followUpFilter === 'today'
+                    ? 'Hoje'
+                    : 'Atrasados',
+            textColor:
+              followUpFilter === 'none'
+                ? '#475569'
+                : followUpFilter === 'scheduled'
+                  ? '#1d4ed8'
+                  : followUpFilter === 'today'
+                    ? '#b45309'
+                    : '#b91c1c',
+            background:
+              followUpFilter === 'none'
+                ? '#e2e8f0'
+                : followUpFilter === 'scheduled'
+                  ? '#dbeafe'
+                  : followUpFilter === 'today'
+                    ? '#fef3c7'
+                    : '#fee2e2',
+            onRemove: () => setFollowUpFilter('all'),
+          },
+        ]
 
   const isLeadSelected = Boolean(leadId)
 
   const agendaFollowUpBusinesses = useMemo(
-    () => negocios.filter((negocio) => negocio.leadId === agendaFollowUpDraft.leadId),
-    [agendaFollowUpDraft.leadId, negocios]
+    () =>
+      negocios.filter(
+        (negocio) => negocio.leadId === agendaFollowUpDraft.leadId,
+      ),
+    [agendaFollowUpDraft.leadId, negocios],
   )
-  const selectedAgendaLead = activeLeads.find((lead) => lead.id === agendaFollowUpDraft.leadId) ?? null
+  const selectedAgendaLead =
+    activeLeads.find((lead) => lead.id === agendaFollowUpDraft.leadId) ?? null
 
   const canConfirmAgendaFollowUp =
     Boolean(agendaFollowUpDraft.leadId) &&
@@ -603,29 +718,50 @@ export default function AgendaPage() {
     Boolean(agendaFollowUpDraft.title.trim()) &&
     isFollowUpActionDraftValid(agendaFollowUpDraft.action) &&
     Boolean(agendaFollowUpDraft.dueAt)
+  const agendaFollowUpFieldLabelStyle = {
+    color: '#1f2937',
+    fontSize: isMobile ? 17 / 1.3 : 13,
+    fontWeight: 700,
+  } as const
+  const agendaFollowUpInputStyle = {
+    width: '100%',
+    height: isMobile ? 46 : 42,
+    border: '1px solid #d7dce4',
+    borderRadius: 10,
+    padding: '0 14px',
+    color: '#111827',
+    fontSize: isMobile ? 17 / 1.2 : 14,
+    boxSizing: 'border-box',
+    background: '#ffffff',
+  } as const
+  const agendaFollowUpSelectStyle = {
+    ...agendaFollowUpInputStyle,
+    fontWeight: 600,
+  } as const
 
   const leadsById = useMemo(
     () =>
-      new Map((leadsData.leads ?? []).map((lead, index) => [
-        // Keep a strict state union to avoid broad string inference.
-        lead.id,
-        {
-          name: lead.name?.trim() || `Lead ${index + 1}`,
-          source: lead.source ?? null,
-          isFavorite: Boolean(lead.isFavorite),
-          state:
-            (lead.state === 'archived' ? 'archived' : 'active') as
+      new Map(
+        (leadsData.leads ?? []).map((lead, index) => [
+          // Keep a strict state union to avoid broad string inference.
+          lead.id,
+          {
+            name: lead.name?.trim() || `Lead ${index + 1}`,
+            source: lead.source ?? null,
+            isFavorite: Boolean(lead.isFavorite),
+            state: (lead.state === 'archived' ? 'archived' : 'active') as
               | 'archived'
               | 'active',
-          createdAt: lead.createdAt ?? null
-        }
-      ])),
-    [leadsData.leads]
+            createdAt: lead.createdAt ?? null,
+          },
+        ]),
+      ),
+    [leadsData.leads],
   )
 
   const userLeadIdSet = useMemo(
     () => new Set((leadsData.leads ?? []).map((lead) => lead.id)),
-    [leadsData.leads]
+    [leadsData.leads],
   )
 
   useEffect(() => {
@@ -638,7 +774,9 @@ export default function AgendaPage() {
         return currentDraft
       }
 
-      const hasSelectedLead = activeLeads.some((lead) => lead.id === currentDraft.leadId)
+      const hasSelectedLead = activeLeads.some(
+        (lead) => lead.id === currentDraft.leadId,
+      )
 
       if (hasSelectedLead) {
         return currentDraft
@@ -647,7 +785,7 @@ export default function AgendaPage() {
       return {
         ...currentDraft,
         leadId: '',
-        negotiationId: ''
+        negotiationId: '',
       }
     })
   }, [activeLeads])
@@ -662,7 +800,7 @@ export default function AgendaPage() {
 
         const [loadedNegocios, loadedFollowUps] = await Promise.all([
           WebhookService.loadNegotiations(),
-          WebhookService.loadNegotiationFollowUps()
+          WebhookService.loadNegotiationFollowUps(),
         ])
 
         if (!isMounted) {
@@ -722,7 +860,8 @@ export default function AgendaPage() {
   }, [isLeadSelected, shouldRefreshOnLeadClose])
 
   useEffect(() => {
-    const wasAgendaFollowUpPanelOpen = previousIsAgendaFollowUpPanelOpenRef.current
+    const wasAgendaFollowUpPanelOpen =
+      previousIsAgendaFollowUpPanelOpenRef.current
 
     if (
       wasAgendaFollowUpPanelOpen &&
@@ -798,7 +937,7 @@ export default function AgendaPage() {
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
         actions: [toFollowUpActionPayload(agendaFollowUpDraft.action)],
-        dueAt: agendaFollowUpDraft.dueAt
+        dueAt: agendaFollowUpDraft.dueAt,
       })
 
       setAgendaReloadVersion((current) => current + 1)
@@ -809,11 +948,14 @@ export default function AgendaPage() {
           initialLeadTab: 'negocios',
           initialBusinessId: createdFollowUp.negotiationId,
           initialBusinessTab: 'followups',
-          initialBusinessFollowUpId: createdFollowUp.id
-        }
+          initialBusinessFollowUpId: createdFollowUp.id,
+        },
       })
     } catch (exception: unknown) {
-      const message = exception instanceof Error ? exception.message : 'Falha ao criar follow-up.'
+      const message =
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao criar follow-up.'
       setAgendaFollowUpError(message)
     }
   }
@@ -826,12 +968,12 @@ export default function AgendaPage() {
 
   const negociosByUser = useMemo(
     () => negocios.filter((negocio) => userLeadIdSet.has(negocio.leadId)),
-    [negocios, userLeadIdSet]
+    [negocios, userLeadIdSet],
   )
 
   const negocioById = useMemo(
     () => new Map(negociosByUser.map((negocio) => [negocio.id, negocio])),
-    [negociosByUser]
+    [negociosByUser],
   )
 
   const agendaRows = useMemo(() => {
@@ -860,7 +1002,7 @@ export default function AgendaPage() {
         actions: followUp.actions ?? [],
         leadIsFavorite: leadData.isFavorite,
         leadState: leadData.state,
-        leadCreatedAt: leadData.createdAt
+        leadCreatedAt: leadData.createdAt,
       })
     })
 
@@ -874,19 +1016,25 @@ export default function AgendaPage() {
       agendaRows.filter((row) => {
         const matchesSearch = !normalizedSearchTerm
           ? true
-          : toSafeText(row.leadName).toLowerCase().includes(normalizedSearchTerm) ||
-            toSafeText(row.negotiationTitle).toLowerCase().includes(normalizedSearchTerm) ||
+          : toSafeText(row.leadName)
+              .toLowerCase()
+              .includes(normalizedSearchTerm) ||
+            toSafeText(row.negotiationTitle)
+              .toLowerCase()
+              .includes(normalizedSearchTerm) ||
             toSafeText(row.title).toLowerCase().includes(normalizedSearchTerm)
         const matchesFollowUp = matchesFollowUpFilter(row, followUpFilter)
 
         return matchesSearch && matchesFollowUp
       }),
-    [agendaRows, followUpFilter, normalizedSearchTerm]
+    [agendaRows, followUpFilter, normalizedSearchTerm],
   )
 
   const availableDateSortValues = useMemo(() => {
     const values: AgendaDateSortFocus[] = ['oldestFirst', 'recentFirst']
-    const hasMissingDates = filteredAgendaRows.some((row) => !Number.isFinite(getApiDateTimestamp(row.dueAt)))
+    const hasMissingDates = filteredAgendaRows.some(
+      (row) => !Number.isFinite(getApiDateTimestamp(row.dueAt)),
+    )
 
     if (hasMissingDates) {
       values.push('noDateFirst')
@@ -896,10 +1044,17 @@ export default function AgendaPage() {
   }, [filteredAgendaRows])
 
   const availableStatusSortValues = useMemo(() => {
-    const orderedStatuses: AgendaStatusSortFocus[] = ['overdue', 'today', 'scheduled', 'completed']
+    const orderedStatuses: AgendaStatusSortFocus[] = [
+      'overdue',
+      'today',
+      'scheduled',
+      'completed',
+    ]
 
     return orderedStatuses.filter((status) =>
-      filteredAgendaRows.some((row) => getAgendaVisualStatus(row.status, row.dueAt) === status)
+      filteredAgendaRows.some(
+        (row) => getAgendaVisualStatus(row.status, row.dueAt) === status,
+      ),
     )
   }, [filteredAgendaRows])
 
@@ -908,15 +1063,29 @@ export default function AgendaPage() {
       const directionFactor = sortDirection === 'asc' ? 1 : -1
 
       if (sortKey === 'title') {
-        return firstRow.title.localeCompare(secondRow.title, 'pt-BR', { sensitivity: 'base' }) * directionFactor
+        return (
+          firstRow.title.localeCompare(secondRow.title, 'pt-BR', {
+            sensitivity: 'base',
+          }) * directionFactor
+        )
       }
 
       if (sortKey === 'lead') {
-        return firstRow.leadName.localeCompare(secondRow.leadName, 'pt-BR', { sensitivity: 'base' }) * directionFactor
+        return (
+          firstRow.leadName.localeCompare(secondRow.leadName, 'pt-BR', {
+            sensitivity: 'base',
+          }) * directionFactor
+        )
       }
 
       if (sortKey === 'negotiation') {
-        return firstRow.negotiationTitle.localeCompare(secondRow.negotiationTitle, 'pt-BR', { sensitivity: 'base' }) * directionFactor
+        return (
+          firstRow.negotiationTitle.localeCompare(
+            secondRow.negotiationTitle,
+            'pt-BR',
+            { sensitivity: 'base' },
+          ) * directionFactor
+        )
       }
 
       if (sortKey === 'dateTime') {
@@ -960,21 +1129,42 @@ export default function AgendaPage() {
         return secondDate - firstDate
       }
 
-        const statusRankDifference =
-        getAgendaStatusSortRank(firstRow, statusSortFocus, availableStatusSortValues) -
-        getAgendaStatusSortRank(secondRow, statusSortFocus, availableStatusSortValues)
+      const statusRankDifference =
+        getAgendaStatusSortRank(
+          firstRow,
+          statusSortFocus,
+          availableStatusSortValues,
+        ) -
+        getAgendaStatusSortRank(
+          secondRow,
+          statusSortFocus,
+          availableStatusSortValues,
+        )
 
       if (statusRankDifference !== 0) {
         return statusRankDifference
       }
 
-      return toSortableTimestamp(firstRow.dueAt) - toSortableTimestamp(secondRow.dueAt)
+      return (
+        toSortableTimestamp(firstRow.dueAt) -
+        toSortableTimestamp(secondRow.dueAt)
+      )
     })
-  }, [availableStatusSortValues, dateSortFocus, filteredAgendaRows, sortDirection, sortKey, statusSortFocus])
+  }, [
+    availableStatusSortValues,
+    dateSortFocus,
+    filteredAgendaRows,
+    sortDirection,
+    sortKey,
+    statusSortFocus,
+  ])
 
   const paginatedAgendaRows = sortedFilteredAgendaRows
 
-  const setAgendaLeadNameRef = (followUpId: string, element: HTMLSpanElement | null) => {
+  const setAgendaLeadNameRef = (
+    followUpId: string,
+    element: HTMLSpanElement | null,
+  ) => {
     agendaLeadNameRefs.current[followUpId] = element
   }
 
@@ -1003,7 +1193,7 @@ export default function AgendaPage() {
         }
 
         const lineCount = Math.round(
-          agendaLeadNameElement.getBoundingClientRect().height / lineHeight
+          agendaLeadNameElement.getBoundingClientRect().height / lineHeight,
         )
 
         nextWrappedAgendaLeadNames[row.followUpId] = lineCount > 1
@@ -1018,10 +1208,14 @@ export default function AgendaPage() {
         }
 
         const hasDifference = nextKeys.some(
-          (key) => currentWrappedAgendaLeadNames[key] !== nextWrappedAgendaLeadNames[key]
+          (key) =>
+            currentWrappedAgendaLeadNames[key] !==
+            nextWrappedAgendaLeadNames[key],
         )
 
-        return hasDifference ? nextWrappedAgendaLeadNames : currentWrappedAgendaLeadNames
+        return hasDifference
+          ? nextWrappedAgendaLeadNames
+          : currentWrappedAgendaLeadNames
       })
     }
 
@@ -1055,7 +1249,9 @@ export default function AgendaPage() {
   const handleDeleteFollowUp = async (followUpId: string) => {
     try {
       await WebhookService.deleteNegotiationFollowUp(followUpId)
-      setFollowUps((current) => current.filter((followUp) => followUp.id !== followUpId))
+      setFollowUps((current) =>
+        current.filter((followUp) => followUp.id !== followUpId),
+      )
       setConfirmingDeleteFollowUpId(null)
     } catch (exception: unknown) {
       const message =
@@ -1068,36 +1264,27 @@ export default function AgendaPage() {
     }
   }
 
-  const handleToggleFollowUpStatus = async (
+  const handleFollowUpStatusChange = async (
     followUpId: string,
-    currentStatus: AgendaRow['status']
+    status: AgendaRow['status'],
   ) => {
+    setUpdatingFollowUpStatusId(followUpId)
+
     try {
       setAgendaError(null)
 
-      if (currentStatus === 'done') {
-        await WebhookService.updateNegotiationFollowUp(followUpId, {
-          status: 'pending',
-          completedAt: null
-        })
-      } else {
-        await WebhookService.updateNegotiationFollowUp(followUpId, {
-          status: 'done',
-          completedAt: new Date().toISOString()
-        })
-      }
+      const updatedFollowUp = await WebhookService.updateNegotiationFollowUp(
+        followUpId,
+        {
+          status,
+          completedAt: status === 'done' ? new Date().toISOString() : null,
+        },
+      )
 
       setFollowUps((current) =>
-        current.map((followUp) => {
-          if (followUp.id !== followUpId) {
-            return followUp
-          }
-
-          return {
-            ...followUp,
-            status: currentStatus === 'done' ? 'pending' : 'done'
-          }
-        })
+        current.map((followUp) =>
+          followUp.id === followUpId ? updatedFollowUp : followUp,
+        ),
       )
     } catch (exception: unknown) {
       const message =
@@ -1106,6 +1293,8 @@ export default function AgendaPage() {
           : 'Falha ao atualizar status do follow-up.'
 
       setAgendaError(message)
+    } finally {
+      setUpdatingFollowUpStatusId(null)
     }
   }
 
@@ -1128,7 +1317,11 @@ export default function AgendaPage() {
           return availableDateSortValues[0] ?? 'oldestFirst'
         }
 
-        return availableDateSortValues[(currentIndex + 1) % availableDateSortValues.length] ?? 'oldestFirst'
+        return (
+          availableDateSortValues[
+            (currentIndex + 1) % availableDateSortValues.length
+          ] ?? 'oldestFirst'
+        )
       })
       return
     }
@@ -1151,13 +1344,19 @@ export default function AgendaPage() {
           return availableStatusSortValues[0] ?? 'overdue'
         }
 
-        return availableStatusSortValues[(currentIndex + 1) % availableStatusSortValues.length] ?? 'overdue'
+        return (
+          availableStatusSortValues[
+            (currentIndex + 1) % availableStatusSortValues.length
+          ] ?? 'overdue'
+        )
       })
       return
     }
 
     if (sortKey === nextSortKey) {
-      setSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
+      setSortDirection((currentDirection) =>
+        currentDirection === 'asc' ? 'desc' : 'asc',
+      )
       return
     }
 
@@ -1175,7 +1374,9 @@ export default function AgendaPage() {
     }
 
     if (targetSortKey === 'status') {
-      return statusSortFocus === 'overdue' || statusSortFocus === 'today' ? '↑' : '↓'
+      return statusSortFocus === 'overdue' || statusSortFocus === 'today'
+        ? '↑'
+        : '↓'
     }
 
     return sortDirection === 'asc' ? '↑' : '↓'
@@ -1192,8 +1393,11 @@ export default function AgendaPage() {
     width: 'auto',
     display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: targetSortKey === 'dateTime' || targetSortKey === 'status' ? 'center' : 'flex-start',
-    gap: 6
+    justifyContent:
+      targetSortKey === 'dateTime' || targetSortKey === 'status'
+        ? 'center'
+        : 'flex-start',
+    gap: 6,
   })
 
   if (isMobile) {
@@ -1208,17 +1412,52 @@ export default function AgendaPage() {
           background: '#fafbfd',
           boxSizing: 'border-box',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Agenda</h1>
-          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-            <TotalCount isLoading={isLoading} total={filteredAgendaRows.length} />
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              color: '#111827',
+              lineHeight: 1.1,
+              fontWeight: 800,
+            }}
+          >
+            Agenda
+          </h1>
+          <span
+            style={{
+              width: 52,
+              color: '#6b7280',
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <TotalCount
+              isLoading={isLoading}
+              total={filteredAgendaRows.length}
+            />
           </span>
         </header>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 52px 52px',
+            gap: 12,
+          }}
+        >
           <input
             type="text"
             value={searchTerm}
@@ -1243,7 +1482,7 @@ export default function AgendaPage() {
                 : 'none',
               outline: 'none',
               fontSize: 16,
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           />
 
@@ -1257,9 +1496,12 @@ export default function AgendaPage() {
               width: 52,
               border: '1px solid #d1d5db',
               borderRadius: 14,
-              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
-                ? interactionTheme.clickableCardHoverBackground
-                : '#ffffff',
+              background:
+                isFiltersPanelOpen ||
+                isFiltersButtonHovered ||
+                activeFiltersCount > 0
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff',
               padding: 0,
               display: 'inline-flex',
               alignItems: 'center',
@@ -1267,7 +1509,7 @@ export default function AgendaPage() {
               cursor: 'pointer',
               color: '#111827',
               outline: 'none',
-              WebkitTapHighlightColor: 'transparent'
+              WebkitTapHighlightColor: 'transparent',
             }}
             aria-label="Abrir filtros"
           >
@@ -1293,7 +1535,7 @@ export default function AgendaPage() {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              flexShrink: 0
+              flexShrink: 0,
             }}
           >
             <Plus size={26} />
@@ -1312,7 +1554,7 @@ export default function AgendaPage() {
                 border: 'none',
                 background: 'transparent',
                 zIndex: 35,
-                cursor: 'default'
+                cursor: 'default',
               }}
             />
 
@@ -1328,43 +1570,75 @@ export default function AgendaPage() {
                 zIndex: 36,
                 padding: '14px 16px 12px',
                 boxSizing: 'border-box',
-                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)'
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
               }}
             >
               <div style={{ display: 'grid', gap: 2 }}>
                 <button
                   type="button"
-                  onClick={() => setFollowUpFilter((current) => (current === 'none' ? 'all' : 'none'))}
+                  onClick={() =>
+                    setFollowUpFilter((current) =>
+                      current === 'none' ? 'all' : 'none',
+                    )
+                  }
                   onMouseEnter={() => setHoveredFilterOption('followup-none')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(followUpFilter === 'none' || hoveredFilterOption === 'followup-none')}
+                  style={getFilterOptionStyle(
+                    followUpFilter === 'none' ||
+                      hoveredFilterOption === 'followup-none',
+                  )}
                 >
                   Sem follow-up
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFollowUpFilter((current) => (current === 'scheduled' ? 'all' : 'scheduled'))}
-                  onMouseEnter={() => setHoveredFilterOption('followup-scheduled')}
+                  onClick={() =>
+                    setFollowUpFilter((current) =>
+                      current === 'scheduled' ? 'all' : 'scheduled',
+                    )
+                  }
+                  onMouseEnter={() =>
+                    setHoveredFilterOption('followup-scheduled')
+                  }
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(followUpFilter === 'scheduled' || hoveredFilterOption === 'followup-scheduled')}
+                  style={getFilterOptionStyle(
+                    followUpFilter === 'scheduled' ||
+                      hoveredFilterOption === 'followup-scheduled',
+                  )}
                 >
                   Agendados
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFollowUpFilter((current) => (current === 'today' ? 'all' : 'today'))}
+                  onClick={() =>
+                    setFollowUpFilter((current) =>
+                      current === 'today' ? 'all' : 'today',
+                    )
+                  }
                   onMouseEnter={() => setHoveredFilterOption('followup-today')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(followUpFilter === 'today' || hoveredFilterOption === 'followup-today')}
+                  style={getFilterOptionStyle(
+                    followUpFilter === 'today' ||
+                      hoveredFilterOption === 'followup-today',
+                  )}
                 >
                   Hoje
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFollowUpFilter((current) => (current === 'overdue' ? 'all' : 'overdue'))}
-                  onMouseEnter={() => setHoveredFilterOption('followup-overdue')}
+                  onClick={() =>
+                    setFollowUpFilter((current) =>
+                      current === 'overdue' ? 'all' : 'overdue',
+                    )
+                  }
+                  onMouseEnter={() =>
+                    setHoveredFilterOption('followup-overdue')
+                  }
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(followUpFilter === 'overdue' || hoveredFilterOption === 'followup-overdue')}
+                  style={getFilterOptionStyle(
+                    followUpFilter === 'overdue' ||
+                      hoveredFilterOption === 'followup-overdue',
+                  )}
                 >
                   Atrasados
                 </button>
@@ -1374,7 +1648,14 @@ export default function AgendaPage() {
         ) : null}
 
         {activeFilterTags.length > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
             {activeFilterTags.map((tag) => (
               <span
                 key={tag.key}
@@ -1388,7 +1669,7 @@ export default function AgendaPage() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 10px',
-                  lineHeight: 1
+                  lineHeight: 1,
                 }}
               >
                 <span>{tag.label}</span>
@@ -1407,7 +1688,7 @@ export default function AgendaPage() {
                     lineHeight: 1,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
                   }}
                 >
                   X
@@ -1429,7 +1710,7 @@ export default function AgendaPage() {
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
                 zIndex: 40,
-                cursor: 'default'
+                cursor: 'default',
               }}
             />
 
@@ -1447,52 +1728,107 @@ export default function AgendaPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '22px 18px 12px', flexShrink: 0, borderBottom: 'none' }}>
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Novo follow-up</h2>
-                </div>
-
-                <button
-                  type="button"
-                  aria-label="Fechar criação de follow-up"
-                  onClick={closeAgendaFollowUpPanel}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '22px 18px 16px',
+                  flexShrink: 0,
+                  borderBottom: 'none',
+                }}
+              >
+                <h2
                   style={{
-                    height: 28,
-                    minWidth: 28,
-                    border: 'none',
-                    borderRadius: 6,
-                    background: 'transparent',
-                    color: '#6b7280',
-                    padding: '0 8px',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    lineHeight: 1
+                    margin: 0,
+                    color: '#0f172a',
+                    fontSize: 24,
+                    fontWeight: 700,
+                    lineHeight: 1,
                   }}
                 >
-                  X
-                </button>
+                  Novo follow-up
+                </h2>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label="Salvar follow-up"
+                    title="Salvar follow-up"
+                    onClick={() => void handleCreateAgendaFollowUp()}
+                    disabled={!canConfirmAgendaFollowUp}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: canConfirmAgendaFollowUp ? '#6b7280' : '#cbd5e1',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: canConfirmAgendaFollowUp
+                        ? 'pointer'
+                        : 'not-allowed',
+                    }}
+                  >
+                    <Save size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cancelar criação de follow-up"
+                    title="Cancelar criação"
+                    onClick={closeAgendaFollowUpPanel}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: '#6b7280',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div
                 style={{
                   display: 'grid',
-                  gap: 14,
+                  gap: 16,
                   flex: 1,
                   minHeight: 0,
                   overflowY: 'auto',
                   overflowX: 'hidden',
                   padding: '18px 18px 28px',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }}
               >
-                {agendaFollowUpError ? <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p> : null}
+                {agendaFollowUpError ? (
+                  <p style={{ margin: 0, color: '#b91c1c' }}>
+                    {agendaFollowUpError}
+                  </p>
+                ) : null}
 
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
+                  <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
                   <div style={{ position: 'relative' }}>
                     <select
                       value={agendaFollowUpDraft.leadId}
@@ -1501,59 +1837,120 @@ export default function AgendaPage() {
                           ...currentDraft,
                           leadId: event.target.value,
                           negotiationId: '',
-                          action: initialFollowUpActionDraft
+                          action: initialFollowUpActionDraft,
                         }))
                       }}
-                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.leadId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                      style={{
+                        ...agendaFollowUpSelectStyle,
+                        padding: '0 42px 0 14px',
+                        color: agendaFollowUpDraft.leadId
+                          ? '#111827'
+                          : '#6b7280',
+                        appearance: 'none',
+                      }}
                     >
                       <option value="">Selecione</option>
                       {activeLeads.map((lead, index) => (
-                        <option key={lead.id} value={lead.id}>{lead.name?.trim() || `Lead ${index + 1}`}</option>
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name?.trim() || `Lead ${index + 1}`}
+                        </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#6b7280',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <ChevronDown size={18} />
+                    </span>
                   </div>
                 </div>
 
                 {agendaFollowUpDraft.leadId ? (
                   <>
                     <div style={{ display: 'grid', gap: 8 }}>
-                      <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                      <label style={agendaFollowUpFieldLabelStyle}>
+                        Negócio
+                      </label>
                       <div style={{ position: 'relative' }}>
                         <select
                           value={agendaFollowUpDraft.negotiationId}
-                          onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, negotiationId: event.target.value }))}
-                          style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: agendaFollowUpDraft.negotiationId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                          onChange={(event) =>
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              negotiationId: event.target.value,
+                            }))
+                          }
+                          style={{
+                            ...agendaFollowUpSelectStyle,
+                            padding: '0 42px 0 14px',
+                            color: agendaFollowUpDraft.negotiationId
+                              ? '#111827'
+                              : '#6b7280',
+                            appearance: 'none',
+                          }}
                         >
                           <option value="">Selecione</option>
                           {agendaFollowUpBusinesses.map((negocio) => (
-                            <option key={negocio.id} value={negocio.id}>{negocio.title ?? 'Negócio sem nome'}</option>
+                            <option key={negocio.id} value={negocio.id}>
+                              {negocio.title ?? 'Negócio sem nome'}
+                            </option>
                           ))}
                         </select>
-                        <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: 12,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#6b7280',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <ChevronDown size={18} />
+                        </span>
                       </div>
                       {agendaFollowUpBusinesses.length === 0 ? (
-                        <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                        <p
+                          style={{ margin: 0, color: '#6b7280', fontSize: 12 }}
+                        >
+                          Esse lead ainda não tem negócios.
+                        </p>
                       ) : null}
                     </div>
 
                     {agendaFollowUpDraft.negotiationId ? (
                       <>
                         <div style={{ display: 'grid', gap: 8 }}>
-                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Nome do Follow-up</label>
+                          <label style={agendaFollowUpFieldLabelStyle}>
+                            Nome do Follow-up
+                          </label>
                           <input
                             type="text"
                             placeholder="Nome do Follow-up"
                             value={agendaFollowUpDraft.title}
-                            onChange={(event) => setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, title: event.target.value }))}
-                            style={{ height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 14px', color: '#111827', fontSize: 15, boxSizing: 'border-box' }}
+                            onChange={(event) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                title: event.target.value,
+                              }))
+                            }
+                            style={agendaFollowUpInputStyle}
                           />
                         </div>
 
                         <FollowUpActionFields
                           value={agendaFollowUpDraft.action}
                           onChange={(action) =>
-                            setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, action }))
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              action,
+                            }))
                           }
                           leadSource={selectedAgendaLead?.source}
                           leadEmail={selectedAgendaLead?.email}
@@ -1562,13 +1959,15 @@ export default function AgendaPage() {
                         />
 
                         <div style={{ display: 'grid', gap: 8 }}>
-                          <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Data/Hora</label>
+                          <label style={agendaFollowUpFieldLabelStyle}>
+                            Data/Hora
+                          </label>
                           <AgendaDateTimeInput
                             value={agendaFollowUpDraft.dueAt}
                             onChange={(nextValue) =>
                               setAgendaFollowUpDraft((currentDraft) => ({
                                 ...currentDraft,
-                                dueAt: nextValue
+                                dueAt: nextValue,
                               }))
                             }
                             isMobile
@@ -1582,24 +1981,6 @@ export default function AgendaPage() {
                     Selecione um lead para continuar.
                   </p>
                 )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 2 }}>
-                  <button
-                    type="button"
-                    onClick={closeAgendaFollowUpPanel}
-                    style={{ height: 42, border: '1px solid #d1d5db', borderRadius: 8, background: '#ffffff', color: '#0f172a', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateAgendaFollowUp()}
-                    disabled={!canConfirmAgendaFollowUp}
-                    style={{ height: 42, border: 'none', borderRadius: 8, background: canConfirmAgendaFollowUp ? '#1f7a4d' : '#9ca3af', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed' }}
-                  >
-                    Salvar
-                  </button>
-                </div>
               </div>
             </aside>
           </>
@@ -1612,211 +1993,409 @@ export default function AgendaPage() {
               inset: 0,
               zIndex: 50,
               background: '#ffffff',
-              overflow: 'hidden'
+              overflow: 'hidden',
             }}
           >
             <LeadPage onLeadUpdated={handleLeadUpdated} />
           </aside>
         ) : null}
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreatingAgendaFollowUp ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div
+          style={{
+            maxHeight: '100%',
+            minHeight: 0,
+            overflowY: isCreatingAgendaFollowUp ? 'hidden' : 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            paddingRight: 2,
+          }}
+        >
           {isLoading ? <MobileListSkeleton /> : null}
-          {!isLoading && paginatedAgendaRows.map((row) => {
-            const isHovered = hoveredFollowUpId === row.followUpId
-            const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
-            const lifecycleStatusTag = getFollowUpStatusPresentation(
-              row.status,
-              row.actions,
-              visualStatus === 'overdue'
-            )
-            const dateTagColors = getAgendaDateTagColors(visualStatus)
-            const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
-            const channelTagPresentation = getAgendaChannelTagPresentation(row.actions)
-
-            if (confirmingDeleteFollowUpId === row.followUpId) {
-              return (
-                <article
-                  key={row.followUpId}
-                  style={{
-                    background: interactionTheme.clickableCardHoverBackground,
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 18,
-                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                    padding: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12
-                  }}
-                >
-                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Follow-up?</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Cancelar exclusão de follow-up"
-                      onClick={() => setConfirmingDeleteFollowUpId(null)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      X
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Confirmar exclusão de follow-up"
-                      onClick={() => void handleDeleteFollowUp(row.followUpId)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                </article>
+          {!isLoading &&
+            paginatedAgendaRows.map((row) => {
+              const isHovered = hoveredFollowUpId === row.followUpId
+              const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
+              const lifecycleStatusTag = getFollowUpStatusPresentation(
+                row.status,
+                row.actions,
+                visualStatus === 'overdue',
               )
-            }
+              const dateTagColors = getAgendaDateTagColors(visualStatus)
+              const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
+              const channelTagPresentation = getAgendaChannelTagPresentation(
+                row.actions,
+              )
 
-            return (
-              <article
-                key={row.followUpId}
-                onClick={() => {
-                  navigate(`/agenda/${row.leadId}${location.search}`, {
-                    state: {
-                      initialLeadTab: 'negocios',
-                      initialBusinessId: row.negotiationId,
-                      initialBusinessTab: 'followups',
-                      initialBusinessFollowUpId: row.followUpId
-                    }
-                  })
-                }}
-                onMouseEnter={() => setHoveredFollowUpId(row.followUpId)}
-                onMouseLeave={() => setHoveredFollowUpId(null)}
-                style={{
-                  background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
-                  border: '1px solid #f1f5f9',
-                  borderRadius: 18,
-                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                  padding: 16,
-                  display: 'grid',
-                  gap: 18,
-                  cursor: 'pointer',
-                  transition: 'background 120ms ease'
-                }}
-              >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {row.title || 'Follow-up sem nome'}
-                    </h2>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }} onClick={(event) => event.stopPropagation()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              if (confirmingDeleteFollowUpId === row.followUpId) {
+                return (
+                  <article
+                    key={row.followUpId}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Deletar Follow-up?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
                       <button
                         type="button"
-                        aria-label={`Abrir conversa com ${row.leadName}`}
-                        title="Abrir conversa"
-                        onClick={() => {
-                          navigate(`/agenda/${row.leadId}${location.search}`, {
-                            state: { initialLeadTab: 'chat' }
-                          })
-                        }}
+                        aria-label="Cancelar exclusão de follow-up"
+                        onClick={() => setConfirmingDeleteFollowUpId(null)}
                         style={{
-                          height: 34,
-                          width: 34,
+                          height: 32,
+                          width: 32,
                           border: '1px solid #e5e7eb',
                           borderRadius: 8,
                           background: '#ffffff',
                           color: '#4b5563',
                           padding: 0,
                           cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
                         }}
                       >
-                        <MessageCircle size={16} />
+                        X
                       </button>
-
                       <button
                         type="button"
-                        aria-label={row.status === 'done' ? 'Desfazer conclusão do follow-up' : 'Concluir follow-up'}
-                        onClick={() => void handleToggleFollowUpStatus(row.followUpId, row.status)}
+                        aria-label="Confirmar exclusão de follow-up"
+                        onClick={() =>
+                          void handleDeleteFollowUp(row.followUpId)
+                        }
                         style={{
-                          height: 34,
-                          width: 34,
-                          border: row.status === 'done' ? '1px solid #86efac' : '1px solid #e5e7eb',
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
                           borderRadius: 8,
-                          background: row.status === 'done' ? '#ecfdf3' : '#ffffff',
-                          color: row.status === 'done' ? '#16a34a' : '#4b5563',
+                          background: '#ffffff',
+                          color: '#4b5563',
                           padding: 0,
-                          cursor: 'pointer'
+                          cursor: 'pointer',
                         }}
                       >
                         ✓
                       </button>
+                    </div>
+                  </article>
+                )
+              }
 
-                      <button
-                        type="button"
-                        aria-label="Excluir follow-up"
-                        onClick={() => setConfirmingDeleteFollowUpId(row.followUpId)}
+              return (
+                <article
+                  key={row.followUpId}
+                  onClick={() => {
+                    navigate(`/agenda/${row.leadId}${location.search}`, {
+                      state: {
+                        initialLeadTab: 'negocios',
+                        initialBusinessId: row.negotiationId,
+                        initialBusinessTab: 'followups',
+                        initialBusinessFollowUpId: row.followUpId,
+                      },
+                    })
+                  }}
+                  onMouseEnter={() => setHoveredFollowUpId(row.followUpId)}
+                  onMouseLeave={() => setHoveredFollowUpId(null)}
+                  style={{
+                    background: isHovered
+                      ? interactionTheme.clickableCardHoverBackground
+                      : '#ffffff',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'grid',
+                    gap: 18,
+                    cursor: 'pointer',
+                    transition: 'background 120ms ease',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'start',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <h2
                         style={{
-                          height: 34,
-                          width: 34,
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 8,
-                          background: '#ffffff',
-                          color: '#4b5563',
-                          padding: 0,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
+                          margin: 0,
+                          color: '#111827',
+                          fontSize: 20,
+                          lineHeight: 1.2,
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
                       >
-                        <Trash2 size={16} />
-                      </button>
+                        {row.title || 'Follow-up sem nome'}
+                      </h2>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        flexShrink: 0,
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`Abrir conversa com ${row.leadName}`}
+                          title="Abrir conversa"
+                          onClick={() => {
+                            navigate(
+                              `/agenda/${row.leadId}${location.search}`,
+                              {
+                                state: {
+                                  initialLeadTab: 'chat',
+                                  focusMessageId:
+                                    row.actions.find(
+                                      (action) => action.replyMessageId,
+                                    )?.replyMessageId ?? null,
+                                },
+                              },
+                            )
+                          }}
+                          style={{
+                            height: 34,
+                            width: 34,
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 8,
+                            background: '#ffffff',
+                            color: '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label="Excluir follow-up"
+                          onClick={() =>
+                            setConfirmingDeleteFollowUpId(row.followUpId)
+                          }
+                          style={{
+                            height: 34,
+                            width: 34,
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 8,
+                            background: '#ffffff',
+                            color: '#4b5563',
+                            padding: 0,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: dateTagColors.textColor, whiteSpace: 'nowrap', background: dateTagColors.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <CalendarClock size={12} />
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: 4 }}>{formattedDateTime}</span>
-                  </span>
-
-                  <span style={{ fontSize: 12, fontWeight: 700, color: lifecycleStatusTag.textColor, whiteSpace: 'nowrap', background: lifecycleStatusTag.background, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{lifecycleStatusTag.label}</span>
-                  </span>
-
-                  {channelTagPresentation ? (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: channelTagPresentation.textColor, whiteSpace: 'nowrap', background: channelTagPresentation.backgroundColor, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                      {channelTagPresentation.icon ? (
-                        <span style={{ display: 'inline-flex', marginRight: 4, lineHeight: 0 }}>
-                          {channelTagPresentation.icon}
-                        </span>
-                      ) : null}
-                      {channelTagPresentation.label}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: dateTagColors.textColor,
+                        whiteSpace: 'nowrap',
+                        background: dateTagColors.background,
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      <CalendarClock size={12} />
+                      <span
+                        style={{
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          marginLeft: 4,
+                        }}
+                      >
+                        {formattedDateTime}
+                      </span>
                     </span>
-                  ) : null}
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%', width: 'max-content', boxSizing: 'border-box', overflow: 'hidden', flex: '0 1 auto' }}>
-                    <span style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Lead: {row.leadName}</span>
-                  </span>
+                    <AgendaStatusTag
+                      disabled={updatingFollowUpStatusId === row.followUpId}
+                      presentation={lifecycleStatusTag}
+                      status={row.status}
+                      onChange={(status) =>
+                        void handleFollowUpStatusChange(row.followUpId, status)
+                      }
+                    />
 
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', padding: '7px 12px', lineHeight: 1.1, minWidth: 0, maxWidth: '100%', width: 'max-content', boxSizing: 'border-box', overflow: 'hidden', flex: '0 1 auto' }}>
-                    <span style={{ display: 'block', minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Negócio: {row.negotiationTitle}</span>
-                  </span>
-                </div>
-              </article>
-            )
-          })}
+                    {channelTagPresentation ? (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: channelTagPresentation.textColor,
+                          whiteSpace: 'nowrap',
+                          background: channelTagPresentation.backgroundColor,
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1.1,
+                        }}
+                      >
+                        {channelTagPresentation.icon ? (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              marginRight: 4,
+                              lineHeight: 0,
+                            }}
+                          >
+                            {channelTagPresentation.icon}
+                          </span>
+                        ) : null}
+                        {channelTagPresentation.label}
+                      </span>
+                    ) : null}
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#2563eb',
+                        background: '#dbeafe',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                        minWidth: 0,
+                        maxWidth: '100%',
+                        width: 'max-content',
+                        boxSizing: 'border-box',
+                        overflow: 'hidden',
+                        flex: '0 1 auto',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'block',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Lead: {row.leadName}
+                      </span>
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#1f7a4d',
+                        background: '#dcfce7',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                        minWidth: 0,
+                        maxWidth: '100%',
+                        width: 'max-content',
+                        boxSizing: 'border-box',
+                        overflow: 'hidden',
+                        flex: '0 1 auto',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'block',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Negócio: {row.negotiationTitle}
+                      </span>
+                    </span>
+                  </div>
+                </article>
+              )
+            })}
 
           {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum follow-up encontrado.</div>
+            <div
+              style={{
+                color: '#6b7280',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              Nenhum follow-up encontrado.
+            </div>
           ) : null}
           {error ? (
-            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+            <div
+              style={{
+                color: '#b91c1c',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              {error}
+            </div>
           ) : null}
         </div>
-
       </section>
     )
   }
@@ -1832,7 +2411,7 @@ export default function AgendaPage() {
         background: '#f3f4f6',
         boxSizing: 'border-box',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
       <header
@@ -1841,10 +2420,18 @@ export default function AgendaPage() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          padding: '4px 2px'
+          padding: '4px 2px',
         }}
       >
-        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
+        <h1
+          style={{
+            margin: 0,
+            color: '#111827',
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}
+        >
           Agenda
         </h1>
 
@@ -1871,7 +2458,7 @@ export default function AgendaPage() {
               boxShadow: isSearchInputFocused
                 ? interactionTheme.inputFocusBoxShadow
                 : 'none',
-              outline: 'none'
+              outline: 'none',
             }}
           />
 
@@ -1884,9 +2471,12 @@ export default function AgendaPage() {
               height: 38,
               border: '1px solid #d1d5db',
               borderRadius: 8,
-              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
-                ? interactionTheme.clickableCardHoverBackground
-                : '#ffffff',
+              background:
+                isFiltersPanelOpen ||
+                isFiltersButtonHovered ||
+                activeFiltersCount > 0
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff',
               width: 38,
               padding: 0,
               display: 'inline-flex',
@@ -1895,7 +2485,7 @@ export default function AgendaPage() {
               cursor: 'pointer',
               color: '#111827',
               outline: 'none',
-              WebkitTapHighlightColor: 'transparent'
+              WebkitTapHighlightColor: 'transparent',
             }}
             aria-label="Abrir filtros"
           >
@@ -1917,7 +2507,7 @@ export default function AgendaPage() {
               color: '#ffffff',
               padding: '0 16px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Adicionar FollowUp
@@ -1937,7 +2527,7 @@ export default function AgendaPage() {
               border: 'none',
               background: 'transparent',
               zIndex: 35,
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
 
@@ -1952,19 +2542,22 @@ export default function AgendaPage() {
               borderRadius: 18,
               zIndex: 36,
               padding: '14px 16px 12px',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           >
             <div style={{ display: 'grid', gap: 2 }}>
               <button
                 type="button"
                 onClick={() =>
-                  setFollowUpFilter((current) => (current === 'none' ? 'all' : 'none'))
+                  setFollowUpFilter((current) =>
+                    current === 'none' ? 'all' : 'none',
+                  )
                 }
                 onMouseEnter={() => setHoveredFilterOption('followup-none')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
                 style={getFilterOptionStyle(
-                  followUpFilter === 'none' || hoveredFilterOption === 'followup-none'
+                  followUpFilter === 'none' ||
+                    hoveredFilterOption === 'followup-none',
                 )}
               >
                 Sem follow-up
@@ -1973,14 +2566,16 @@ export default function AgendaPage() {
                 type="button"
                 onClick={() =>
                   setFollowUpFilter((current) =>
-                    current === 'scheduled' ? 'all' : 'scheduled'
+                    current === 'scheduled' ? 'all' : 'scheduled',
                   )
                 }
-                onMouseEnter={() => setHoveredFilterOption('followup-scheduled')}
+                onMouseEnter={() =>
+                  setHoveredFilterOption('followup-scheduled')
+                }
                 onMouseLeave={() => setHoveredFilterOption(null)}
                 style={getFilterOptionStyle(
                   followUpFilter === 'scheduled' ||
-                    hoveredFilterOption === 'followup-scheduled'
+                    hoveredFilterOption === 'followup-scheduled',
                 )}
               >
                 Agendados
@@ -1988,12 +2583,15 @@ export default function AgendaPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setFollowUpFilter((current) => (current === 'today' ? 'all' : 'today'))
+                  setFollowUpFilter((current) =>
+                    current === 'today' ? 'all' : 'today',
+                  )
                 }
                 onMouseEnter={() => setHoveredFilterOption('followup-today')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
                 style={getFilterOptionStyle(
-                  followUpFilter === 'today' || hoveredFilterOption === 'followup-today'
+                  followUpFilter === 'today' ||
+                    hoveredFilterOption === 'followup-today',
                 )}
               >
                 Hoje
@@ -2002,13 +2600,14 @@ export default function AgendaPage() {
                 type="button"
                 onClick={() =>
                   setFollowUpFilter((current) =>
-                    current === 'overdue' ? 'all' : 'overdue'
+                    current === 'overdue' ? 'all' : 'overdue',
                   )
                 }
                 onMouseEnter={() => setHoveredFilterOption('followup-overdue')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
                 style={getFilterOptionStyle(
-                  followUpFilter === 'overdue' || hoveredFilterOption === 'followup-overdue'
+                  followUpFilter === 'overdue' ||
+                    hoveredFilterOption === 'followup-overdue',
                 )}
               >
                 Atrasados
@@ -2030,7 +2629,7 @@ export default function AgendaPage() {
               border: 'none',
               background: 'transparent',
               zIndex: 35,
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
 
@@ -2046,8 +2645,10 @@ export default function AgendaPage() {
               background: '#ffffff',
               overflow: 'hidden',
               boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isAgendaFollowUpPanelEntering ? 'translateX(0)' : 'translateX(100%)',
-              transition: `transform ${leadPanelTransitionMs}ms ease`
+              transform: isAgendaFollowUpPanelEntering
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+              transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
             <section
@@ -2056,36 +2657,85 @@ export default function AgendaPage() {
                 minHeight: 0,
                 boxSizing: 'border-box',
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '24px 24px 12px', flexShrink: 0, borderBottom: 'none' }}>
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
-                    Novo follow-up
-                  </h2>
-                </div>
-
-                <button
-                  type="button"
-                  aria-label="Fechar criação de follow-up"
-                  onClick={closeAgendaFollowUpPanel}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '24px 24px 16px',
+                  flexShrink: 0,
+                  borderBottom: 'none',
+                }}
+              >
+                <h2
                   style={{
-                    height: 28,
-                    minWidth: 28,
-                    border: 'none',
-                    borderRadius: 6,
-                    background: 'transparent',
-                    color: '#6b7280',
-                    padding: '0 8px',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    lineHeight: 1
+                    margin: 0,
+                    color: '#0f172a',
+                    fontSize: 26,
+                    fontWeight: 800,
+                    lineHeight: 1,
                   }}
                 >
-                  X
-                </button>
+                  Novo follow-up
+                </h2>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label="Salvar follow-up"
+                    title="Salvar follow-up"
+                    onClick={() => void handleCreateAgendaFollowUp()}
+                    disabled={!canConfirmAgendaFollowUp}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: canConfirmAgendaFollowUp ? '#6b7280' : '#cbd5e1',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: canConfirmAgendaFollowUp
+                        ? 'pointer'
+                        : 'not-allowed',
+                    }}
+                  >
+                    <Save size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cancelar criação de follow-up"
+                    title="Cancelar criação"
+                    onClick={closeAgendaFollowUpPanel}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: '#6b7280',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <article
@@ -2097,26 +2747,26 @@ export default function AgendaPage() {
                   boxSizing: 'border-box',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 18,
-                  maxWidth: 'none'
+                  gap: 16,
+                  maxWidth: 'none',
                 }}
               >
                 {agendaFollowUpError ? (
-                  <p style={{ margin: 0, color: '#b91c1c' }}>{agendaFollowUpError}</p>
+                  <p style={{ margin: 0, color: '#b91c1c' }}>
+                    {agendaFollowUpError}
+                  </p>
                 ) : null}
-
-                <div style={{ borderBottom: '1px solid #e5e7eb' }} />
 
                 <div
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'minmax(0, 1fr)',
-                    gap: 12,
-                    alignContent: 'start'
+                    gap: 16,
+                    alignContent: 'start',
                   }}
                 >
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Lead</label>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
                     <select
                       value={agendaFollowUpDraft.leadId}
                       onChange={(event) => {
@@ -2124,19 +2774,10 @@ export default function AgendaPage() {
                           ...currentDraft,
                           leadId: event.target.value,
                           negotiationId: '',
-                          action: initialFollowUpActionDraft
+                          action: initialFollowUpActionDraft,
                         }))
                       }}
-                      style={{
-                        width: '100%',
-                        height: 36,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        padding: '0 10px',
-                        color: '#111827',
-                        fontSize: 14,
-                        boxSizing: 'border-box'
-                      }}
+                      style={agendaFollowUpSelectStyle}
                     >
                       <option value="">Selecione</option>
                       {activeLeads.map((lead, index) => (
@@ -2148,27 +2789,20 @@ export default function AgendaPage() {
                   </div>
 
                   {agendaFollowUpDraft.leadId ? (
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Negócio</label>
-                      <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={agendaFollowUpFieldLabelStyle}>
+                        Negócio
+                      </label>
+                      <div style={{ display: 'grid', gap: 8 }}>
                         <select
                           value={agendaFollowUpDraft.negotiationId}
                           onChange={(event) =>
                             setAgendaFollowUpDraft((currentDraft) => ({
                               ...currentDraft,
-                              negotiationId: event.target.value
+                              negotiationId: event.target.value,
                             }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            color: '#111827',
-                            fontSize: 14,
-                            boxSizing: 'border-box'
-                          }}
+                          style={agendaFollowUpSelectStyle}
                         >
                           <option value="">Selecione</option>
                           {agendaFollowUpBusinesses.map((negocio) => (
@@ -2178,7 +2812,15 @@ export default function AgendaPage() {
                           ))}
                         </select>
                         {agendaFollowUpBusinesses.length === 0 ? (
-                          <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                          <p
+                            style={{
+                              margin: 0,
+                              color: '#6b7280',
+                              fontSize: 12,
+                            }}
+                          >
+                            Esse lead ainda não tem negócios.
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -2190,8 +2832,10 @@ export default function AgendaPage() {
 
                   {agendaFollowUpDraft.negotiationId ? (
                     <>
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Nome do Follow-up</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={agendaFollowUpFieldLabelStyle}>
+                          Nome do Follow-up
+                        </label>
                         <input
                           type="text"
                           placeholder="Nome do Follow-up"
@@ -2199,26 +2843,20 @@ export default function AgendaPage() {
                           onChange={(event) =>
                             setAgendaFollowUpDraft((currentDraft) => ({
                               ...currentDraft,
-                              title: event.target.value
+                              title: event.target.value,
                             }))
                           }
-                          style={{
-                            width: '100%',
-                            height: 36,
-                            border: '1px solid #d1d5db',
-                            borderRadius: 8,
-                            padding: '0 10px',
-                            color: '#111827',
-                            fontSize: 16,
-                            boxSizing: 'border-box'
-                          }}
+                          style={agendaFollowUpInputStyle}
                         />
                       </div>
 
                       <FollowUpActionFields
                         value={agendaFollowUpDraft.action}
                         onChange={(action) =>
-                          setAgendaFollowUpDraft((currentDraft) => ({ ...currentDraft, action }))
+                          setAgendaFollowUpDraft((currentDraft) => ({
+                            ...currentDraft,
+                            action,
+                          }))
                         }
                         leadSource={selectedAgendaLead?.source}
                         leadEmail={selectedAgendaLead?.email}
@@ -2226,62 +2864,25 @@ export default function AgendaPage() {
                         isMobile={false}
                       />
 
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <label style={{ color: '#475569', fontSize: 16, fontWeight: 700 }}>Data/Hora</label>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={agendaFollowUpFieldLabelStyle}>
+                          Data/Hora
+                        </label>
                         <div>
                           <AgendaDateTimeInput
                             value={agendaFollowUpDraft.dueAt}
                             onChange={(nextValue) =>
                               setAgendaFollowUpDraft((currentDraft) => ({
                                 ...currentDraft,
-                                dueAt: nextValue
+                                dueAt: nextValue,
                               }))
                             }
                             isMobile={false}
-                            compact
                           />
                         </div>
                       </div>
                     </>
                   ) : null}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 2 }}>
-                  <button
-                    type="button"
-                    onClick={closeAgendaFollowUpPanel}
-                    style={{
-                      minWidth: 120,
-                      height: 42,
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      background: '#ffffff',
-                      color: '#0f172a',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateAgendaFollowUp()}
-                    disabled={!canConfirmAgendaFollowUp}
-                    style={{
-                      minWidth: 120,
-                      height: 42,
-                      border: 'none',
-                      borderRadius: 8,
-                      background: canConfirmAgendaFollowUp ? '#1f7a4d' : '#9ca3af',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: canConfirmAgendaFollowUp ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Salvar
-                  </button>
                 </div>
               </article>
             </section>
@@ -2294,7 +2895,7 @@ export default function AgendaPage() {
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
         {activeFilterTags.length > 0 ? (
@@ -2305,7 +2906,7 @@ export default function AgendaPage() {
               gap: 8,
               flexWrap: 'wrap',
               marginBottom: 10,
-              padding: '0 2px'
+              padding: '0 2px',
             }}
           >
             {activeFilterTags.map((tag) => (
@@ -2321,7 +2922,7 @@ export default function AgendaPage() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 10px',
-                  lineHeight: 1
+                  lineHeight: 1,
                 }}
               >
                 <span>{tag.label}</span>
@@ -2340,7 +2941,7 @@ export default function AgendaPage() {
                     lineHeight: 1,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
                   }}
                 >
                   X
@@ -2359,7 +2960,7 @@ export default function AgendaPage() {
             overflowY: 'auto',
             maxHeight: '100%',
             minHeight: 0,
-            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
+            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
           }}
         >
           <table
@@ -2367,7 +2968,7 @@ export default function AgendaPage() {
               width: '100%',
               borderCollapse: 'collapse',
               background: '#ffffff',
-              tableLayout: 'fixed'
+              tableLayout: 'fixed',
             }}
           >
             <colgroup>
@@ -2380,56 +2981,158 @@ export default function AgendaPage() {
               <col style={{ width: '9%' }} />
             </colgroup>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+              <tr
+                style={{
+                  textAlign: 'left',
+                  borderBottom: '1px solid #ececec',
+                  background: '#f3f4f6',
+                }}
+              >
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('title')}
                     style={getHeaderSortButtonStyle('title')}
                   >
-                    Follow-up <span style={{ fontSize: 11 }}>{getSortIndicator('title')}</span>
+                    Follow-up{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('title')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('lead')}
                     style={getHeaderSortButtonStyle('lead')}
                   >
-                    Lead <span style={{ fontSize: 11 }}>{getSortIndicator('lead')}</span>
+                    Lead{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('lead')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('negotiation')}
                     style={getHeaderSortButtonStyle('negotiation')}
                   >
-                    Negócio <span style={{ fontSize: 11 }}>{getSortIndicator('negotiation')}</span>
+                    Negócio{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('negotiation')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Canal
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('dateTime')}
                     style={getHeaderSortButtonStyle('dateTime')}
                   >
-                    Data/Hora <span style={{ fontSize: 11 }}>{getSortIndicator('dateTime')}</span>
+                    Data/Hora{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('dateTime')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('status')}
                     style={getHeaderSortButtonStyle('status')}
                   >
-                    Status <span style={{ fontSize: 11 }}>{getSortIndicator('status')}</span>
+                    Status{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('status')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Ações
                 </th>
               </tr>
@@ -2445,348 +3148,410 @@ export default function AgendaPage() {
                     { width: '68%', align: 'center' },
                     { width: '72%', align: 'center' },
                     { width: '68%', align: 'center' },
-                    { width: 32, align: 'center' }
+                    { width: 32, align: 'center' },
                   ]}
                 />
               ) : null}
-              {!isLoading && paginatedAgendaRows.map((row) => {
-                const isHovered = hoveredFollowUpId === row.followUpId
-                const visualStatus = getAgendaVisualStatus(row.status, row.dueAt)
-                const lifecycleStatusTag = getFollowUpStatusPresentation(
-                  row.status,
-                  row.actions,
-                  visualStatus === 'overdue'
-                )
-                const channelTagPresentation = getAgendaChannelTagPresentation(row.actions)
+              {!isLoading &&
+                paginatedAgendaRows.map((row) => {
+                  const isHovered = hoveredFollowUpId === row.followUpId
+                  const visualStatus = getAgendaVisualStatus(
+                    row.status,
+                    row.dueAt,
+                  )
+                  const lifecycleStatusTag = getFollowUpStatusPresentation(
+                    row.status,
+                    row.actions,
+                    visualStatus === 'overdue',
+                  )
+                  const channelTagPresentation =
+                    getAgendaChannelTagPresentation(row.actions)
 
-                if (confirmingDeleteFollowUpId === row.followUpId) {
+                  if (confirmingDeleteFollowUpId === row.followUpId) {
+                    return (
+                      <tr
+                        key={row.followUpId}
+                        style={{
+                          borderBottom: '1px solid #f3f4f6',
+                          background:
+                            interactionTheme.clickableCardHoverBackground,
+                        }}
+                        onMouseEnter={() =>
+                          setHoveredFollowUpId(row.followUpId)
+                        }
+                        onMouseLeave={() => setHoveredFollowUpId(null)}
+                      >
+                        <td
+                          colSpan={6}
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Deletar Follow-up?
+                        </td>
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Cancelar exclusão de follow-up"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setConfirmingDeleteFollowUpId(null)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              X
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Confirmar exclusão de follow-up"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleDeleteFollowUp(row.followUpId)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr
                       key={row.followUpId}
+                      onClick={() => {
+                        navigate(`/agenda/${row.leadId}${location.search}`, {
+                          state: {
+                            initialLeadTab: 'negocios',
+                            initialBusinessId: row.negotiationId,
+                            initialBusinessTab: 'followups',
+                            initialBusinessFollowUpId: row.followUpId,
+                          },
+                        })
+                      }}
                       style={{
+                        height: AGENDA_TABLE_ROW_HEIGHT_PX,
                         borderBottom: '1px solid #f3f4f6',
-                        background: interactionTheme.clickableCardHoverBackground
+                        background: isHovered
+                          ? interactionTheme.clickableCardHoverBackground
+                          : '#ffffff',
+                        cursor: 'pointer',
                       }}
                       onMouseEnter={() => setHoveredFollowUpId(row.followUpId)}
                       onMouseLeave={() => setHoveredFollowUpId(null)}
                     >
+                      <td style={{ padding: '14px 16px', color: '#111827' }}>
+                        <DelayedTooltip content={row.title || '-'}>
+                          <span
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'normal',
+                              lineHeight: '18px',
+                              fontSize: 14,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {row.title || '-'}
+                          </span>
+                        </DelayedTooltip>
+                      </td>
                       <td
-                        colSpan={6}
                         style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          fontSize: 13,
-                          fontWeight: 600
+                          padding: wrappedAgendaLeadNames[row.followUpId]
+                            ? '6px 16px'
+                            : '14px 16px',
+                          color: '#64748b',
                         }}
                       >
-                        Deletar Follow-up?
+                        <DelayedTooltip content={row.leadName}>
+                          <span
+                            ref={(element) => {
+                              setAgendaLeadNameRef(row.followUpId, element)
+                            }}
+                            style={{
+                              display: 'block',
+                              maxWidth: '100%',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: 14,
+                            }}
+                          >
+                            {row.leadName}
+                          </span>
+                        </DelayedTooltip>
                       </td>
                       <td
                         style={{
                           padding: '14px 16px',
-                          color: '#2f2f2f',
-                          textAlign: 'left'
+                          color: '#64748b',
+                          fontSize: 14,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button
-                            type="button"
-                            aria-label="Cancelar exclusão de follow-up"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setConfirmingDeleteFollowUpId(null)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
+                        <DelayedTooltip content={row.negotiationTitle}>
+                          <span
                             style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            X
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Confirmar exclusão de follow-up"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleDeleteFollowUp(row.followUpId)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
-                            style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                          >
-                            ✓
-                          </button>
-                        </div>
+                            {row.negotiationTitle}
+                          </span>
+                        </DelayedTooltip>
                       </td>
-                    </tr>
-                  )
-                }
-
-                return (
-                  <tr
-                    key={row.followUpId}
-                    onClick={() => {
-                      navigate(`/agenda/${row.leadId}${location.search}`, {
-                        state: {
-                          initialLeadTab: 'negocios',
-                          initialBusinessId: row.negotiationId,
-                          initialBusinessTab: 'followups',
-                          initialBusinessFollowUpId: row.followUpId
-                        }
-                      })
-                    }}
-                    style={{
-                      height: AGENDA_TABLE_ROW_HEIGHT_PX,
-                      borderBottom: '1px solid #f3f4f6',
-                      background:
-                        isHovered
-                          ? interactionTheme.clickableCardHoverBackground
-                          : '#ffffff',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={() => setHoveredFollowUpId(row.followUpId)}
-                    onMouseLeave={() => setHoveredFollowUpId(null)}
-                  >
-                    <td style={{ padding: '14px 16px', color: '#111827' }}>
-                      <DelayedTooltip content={row.title || '-'}>
-                        <span
-                          style={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'normal',
-                            lineHeight: '18px',
-                            fontSize: 14,
-                            fontWeight: 700
-                          }}
-                        >
-                          {row.title || '-'}
-                        </span>
-                      </DelayedTooltip>
-                    </td>
-                    <td
-                      style={{
-                        padding: wrappedAgendaLeadNames[row.followUpId]
-                          ? '6px 16px'
-                          : '14px 16px',
-                        color: '#64748b'
-                      }}
-                    >
-                      <DelayedTooltip content={row.leadName}>
-                        <span
-                          ref={(element) => {
-                            setAgendaLeadNameRef(row.followUpId, element)
-                          }}
-                          style={{
-                            display: 'block',
-                            maxWidth: '100%',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: 14
-                          }}
-                        >
-                          {row.leadName}
-                        </span>
-                      </DelayedTooltip>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#64748b', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <DelayedTooltip content={row.negotiationTitle}>
-                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.negotiationTitle}</span>
-                      </DelayedTooltip>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {channelTagPresentation ? (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: channelTagPresentation.textColor,
-                            whiteSpace: 'nowrap',
-                            background: channelTagPresentation.backgroundColor,
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          {channelTagPresentation.icon ? (
-                            <span style={{ display: 'inline-flex', marginRight: 4, lineHeight: 0 }}>
-                              {channelTagPresentation.icon}
-                            </span>
-                          ) : null}
-                          {channelTagPresentation.label}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {(() => {
-                        const dateStatus = getAgendaVisualStatus(row.status, row.dueAt)
-                        const dateTagColors = getAgendaDateTagColors(dateStatus)
-                        const formattedDateTime = formatAgendaDateTimeLabel(row.dueAt)
-
-                        if (formattedDateTime === '-') {
-                          return <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                        }
-
-                        return (
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {channelTagPresentation ? (
                           <span
                             style={{
                               fontSize: 12,
                               fontWeight: 700,
-                              color: dateTagColors.textColor,
+                              color: channelTagPresentation.textColor,
                               whiteSpace: 'nowrap',
-                              background: dateTagColors.background,
+                              background:
+                                channelTagPresentation.backgroundColor,
                               borderRadius: 6,
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               padding: '7px 12px',
-                              lineHeight: 1.1
+                              lineHeight: 1.1,
                             }}
                           >
-                            {formattedDateTime}
+                            {channelTagPresentation.icon ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  marginRight: 4,
+                                  lineHeight: 0,
+                                }}
+                              >
+                                {channelTagPresentation.icon}
+                              </span>
+                            ) : null}
+                            {channelTagPresentation.label}
                           </span>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      <span
+                        ) : null}
+                      </td>
+                      <td
                         style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: lifecycleStatusTag.textColor,
-                          whiteSpace: 'nowrap',
-                          background: lifecycleStatusTag.background,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
                         }}
                       >
-                        {lifecycleStatusTag.label}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#111827',
-                        textAlign: 'left'
-                      }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button
-                          type="button"
-                          aria-label={`Abrir conversa com ${row.leadName}`}
-                          title="Abrir conversa"
-                          onClick={() => {
-                            navigate(`/agenda/${row.leadId}${location.search}`, {
-                              state: { initialLeadTab: 'chat' }
-                            })
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <MessageCircle size={14} />
-                        </button>
+                        {(() => {
+                          const dateStatus = getAgendaVisualStatus(
+                            row.status,
+                            row.dueAt,
+                          )
+                          const dateTagColors =
+                            getAgendaDateTagColors(dateStatus)
+                          const formattedDateTime = formatAgendaDateTimeLabel(
+                            row.dueAt,
+                          )
 
-                        <button
-                          type="button"
-                          aria-label={
-                            row.status === 'done'
-                              ? 'Desfazer conclusão do follow-up'
-                              : 'Concluir follow-up'
+                          if (formattedDateTime === '-') {
+                            return (
+                              <span style={{ color: '#9ca3af', fontSize: 13 }}>
+                                -
+                              </span>
+                            )
                           }
-                          onClick={() => {
-                            void handleToggleFollowUpStatus(row.followUpId, row.status)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: row.status === 'done' ? '#16a34a' : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ✓
-                        </button>
 
-                        <button
-                          type="button"
-                          aria-label="Excluir follow-up"
-                          onClick={() => {
-                            setConfirmingDeleteFollowUpId(row.followUpId)
-                          }}
+                          return (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: dateTagColors.textColor,
+                                whiteSpace: 'nowrap',
+                                background: dateTagColors.background,
+                                borderRadius: 6,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '7px 12px',
+                                lineHeight: 1.1,
+                              }}
+                            >
+                              {formattedDateTime}
+                            </span>
+                          )
+                        })()}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <AgendaStatusTag
+                          disabled={updatingFollowUpStatusId === row.followUpId}
+                          presentation={lifecycleStatusTag}
+                          status={row.status}
+                          onChange={(status) =>
+                            void handleFollowUpStatusChange(
+                              row.followUpId,
+                              status,
+                            )
+                          }
+                        />
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div
                           style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
+                            display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            width: '100%',
+                            gap: 8,
                           }}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                          <button
+                            type="button"
+                            aria-label={`Abrir conversa com ${row.leadName}`}
+                            title="Abrir conversa"
+                            onClick={() => {
+                              navigate(
+                                `/agenda/${row.leadId}${location.search}`,
+                                {
+                                  state: {
+                                    initialLeadTab: 'chat',
+                                    focusMessageId:
+                                      row.actions.find(
+                                        (action) => action.replyMessageId,
+                                      )?.replyMessageId ?? null,
+                                  },
+                                },
+                              )
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label="Excluir follow-up"
+                            onClick={() => {
+                              setConfirmingDeleteFollowUpId(row.followUpId)
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
 
               {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '14px 16px', color: '#6b7280' }}>
+                  <td
+                    colSpan={7}
+                    style={{ padding: '14px 16px', color: '#6b7280' }}
+                  >
                     Nenhum follow-up encontrado.
                   </td>
                 </tr>
@@ -2803,13 +3568,15 @@ export default function AgendaPage() {
             marginTop: 10,
             color: '#6b7280',
             fontSize: 13,
-            padding: '0 8px'
+            padding: '0 8px',
           }}
         >
           <TotalCount isLoading={isLoading} total={filteredAgendaRows.length} />
         </div>
 
-        {error ? <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p> : null}
+        {error ? (
+          <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p>
+        ) : null}
 
         {isLeadSelected ? (
           <button
@@ -2827,7 +3594,7 @@ export default function AgendaPage() {
               padding: 0,
               margin: 0,
               background: 'transparent',
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
         ) : null}
@@ -2845,8 +3612,10 @@ export default function AgendaPage() {
               background: '#ffffff',
               overflow: 'hidden',
               boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isLeadPanelEntering ? 'translateX(0)' : 'translateX(100%)',
-              transition: `transform ${leadPanelTransitionMs}ms ease`
+              transform: isLeadPanelEntering
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+              transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
             <LeadPage onLeadUpdated={handleLeadUpdated} />

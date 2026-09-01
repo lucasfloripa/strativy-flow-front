@@ -51,6 +51,8 @@ export type LeadStage =
   | 'WON'
   | 'LOST'
 
+export type NegotiationStatus = 'OPEN' | 'WON' | 'LOST'
+
 export type LeadResponse = {
   id: string
   name?: string | null
@@ -161,14 +163,97 @@ export type NegotiationNote = {
   createdAt?: string
 }
 
+export type NegotiationCostType =
+  | 'PRODUCT'
+  | 'SERVICE'
+  | 'COMMISSION'
+  | 'TAX'
+  | 'FREIGHT'
+  | 'FEE'
+  | 'OTHER'
+
+export type NegotiationCostResponse = {
+  id: string
+  negotiationFinancialId: string
+  description: string
+  type: NegotiationCostType
+  amount: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateNegotiationCostPayload = {
+  description: string
+  type: NegotiationCostType
+  amount: string
+}
+
+export type UpdateNegotiationCostPayload = Partial<CreateNegotiationCostPayload>
+
+export type NegotiationPaymentStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'CANCELED'
+
+export type NegotiationPaymentMethod =
+  | 'PIX'
+  | 'CREDIT_CARD'
+  | 'DEBIT_CARD'
+  | 'OTHER'
+
+export type NegotiationPaymentResponse = {
+  id: string
+  negotiationFinancialId: string
+  amount: string
+  paymentMethod: NegotiationPaymentMethod
+  dueDate: string
+  paidAt?: string | null
+  status: NegotiationPaymentStatus
+  proofAttachmentId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateNegotiationPaymentPayload = {
+  amount: string
+  paymentMethod: NegotiationPaymentMethod
+  dueDate: string
+  paidAt?: string | null
+  status: NegotiationPaymentStatus
+  proofAttachmentId?: string | null
+}
+
+export type UpdateNegotiationPaymentPayload =
+  Partial<CreateNegotiationPaymentPayload>
+
+export type CreateNegotiationPaymentInstallmentsPayload = {
+  amount: string
+  paymentMethod: NegotiationPaymentMethod
+  dueDate: string
+  installmentCount: number
+}
+
+export type NegotiationFinancialResponse = {
+  id: string
+  negotiationId: string
+  saleAmount: string
+  discountAmount?: string | null
+  costs?: NegotiationCostResponse[]
+  payments?: NegotiationPaymentResponse[]
+  createdAt?: string
+  updatedAt?: string
+}
+
 export type NegotiationResponse = {
   id: string
   leadId: string
   title?: string | null
   stage: LeadStage
+  status: NegotiationStatus
   temperature?: NegotiationTemperature | null
   negotiationType?: NegotiationType | null
-  value?: string | null
+  financial?: NegotiationFinancialResponse | null
   notes?: NegotiationNote[] | null
   closedAt?: string | null
   stageUpdatedAt?: string | null
@@ -180,9 +265,9 @@ export type CreateNegotiationPayload = {
   leadId: string
   title?: string
   stage?: LeadStage
+  status?: NegotiationStatus
   temperature?: NegotiationTemperature
   negotiationType?: NegotiationType
-  value?: string
   notes?: NegotiationNote[]
   closedAt?: string | null
   stageUpdatedAt?: string | null
@@ -192,13 +277,21 @@ export type UpdateNegotiationPayload = {
   leadId?: string
   title?: string
   stage?: LeadStage
+  status?: NegotiationStatus
   temperature?: NegotiationTemperature | null
   negotiationType?: NegotiationType | null
-  value?: string | null
   notes?: NegotiationNote[] | null
   closedAt?: string | null
   stageUpdatedAt?: string | null
 }
+
+export type CreateNegotiationFinancialPayload = {
+  saleAmount: string
+  discountAmount?: string
+}
+
+export type UpdateNegotiationFinancialPayload =
+  Partial<CreateNegotiationFinancialPayload>
 
 export type NegotiationFollowUpResponse = {
   id: string
@@ -213,9 +306,14 @@ export type NegotiationFollowUpResponse = {
 }
 
 export type FollowUpActionType = 'send_message' | 'send_email'
-export type FollowUpMessageChannel = 'whatsapp' | 'messenger' | 'instagram' | 'Agenda'
+export type FollowUpMessageChannel =
+  | 'whatsapp'
+  | 'messenger'
+  | 'instagram'
+  | 'Agenda'
 export type FollowUpActionStatus =
-  | 'pending'
+  | 'scheduled'
+  | 'awaiting_reply'
   | 'executed'
   | 'failed'
   | 'skipped'
@@ -233,6 +331,10 @@ export type FollowUpActionResponse = FollowUpActionPayload & {
   status: FollowUpActionStatus
   executedAt: string | null
   failureReason: string | null
+  replyMessageId: string | null
+  replyContent: string | null
+  replyType: string | null
+  repliedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -253,6 +355,12 @@ export type NegotiationAttachmentResponse = {
   createdAt: string
   uploadedByUserId: string
 }
+
+export type NegotiationAttachmentListItemResponse =
+  NegotiationAttachmentResponse & {
+    negotiationId: string
+    leadId: string
+  }
 
 export type NegotiationAttachmentDownloadUrlResponse = {
   url: string

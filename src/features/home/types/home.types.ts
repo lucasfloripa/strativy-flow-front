@@ -46,7 +46,7 @@ export type UserNotification = {
   id: string
   organizationId: string | null
   userId: string
-  type: 'LEAD_CREATED' | 'MESSAGE_RECEIVED' | 'FOLLOW_UP_REMINDER_1H' | 'CONVERSATION_EXPIRING_1H' | 'CONVERSATION_EXPIRED'
+  type: 'LEAD_CREATED' | 'MESSAGE_RECEIVED' | 'FOLLOW_UP_REMINDER_1H' | 'DAILY_FOLLOWUP_SUMMARY' | 'CONVERSATION_EXPIRING_1H' | 'CONVERSATION_EXPIRED'
   title: string
   description: string
   referenceType: 'LEAD' | 'MESSAGE' | 'FOLLOW_UP'

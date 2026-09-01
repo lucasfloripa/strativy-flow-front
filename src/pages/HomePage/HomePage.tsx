@@ -116,6 +116,7 @@ const mapApiNotification = (notification: UserNotification): Notification => {
     LEAD_CREATED: { color: '#3b82f6', iconBackground: '#dbeafe', icon: 'lead' },
     MESSAGE_RECEIVED: { color: '#22c55e', iconBackground: '#dcfce7', icon: 'message' },
     FOLLOW_UP_REMINDER_1H: { color: '#f59e0b', iconBackground: '#fef3c7', icon: 'followup' },
+    DAILY_FOLLOWUP_SUMMARY: { color: '#f59e0b', iconBackground: '#fef3c7', icon: 'followup' },
     CONVERSATION_EXPIRING_1H: { color: '#f59e0b', iconBackground: '#fef3c7', icon: 'expiring' },
     CONVERSATION_EXPIRED: { color: '#ef4444', iconBackground: '#fee2e2', icon: 'expired' }
   }
@@ -215,6 +216,7 @@ const getNotificationNavigation = (
         }
       }
     case 'FOLLOW_UP_REMINDER_1H':
+    case 'DAILY_FOLLOWUP_SUMMARY':
       return {
         path: '/agenda?followUp=today'
       }
@@ -958,7 +960,9 @@ export default function HomePage() {
 
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, color: '#0f172a', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.title}</p>
-                  <p style={{ margin: '2px 0 0', color: '#475569', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.description}</p>
+                  {activity.description ? (
+                    <p style={{ margin: '2px 0 0', color: '#475569', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activity.description}</p>
+                  ) : null}
                 </div>
               </div>
 

@@ -7,6 +7,28 @@ export type FinanceiroTopKpisResponse = {
   negociosEmAberto: number
 }
 
+export type FinanceiroBusinessSummaryResponse = {
+  netRevenue: number
+  totalCosts: number
+  netResult: number
+  profitMargin: number
+}
+
+export type FinanceiroRevenueResponse = {
+  grossRevenue: number
+  totalDiscounts: number
+  netRevenue: number
+}
+
+export type FinanceiroPaymentsResponse = {
+  receivedAmount: number
+  receivedCount: number
+  pendingAmount: number
+  pendingCount: number
+  overdueAmount: number
+  overdueCount: number
+}
+
 export type FinanceiroTemplateCostType = 'MARKETING' | 'UTILITY' | 'UNKNOWN'
 
 export type FinanceiroTemplateCostsResponse = {

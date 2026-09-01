@@ -1,7 +1,42 @@
-import { AlertCircle, Archive, Bell, Briefcase, CalendarClock, Check, CheckCircle2, ChevronLeft, CircleDollarSign, CircleHelp, Contact, Edit, FileText, Home, Lock, LogOut, Mail, MessageCircle, MoreHorizontal, PanelLeft, Pencil, Phone, Settings, Trash2, UserPlus, Users, X } from 'lucide-react'
+import {
+  AlertCircle,
+  Archive,
+  Bell,
+  ChartNoAxesColumnIncreasing,
+  Briefcase,
+  CalendarClock,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  CircleDollarSign,
+  CircleHelp,
+  Contact,
+  Edit,
+  FileText,
+  Home,
+  Lock,
+  LogOut,
+  Mail,
+  MessageCircle,
+  MoreHorizontal,
+  PanelLeft,
+  Pencil,
+  Phone,
+  Settings,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
-import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import {
+  Navigate,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 
 import { interactionTheme } from '../theme/brandTheme'
 import { useViewportBreakpoint } from '../theme/useViewportBreakpoint'
@@ -11,7 +46,7 @@ import { authApiClient } from '../../core/api/authApiClient'
 import {
   MessageShortcutsSkeleton,
   NotificationChannelsSkeleton,
-  NotificationTogglesSkeleton
+  NotificationTogglesSkeleton,
 } from '../../core/components/SettingsLoadingSkeletons'
 import { useRealtime } from '../../core/realtime/useRealtime'
 import { AuthService } from '../../features/auth/services/AuthService'
@@ -29,7 +64,7 @@ type NotificationPreference = {
   id: string
   title: string
   description: string
-  icon: 'bell' | 'message' | 'clock' | 'list'
+  icon: 'bell' | 'message' | 'clock' | 'list' | 'money'
   channels: Record<NotificationChannelKey, boolean>
 }
 
@@ -56,55 +91,71 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     title: 'Novo lead',
     description: 'Quando um novo lead é criado no sistema',
     icon: 'bell',
-    channels: { inApp: true, whatsApp: false, email: false }
+    channels: { inApp: true, whatsApp: false, email: false },
   },
   {
     id: 'new-message',
     title: 'Mensagem recebida',
     description: 'Quando você recebe uma mensagem de um lead',
     icon: 'message',
-    channels: { inApp: true, whatsApp: true, email: false }
+    channels: { inApp: true, whatsApp: true, email: false },
+  },
+  {
+    id: 'conversation-expiring-1h',
+    title: 'Conversa a 1 hora de expirar',
+    description:
+      'Quando uma conversa está a 1 hora de expirar (24h sem resposta do lead)',
+    icon: 'message',
+    channels: { inApp: true, whatsApp: false, email: false },
+  },
+  {
+    id: 'conversation-expired',
+    title: 'Conversa expirada',
+    description:
+      'Quando uma conversa expirou (passaram 24h sem resposta do lead)',
+    icon: 'message',
+    channels: { inApp: true, whatsApp: true, email: true },
   },
   {
     id: 'followup-1h',
     title: 'Follow-up a 1 hora do vencimento',
     description: 'Quando falta 1 hora para um follow-up vencer',
     icon: 'clock',
-    channels: { inApp: true, whatsApp: false, email: false }
-  },
-  {
-    id: 'conversation-expiring-1h',
-    title: 'Conversa a 1 hora de expirar',
-    description: 'Quando uma conversa está a 1 hora de expirar (24h sem resposta do lead)',
-    icon: 'clock',
-    channels: { inApp: true, whatsApp: false, email: false }
-  },
-  {
-    id: 'conversation-expired',
-    title: 'Conversa expirada',
-    description: 'Quando uma conversa expirou (passaram 24h sem resposta do lead)',
-    icon: 'clock',
-    channels: { inApp: true, whatsApp: true, email: true }
+    channels: { inApp: true, whatsApp: false, email: false },
   },
   {
     id: 'followup-list',
     title: 'Lista Follow-ups do dia',
     description: 'Resumo diário de todos os follow-ups para hoje',
-    icon: 'list',
-    channels: { inApp: true, whatsApp: false, email: true }
-  }
+    icon: 'clock',
+    channels: { inApp: true, whatsApp: false, email: true },
+  },
+  {
+    id: 'installment-due-tomorrow',
+    title: 'Listas Pagamentos vencendo amanhã',
+    description: 'Quando uma parcela vence no dia seguinte',
+    icon: 'money',
+    channels: { inApp: false, whatsApp: false, email: false },
+  },
+  {
+    id: 'installment-overdue',
+    title: 'Lista Pagamentos vencidos',
+    description: 'Quando uma parcela está vencida',
+    icon: 'money',
+    channels: { inApp: false, whatsApp: false, email: false },
+  },
 ]
 
 const buildNotificationPreferences = (
-  apiPreferences?: Record<string, string[]> | null
+  apiPreferences?: Record<string, string[]> | null,
 ): NotificationPreference[] => {
   const preferences = INITIAL_NOTIFICATION_PREFERENCES.map((pref) => ({
     ...pref,
     channels: {
       inApp: false,
       whatsApp: false,
-      email: false
-    }
+      email: false,
+    },
   }))
 
   if (!apiPreferences || Object.keys(apiPreferences).length === 0) {
@@ -117,14 +168,17 @@ const buildNotificationPreferences = (
     FOLLOWUP_ONE_HOUR: 'followup-1h',
     DAILY_FOLLOWUP_SUMMARY: 'followup-list',
     CONVERSATION_EXPIRING_1H: 'conversation-expiring-1h',
-    CONVERSATION_EXPIRED: 'conversation-expired'
+    CONVERSATION_EXPIRED: 'conversation-expired',
+    INSTALLMENT_DUE_TOMORROW: 'installment-due-tomorrow',
+    INSTALLMENT_OVERDUE: 'installment-overdue',
   }
 
-  const channelMap: Record<string, keyof typeof preferences[0]['channels']> = {
-    APP: 'inApp',
-    WHATSAPP: 'whatsApp',
-    EMAIL: 'email'
-  }
+  const channelMap: Record<string, keyof (typeof preferences)[0]['channels']> =
+    {
+      APP: 'inApp',
+      WHATSAPP: 'whatsApp',
+      EMAIL: 'email',
+    }
 
   Object.entries(apiPreferences).forEach(([notificationType, channels]) => {
     const preferencesId = notificationTypeMap[notificationType]
@@ -160,7 +214,8 @@ const formatPhoneNumber = (value: string): string => {
     return '-'
   }
 
-  const normalizedDigits = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits
+  const normalizedDigits =
+    digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits
   const phoneMatch = normalizedDigits.match(/^(\d{2})(\d{4,5})(\d{4})$/)
 
   if (!phoneMatch) {
@@ -202,7 +257,7 @@ const getFirstName = (value?: string | null): string => {
 const navItemStyle = (
   isActive: boolean,
   isHovered: boolean,
-  isSidebarCollapsed: boolean
+  isSidebarCollapsed: boolean,
 ) => ({
   display: 'flex',
   alignItems: 'center',
@@ -224,7 +279,7 @@ const navItemStyle = (
   padding: isSidebarCollapsed ? '10px 8px' : '10px 12px',
   fontSize: 14,
   fontWeight: 500,
-  lineHeight: 1.2
+  lineHeight: 1.2,
 })
 
 const getGreetingLabel = (): string => {
@@ -276,7 +331,9 @@ const getUserIdFromStoredAccessToken = (): string | null => {
     const decodedPayload = atob(normalizedPayload)
     const parsedPayload = JSON.parse(decodedPayload) as { userId?: unknown }
 
-    return typeof parsedPayload.userId === 'string' ? parsedPayload.userId : null
+    return typeof parsedPayload.userId === 'string'
+      ? parsedPayload.userId
+      : null
   } catch {
     return null
   }
@@ -295,52 +352,92 @@ export function AuthenticatedLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false)
   const [hoveredNavKey, setHoveredNavKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false)
-  const [isMobileHomeNotificationsOpen, setIsMobileHomeNotificationsOpen] = useState<boolean>(false)
-  const [mobileHomeNotificationsCount, setMobileHomeNotificationsCount] = useState<number>(0)
-  const [isMobileNotificationsButtonHovered, setIsMobileNotificationsButtonHovered] = useState<boolean>(false)
+  const [isMobileHomeNotificationsOpen, setIsMobileHomeNotificationsOpen] =
+    useState<boolean>(false)
+  const [mobileHomeNotificationsCount, setMobileHomeNotificationsCount] =
+    useState<number>(0)
+  const [
+    isMobileNotificationsButtonHovered,
+    setIsMobileNotificationsButtonHovered,
+  ] = useState<boolean>(false)
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState<boolean>(false)
-  const [isSettingsPanelVisible, setIsSettingsPanelVisible] = useState<boolean>(false)
-  const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTab>('usuario')
-  const [hoveredSettingsTab, setHoveredSettingsTab] = useState<SettingsTab | null>(null)
-  const [selectedNotificationsTab, setSelectedNotificationsTab] = useState<'tipos' | 'canais' | 'preferencias'>('tipos')
-  const [messageShortcuts, setMessageShortcuts] = useState<MessageShortcut[]>([])
+  const [isSettingsPanelVisible, setIsSettingsPanelVisible] =
+    useState<boolean>(false)
+  const [selectedSettingsTab, setSelectedSettingsTab] =
+    useState<SettingsTab>('usuario')
+  const [hoveredSettingsTab, setHoveredSettingsTab] =
+    useState<SettingsTab | null>(null)
+  const [selectedNotificationsTab, setSelectedNotificationsTab] = useState<
+    'tipos' | 'canais' | 'preferencias'
+  >('tipos')
+  const [messageShortcuts, setMessageShortcuts] = useState<MessageShortcut[]>(
+    [],
+  )
   const [isAddingShortcut, setIsAddingShortcut] = useState<boolean>(false)
   const [newShortcutKey, setNewShortcutKey] = useState<string>('')
   const [newShortcutValue, setNewShortcutValue] = useState<string>('')
-  const [editingShortcutId, setEditingShortcutId] = useState<string | null>(null)
+  const [editingShortcutId, setEditingShortcutId] = useState<string | null>(
+    null,
+  )
   const [editingShortcutKey, setEditingShortcutKey] = useState<string>('')
   const [editingShortcutValue, setEditingShortcutValue] = useState<string>('')
   const [isLoadingShortcuts, setIsLoadingShortcuts] = useState<boolean>(false)
   const [whatsAppNumbers, setWhatsAppNumbers] = useState<WhatsAppNumber[]>([])
   const [emailAddresses, setEmailAddresses] = useState<EmailAddress[]>([])
-  const [isAddingWhatsAppNumber, setIsAddingWhatsAppNumber] = useState<boolean>(false)
+  const [isAddingWhatsAppNumber, setIsAddingWhatsAppNumber] =
+    useState<boolean>(false)
   const [newWhatsAppNumber, setNewWhatsAppNumber] = useState<string>('')
-  const [editingWhatsAppNumberId, setEditingWhatsAppNumberId] = useState<string | null>(null)
-  const [editingWhatsAppNumberValue, setEditingWhatsAppNumberValue] = useState<string>('')
-  const [isAddingEmailAddress, setIsAddingEmailAddress] = useState<boolean>(false)
+  const [editingWhatsAppNumberId, setEditingWhatsAppNumberId] = useState<
+    string | null
+  >(null)
+  const [editingWhatsAppNumberValue, setEditingWhatsAppNumberValue] =
+    useState<string>('')
+  const [isAddingEmailAddress, setIsAddingEmailAddress] =
+    useState<boolean>(false)
   const [newEmailAddress, setNewEmailAddress] = useState<string>('')
-  const [editingEmailAddressId, setEditingEmailAddressId] = useState<string | null>(null)
-  const [editingEmailAddressValue, setEditingEmailAddressValue] = useState<string>('')
-  const [isListFollowupsTooltipVisible, setIsListFollowupsTooltipVisible] = useState<boolean>(false)
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState<boolean>(false)
-  const [isUpdatingPreferences, setIsUpdatingPreferences] = useState<boolean>(false)
+  const [editingEmailAddressId, setEditingEmailAddressId] = useState<
+    string | null
+  >(null)
+  const [editingEmailAddressValue, setEditingEmailAddressValue] =
+    useState<string>('')
+  const [activeListTooltipId, setActiveListTooltipId] = useState<string | null>(
+    null,
+  )
+  const [isLoadingNotifications, setIsLoadingNotifications] =
+    useState<boolean>(false)
+  const [isUpdatingPreferences, setIsUpdatingPreferences] =
+    useState<boolean>(false)
   const [headerUserName, setHeaderUserName] = useState<string>('')
-  const [settingsUserRole, setSettingsUserRole] = useState<string>('Administrador')
+  const [settingsUserRole, setSettingsUserRole] =
+    useState<string>('Administrador')
   const [settingsUserName, setSettingsUserName] = useState<string>('')
   const [settingsUserEmail, setSettingsUserEmail] = useState<string>('')
-  const [settingsUserPhoneNumber, setSettingsUserPhoneNumber] = useState<string>('')
+  const [settingsUserPhoneNumber, setSettingsUserPhoneNumber] =
+    useState<string>('')
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false)
   const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('')
   const [newPasswordInput, setNewPasswordInput] = useState<string>('')
-  const [newPasswordConfirmationInput, setNewPasswordConfirmationInput] = useState<string>('')
+  const [newPasswordConfirmationInput, setNewPasswordConfirmationInput] =
+    useState<string>('')
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false)
-  const [passwordChangeFeedback, setPasswordChangeFeedback] = useState<string | null>(null)
-  const [passwordChangeSucceeded, setPasswordChangeSucceeded] = useState<boolean>(false)
-  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreference[]>([])
+  const [passwordChangeFeedback, setPasswordChangeFeedback] = useState<
+    string | null
+  >(null)
+  const [passwordChangeSucceeded, setPasswordChangeSucceeded] =
+    useState<boolean>(false)
+  const [notificationPreferences, setNotificationPreferences] = useState<
+    NotificationPreference[]
+  >([])
   const greetingLabel = getGreetingLabel()
   const userFirstName =
-    getFirstName(headerUserName) || getFirstName(settingsUserName) || getUserFirstName(authUserEmail)
-  const userFullName = (settingsUserName || headerUserName || userFirstName).trim()
+    getFirstName(headerUserName) ||
+    getFirstName(settingsUserName) ||
+    getUserFirstName(authUserEmail)
+  const userFullName = (
+    settingsUserName ||
+    headerUserName ||
+    userFirstName
+  ).trim()
 
   useEffect(() => {
     if (!hasToken) {
@@ -362,7 +459,9 @@ export function AuthenticatedLayout() {
     let isMounted = true
 
     const loadHeaderUserName = async () => {
-      const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+      const { data } = await appApiClient.get<UserInformationsResponse[]>(
+        '/user/user-informations',
+      )
 
       if (!isMounted) {
         return
@@ -446,7 +545,9 @@ export function AuthenticatedLayout() {
     let isMounted = true
 
     const loadUserInformations = async () => {
-      const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+      const { data } = await appApiClient.get<UserInformationsResponse[]>(
+        '/user/user-informations',
+      )
 
       if (!isMounted) {
         return
@@ -455,7 +556,9 @@ export function AuthenticatedLayout() {
       const primaryUserInformation = data[0]
       setSettingsUserName(primaryUserInformation?.name?.trim() ?? '')
       setSettingsUserEmail(primaryUserInformation?.email?.trim() ?? '')
-      setSettingsUserPhoneNumber(primaryUserInformation?.phoneNumber?.trim() ?? '')
+      setSettingsUserPhoneNumber(
+        primaryUserInformation?.phoneNumber?.trim() ?? '',
+      )
     }
 
     void loadUserInformations()
@@ -475,7 +578,9 @@ export function AuthenticatedLayout() {
     const loadNotificationData = async () => {
       try {
         setIsLoadingNotifications(true)
-        const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+        const { data } = await appApiClient.get<UserInformationsResponse[]>(
+          '/user/user-informations',
+        )
 
         if (!isMounted) {
           return
@@ -484,21 +589,27 @@ export function AuthenticatedLayout() {
         const primaryUserInformation = data[0]
 
         // Load WhatsApp Numbers
-        const whatsAppList = (primaryUserInformation?.notificationWhatsAppNumbers ?? []).map((number, index) => ({
+        const whatsAppList = (
+          primaryUserInformation?.notificationWhatsAppNumbers ?? []
+        ).map((number, index) => ({
           id: String(index + 1),
-          number
+          number,
         }))
         setWhatsAppNumbers(whatsAppList)
 
         // Load Email Addresses
-        const emailList = (primaryUserInformation?.notificationEmails ?? []).map((email, index) => ({
+        const emailList = (
+          primaryUserInformation?.notificationEmails ?? []
+        ).map((email, index) => ({
           id: String(index + 1),
-          email
+          email,
         }))
         setEmailAddresses(emailList)
 
         // Load Notification Preferences
-        const preferences = buildNotificationPreferences(primaryUserInformation?.notificationPreferences)
+        const preferences = buildNotificationPreferences(
+          primaryUserInformation?.notificationPreferences,
+        )
         setNotificationPreferences(preferences)
       } finally {
         if (isMounted) {
@@ -524,18 +635,22 @@ export function AuthenticatedLayout() {
     const loadShortcutsData = async () => {
       try {
         setIsLoadingShortcuts(true)
-        const { data } = await appApiClient.get<UserInformationsResponse[]>('/user/user-informations')
+        const { data } = await appApiClient.get<UserInformationsResponse[]>(
+          '/user/user-informations',
+        )
 
         if (!isMounted) {
           return
         }
 
         const shortcuts = data[0]?.messageShortcuts ?? {}
-        const shortcutsList = Object.entries(shortcuts).map(([key, value], index) => ({
-          id: String(index + 1),
-          key,
-          value
-        }))
+        const shortcutsList = Object.entries(shortcuts).map(
+          ([key, value], index) => ({
+            id: String(index + 1),
+            key,
+            value,
+          }),
+        )
         setMessageShortcuts(shortcutsList)
       } finally {
         if (isMounted) {
@@ -552,7 +667,10 @@ export function AuthenticatedLayout() {
   }, [isSettingsPanelOpen, selectedSettingsTab])
 
   useEffect(() => {
-    if (!passwordChangeSucceeded || passwordChangeFeedback !== 'Senha alterada com sucesso.') {
+    if (
+      !passwordChangeSucceeded ||
+      passwordChangeFeedback !== 'Senha alterada com sucesso.'
+    ) {
       return
     }
 
@@ -575,7 +693,8 @@ export function AuthenticatedLayout() {
   const mobileBottomNavBottomInset = -8
   const mobileBottomNavOffset = `${mobileBottomNavHeight + mobileBottomNavBottomInset}px`
   const mobileBodyExtraTrim = 40
-  const hideMobileNotificationIcons = isMobile && selectedSettingsTab === 'notificacoes'
+  const hideMobileNotificationIcons =
+    isMobile && selectedSettingsTab === 'notificacoes'
   const mobileNotificationActionTextStyle = {
     border: 'none',
     background: 'transparent',
@@ -583,11 +702,15 @@ export function AuthenticatedLayout() {
     cursor: 'pointer',
     padding: 0,
     fontSize: 12,
-    fontWeight: 700
+    fontWeight: 700,
   }
 
   const renderSettingsTabs = () => (
-    <div role="tablist" aria-label="Abas de configurações" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+    <div
+      role="tablist"
+      aria-label="Abas de configurações"
+      style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 4 }}
+    >
       <button
         type="button"
         role="tab"
@@ -599,17 +722,21 @@ export function AuthenticatedLayout() {
           border: 'none',
           background:
             usuarioTabIsActive || hoveredSettingsTab === 'usuario'
-              ? interactionTheme.clickableCardHoverBackground
+              ? isMobile
+                ? '#dcfce7'
+                : interactionTheme.clickableCardHoverBackground
               : 'transparent',
-          borderRadius: 6,
-          padding: '8px 12px',
+          borderRadius: isMobile ? 8 : 6,
+          padding: isMobile ? '12px 16px' : '8px 12px',
           cursor: 'pointer',
-          fontSize: 14,
-          fontWeight: usuarioTabIsActive ? 600 : 400,
+          fontSize: isMobile ? 13 : 14,
+          fontWeight: usuarioTabIsActive ? 700 : 600,
           color:
             usuarioTabIsActive || hoveredSettingsTab === 'usuario'
-              ? interactionTheme.activeIconColor
-              : '#6b7280'
+              ? isMobile
+                ? '#1f7a4d'
+                : interactionTheme.activeIconColor
+              : '#6b7280',
         }}
       >
         Usuário
@@ -626,17 +753,21 @@ export function AuthenticatedLayout() {
           border: 'none',
           background:
             notificacoesTabIsActive || hoveredSettingsTab === 'notificacoes'
-              ? interactionTheme.clickableCardHoverBackground
+              ? isMobile
+                ? '#dcfce7'
+                : interactionTheme.clickableCardHoverBackground
               : 'transparent',
-          borderRadius: 6,
-          padding: '8px 12px',
+          borderRadius: isMobile ? 8 : 6,
+          padding: isMobile ? '12px 16px' : '8px 12px',
           cursor: 'pointer',
-          fontSize: 14,
-          fontWeight: notificacoesTabIsActive ? 600 : 400,
+          fontSize: isMobile ? 13 : 14,
+          fontWeight: notificacoesTabIsActive ? 700 : 600,
           color:
             notificacoesTabIsActive || hoveredSettingsTab === 'notificacoes'
-              ? interactionTheme.activeIconColor
-              : '#6b7280'
+              ? isMobile
+                ? '#1f7a4d'
+                : interactionTheme.activeIconColor
+              : '#6b7280',
         }}
       >
         Notificações
@@ -653,17 +784,21 @@ export function AuthenticatedLayout() {
           border: 'none',
           background:
             chatTabIsActive || hoveredSettingsTab === 'chat'
-              ? interactionTheme.clickableCardHoverBackground
+              ? isMobile
+                ? '#dcfce7'
+                : interactionTheme.clickableCardHoverBackground
               : 'transparent',
-          borderRadius: 6,
-          padding: '8px 12px',
+          borderRadius: isMobile ? 8 : 6,
+          padding: isMobile ? '12px 16px' : '8px 12px',
           cursor: 'pointer',
-          fontSize: 14,
-          fontWeight: chatTabIsActive ? 600 : 400,
+          fontSize: isMobile ? 13 : 14,
+          fontWeight: chatTabIsActive ? 700 : 600,
           color:
             chatTabIsActive || hoveredSettingsTab === 'chat'
-              ? interactionTheme.activeIconColor
-              : '#6b7280'
+              ? isMobile
+                ? '#1f7a4d'
+                : interactionTheme.activeIconColor
+              : '#6b7280',
         }}
       >
         Chat
@@ -671,30 +806,53 @@ export function AuthenticatedLayout() {
     </div>
   )
 
-
-
   const renderNotificationIcon = (iconType: NotificationPreference['icon']) => {
     if (hideMobileNotificationIcons) {
       return null
     }
 
-    const iconProps = { size: 20, color: '#2f8f55' }
+    const iconProps = { width: 20, height: 20, color: '#2f8f55' }
+    let notificationIcon
+
     switch (iconType) {
       case 'bell':
-        return <UserPlus {...iconProps} />
+        notificationIcon = <UserPlus {...iconProps} />
+        break
       case 'message':
-        return <MessageCircle {...iconProps} />
+        notificationIcon = <MessageCircle {...iconProps} />
+        break
       case 'clock':
-        return <CalendarClock {...iconProps} />
+        notificationIcon = <CalendarClock {...iconProps} />
+        break
       case 'list':
-        return <CheckCircle2 {...iconProps} />
+        notificationIcon = <CheckCircle2 {...iconProps} />
+        break
+      case 'money':
+        notificationIcon = <CircleDollarSign {...iconProps} />
+        break
       default:
-        return <UserPlus {...iconProps} />
+        notificationIcon = <UserPlus {...iconProps} />
     }
+
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          flex: '0 0 20px',
+        }}
+      >
+        {notificationIcon}
+      </span>
+    )
   }
 
   const convertPreferencesToBackendFormat = (
-    prefs: NotificationPreference[]
+    prefs: NotificationPreference[],
   ): Record<string, string[]> => {
     const notificationTypeMap: Record<string, string> = {
       'new-lead': 'NEW_LEAD',
@@ -702,13 +860,15 @@ export function AuthenticatedLayout() {
       'followup-1h': 'FOLLOWUP_ONE_HOUR',
       'followup-list': 'DAILY_FOLLOWUP_SUMMARY',
       'conversation-expiring-1h': 'CONVERSATION_EXPIRING_1H',
-      'conversation-expired': 'CONVERSATION_EXPIRED'
+      'conversation-expired': 'CONVERSATION_EXPIRED',
+      'installment-due-tomorrow': 'INSTALLMENT_DUE_TOMORROW',
+      'installment-overdue': 'INSTALLMENT_OVERDUE',
     }
 
     const channelMap: Record<NotificationChannelKey, string> = {
       inApp: 'APP',
       whatsApp: 'WHATSAPP',
-      email: 'EMAIL'
+      email: 'EMAIL',
     }
 
     const result: Record<string, string[]> = {}
@@ -729,17 +889,20 @@ export function AuthenticatedLayout() {
     return result
   }
 
-  const persistNotificationPreferences = async (updatedPreferences: NotificationPreference[]) => {
+  const persistNotificationPreferences = async (
+    updatedPreferences: NotificationPreference[],
+  ) => {
     try {
       setIsUpdatingPreferences(true)
-      const backendFormat = convertPreferencesToBackendFormat(updatedPreferences)
+      const backendFormat =
+        convertPreferencesToBackendFormat(updatedPreferences)
 
       const userInformationsId = getUserIdFromStoredAccessToken()
       if (!userInformationsId) return
 
       await appApiClient.patch(
         `/user/user-informations/${userInformationsId}/preferences`,
-        { notificationPreferences: backendFormat }
+        { notificationPreferences: backendFormat },
       )
     } catch (error) {
       console.error('Erro ao atualizar preferências de notificação:', error)
@@ -750,7 +913,7 @@ export function AuthenticatedLayout() {
 
   const toggleNotificationChannel = (
     preferenceId: NotificationPreference['id'],
-    channel: NotificationChannelKey
+    channel: NotificationChannelKey,
   ) => {
     const updatedPreferences = notificationPreferences.map((pref) =>
       pref.id === preferenceId
@@ -758,10 +921,10 @@ export function AuthenticatedLayout() {
             ...pref,
             channels: {
               ...pref.channels,
-              [channel]: !pref.channels[channel]
-            }
+              [channel]: !pref.channels[channel],
+            },
           }
-        : pref
+        : pref,
     )
 
     setNotificationPreferences(updatedPreferences)
@@ -771,7 +934,7 @@ export function AuthenticatedLayout() {
   const renderChannelSwitch = (
     preferenceId: NotificationPreference['id'],
     channel: NotificationChannelKey,
-    isEnabled: boolean
+    isEnabled: boolean,
   ) => {
     return (
       <button
@@ -791,7 +954,7 @@ export function AuthenticatedLayout() {
           display: 'inline-flex',
           justifyContent: isEnabled ? 'flex-end' : 'flex-start',
           alignItems: 'center',
-          transition: 'all 120ms ease'
+          transition: 'all 120ms ease',
         }}
       >
         <span
@@ -800,7 +963,7 @@ export function AuthenticatedLayout() {
             height: 20,
             borderRadius: '50%',
             background: '#ffffff',
-            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.2)'
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.2)',
           }}
         />
       </button>
@@ -810,15 +973,18 @@ export function AuthenticatedLayout() {
   const formatWhatsAppNumber = (number: string): string => {
     const digits = number.replace(/\D/g, '')
     if (digits.length < 10) return number
-    
+
     // Remove country code if present
     let localDigits = digits
-    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    if (
+      digits.startsWith('55') &&
+      (digits.length === 12 || digits.length === 13)
+    ) {
       localDigits = digits.slice(2)
     }
-    
+
     const areaCode = localDigits.slice(0, 2)
-    
+
     if (localDigits.length === 10) {
       // Fixo: (DDD) XXXX-XXXX
       const firstPart = localDigits.slice(2, 6)
@@ -834,24 +1000,24 @@ export function AuthenticatedLayout() {
 
   const formatWhatsAppInputNumber = (input: string): string => {
     const digits = input.replace(/\D/g, '').slice(0, 11)
-    
+
     if (digits.length === 0) return ''
-    
+
     const ddd = digits.slice(0, 2)
     const numberPart = digits.slice(2)
-    
+
     if (digits.length <= 2) {
       return `(${ddd}`
     }
-    
+
     if (numberPart.length <= 4) {
       return `(${ddd})${numberPart}`
     }
-    
+
     if (numberPart.length <= 8) {
       return `(${ddd})${numberPart.slice(0, 4)}-${numberPart.slice(4)}`
     }
-    
+
     return `(${ddd})${numberPart.slice(0, 5)}-${numberPart.slice(5, 9)}`
   }
 
@@ -862,7 +1028,7 @@ export function AuthenticatedLayout() {
 
   const persistNotificationSettings = async ({
     numbers,
-    emails
+    emails,
   }: {
     numbers?: WhatsAppNumber[]
     emails?: EmailAddress[]
@@ -871,10 +1037,13 @@ export function AuthenticatedLayout() {
       const userInformationsId = getUserIdFromStoredAccessToken()
       if (!userInformationsId) return
 
-      await appApiClient.patch(`/user/user-informations/${userInformationsId}/notifications`, {
-        notificationWhatsAppNumbers: numbers?.map((n) => n.number) ?? [],
-        notificationEmails: emails?.map((e) => e.email) ?? []
-      })
+      await appApiClient.patch(
+        `/user/user-informations/${userInformationsId}/notifications`,
+        {
+          notificationWhatsAppNumbers: numbers?.map((n) => n.number) ?? [],
+          notificationEmails: emails?.map((e) => e.email) ?? [],
+        },
+      )
     } catch (error) {
       console.error('Erro ao salvar configurações de notificações:', error)
     }
@@ -906,9 +1075,11 @@ export function AuthenticatedLayout() {
   const handleConfirmEditWhatsAppNumber = (id: string) => {
     if (isValidWhatsAppNumber(editingWhatsAppNumberValue)) {
       const digits = editingWhatsAppNumberValue.replace(/\D/g, '')
-      const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
+      const numberWithCountryCode = digits.startsWith('55')
+        ? digits
+        : '55' + digits
       const next = whatsAppNumbers.map((num) =>
-        num.id === id ? { ...num, number: numberWithCountryCode } : num
+        num.id === id ? { ...num, number: numberWithCountryCode } : num,
       )
       setWhatsAppNumbers(next)
       setEditingWhatsAppNumberId(null)
@@ -941,7 +1112,9 @@ export function AuthenticatedLayout() {
   const handleConfirmEditEmailAddress = (id: string) => {
     if (isValidEmail(editingEmailAddressValue)) {
       const next = emailAddresses.map((email) =>
-        email.id === id ? { ...email, email: editingEmailAddressValue.trim() } : email
+        email.id === id
+          ? { ...email, email: editingEmailAddressValue.trim() }
+          : email,
       )
       setEmailAddresses(next)
       setEditingEmailAddressId(null)
@@ -958,7 +1131,9 @@ export function AuthenticatedLayout() {
   const handleConfirmAddEmailAddress = () => {
     if (isValidEmail(newEmailAddress)) {
       const trimmedEmail = newEmailAddress.trim()
-      const newId = String(Math.max(...emailAddresses.map((e) => parseInt(e.id, 10)), 0) + 1)
+      const newId = String(
+        Math.max(...emailAddresses.map((e) => parseInt(e.id, 10)), 0) + 1,
+      )
       const next = [{ id: newId, email: trimmedEmail }, ...emailAddresses]
       setEmailAddresses(next)
       setIsAddingEmailAddress(false)
@@ -974,10 +1149,17 @@ export function AuthenticatedLayout() {
 
   const handleConfirmAddWhatsAppNumber = () => {
     if (isValidWhatsAppNumber(newWhatsAppNumber)) {
-      const newId = String(Math.max(...whatsAppNumbers.map(n => parseInt(n.id, 10)), 0) + 1)
+      const newId = String(
+        Math.max(...whatsAppNumbers.map((n) => parseInt(n.id, 10)), 0) + 1,
+      )
       const digits = newWhatsAppNumber.replace(/\D/g, '')
-      const numberWithCountryCode = digits.startsWith('55') ? digits : '55' + digits
-      const next = [{ id: newId, number: numberWithCountryCode }, ...whatsAppNumbers]
+      const numberWithCountryCode = digits.startsWith('55')
+        ? digits
+        : '55' + digits
+      const next = [
+        { id: newId, number: numberWithCountryCode },
+        ...whatsAppNumbers,
+      ]
       setWhatsAppNumbers(next)
       setIsAddingWhatsAppNumber(false)
       setNewWhatsAppNumber('')
@@ -990,10 +1172,12 @@ export function AuthenticatedLayout() {
       const userInformationsId = getUserIdFromStoredAccessToken()
       if (!userInformationsId) return
 
-      const shortcutsRecord = Object.fromEntries(shortcuts.map((s) => [s.key, s.value]))
+      const shortcutsRecord = Object.fromEntries(
+        shortcuts.map((s) => [s.key, s.value]),
+      )
       await appApiClient.patch(
         `/user/user-informations/${userInformationsId}/shortcuts`,
-        { messageShortcuts: shortcutsRecord }
+        { messageShortcuts: shortcutsRecord },
       )
     } catch (error) {
       console.error('Erro ao salvar atalhos:', error)
@@ -1011,8 +1195,13 @@ export function AuthenticatedLayout() {
     const trimmedValue = newShortcutValue.trim()
     if (!trimmedKey || !trimmedValue) return
 
-    const newId = String(Math.max(...messageShortcuts.map((s) => parseInt(s.id, 10)), 0) + 1)
-    const next = [{ id: newId, key: trimmedKey, value: trimmedValue }, ...messageShortcuts]
+    const newId = String(
+      Math.max(...messageShortcuts.map((s) => parseInt(s.id, 10)), 0) + 1,
+    )
+    const next = [
+      { id: newId, key: trimmedKey, value: trimmedValue },
+      ...messageShortcuts,
+    ]
     setMessageShortcuts(next)
     setIsAddingShortcut(false)
     setNewShortcutKey('')
@@ -1044,7 +1233,7 @@ export function AuthenticatedLayout() {
     if (!trimmedKey || !trimmedValue) return
 
     const next = messageShortcuts.map((s) =>
-      s.id === id ? { ...s, key: trimmedKey, value: trimmedValue } : s
+      s.id === id ? { ...s, key: trimmedKey, value: trimmedValue } : s,
     )
     setMessageShortcuts(next)
     setEditingShortcutId(null)
@@ -1088,7 +1277,9 @@ export function AuthenticatedLayout() {
     const userId = getUserIdFromStoredAccessToken()
 
     if (!userId) {
-      setPasswordChangeFeedback('Não foi possível identificar o usuário autenticado.')
+      setPasswordChangeFeedback(
+        'Não foi possível identificar o usuário autenticado.',
+      )
       setPasswordChangeSucceeded(false)
       return
     }
@@ -1101,7 +1292,7 @@ export function AuthenticatedLayout() {
         userId,
         password: currentPassword,
         confirmPassword: currentPassword,
-        newPassword
+        newPassword,
       })
 
       setCurrentPasswordInput('')
@@ -1177,7 +1368,7 @@ export function AuthenticatedLayout() {
         maxHeight: '100vh',
         display: 'flex',
         background: '#f8fafc',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
       <aside
@@ -1190,7 +1381,7 @@ export function AuthenticatedLayout() {
           background: '#fcfdff',
           padding: isSidebarCollapsed ? '20px 10px 16px' : '20px 16px 16px',
           flexDirection: 'column',
-          transition: 'width 120ms ease'
+          transition: 'width 120ms ease',
         }}
       >
         <header
@@ -1199,11 +1390,18 @@ export function AuthenticatedLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
-            gap: 10
+            gap: 10,
           }}
         >
           {!isSidebarCollapsed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: 0,
+                gap: 2,
+              }}
+            >
               <strong
                 style={{
                   fontSize: 28,
@@ -1211,7 +1409,7 @@ export function AuthenticatedLayout() {
                   lineHeight: 1.1,
                   fontWeight: 500,
                   fontFamily: 'Canela, serif',
-                  fontStyle: 'italic'
+                  fontStyle: 'italic',
                 }}
               >
                 StrativyFlow
@@ -1220,8 +1418,12 @@ export function AuthenticatedLayout() {
           ) : null}
           <button
             type="button"
-            aria-label={isSidebarCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
-            onClick={() => setIsSidebarCollapsed((currentState) => !currentState)}
+            aria-label={
+              isSidebarCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'
+            }
+            onClick={() =>
+              setIsSidebarCollapsed((currentState) => !currentState)
+            }
             style={{
               width: 36,
               height: 36,
@@ -1232,15 +1434,26 @@ export function AuthenticatedLayout() {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              flexShrink: 0
+              flexShrink: 0,
             }}
           >
             <PanelLeft size={16} />
           </button>
         </header>
 
-        <nav aria-label="Navegação principal" style={{ marginTop: 14, flex: 1, alignContent: 'start' }}>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+        <nav
+          aria-label="Navegação principal"
+          style={{ marginTop: 14, flex: 1, alignContent: 'start' }}
+        >
+          <ul
+            style={{
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              display: 'grid',
+              gap: 6,
+            }}
+          >
             <li>
               <NavLink
                 to="/inicio"
@@ -1249,19 +1462,29 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'inicio',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('inicio')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Home size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Início</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Início</span>
+                ) : null}
               </NavLink>
             </li>
           </ul>
 
-          <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'grid', gap: 6 }}>
+          <ul
+            style={{
+              listStyle: 'none',
+              margin: '6px 0 0',
+              padding: 0,
+              display: 'grid',
+              gap: 6,
+            }}
+          >
             <li>
               <NavLink
                 to="/leads"
@@ -1270,14 +1493,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'leads',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('leads')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Users size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Leads</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Leads</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1288,14 +1513,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'negocios',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('negocios')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Briefcase size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Negócios</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Negócios</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1306,14 +1533,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'conversas',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('conversas')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <MessageCircle size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Conversas</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Conversas</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1324,14 +1553,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'agenda',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('agenda')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <CalendarClock size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Agenda</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Agenda</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1342,14 +1573,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'contatos',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('contatos')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Contact size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Contatos</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Contatos</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1360,14 +1593,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'arquivos',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('arquivos')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <FileText size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Arquivos</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Arquivos</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1378,14 +1613,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'arquivados',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('arquivados')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <Archive size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Leads Arquivados</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Leads Arquivados</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1396,14 +1633,36 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'financeiro',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('financeiro')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <CircleDollarSign size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Financeiro</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Financeiro</span>
+                ) : null}
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/metricas"
+                onClick={() => setIsSettingsPanelOpen(false)}
+                style={({ isActive }) =>
+                  navItemStyle(
+                    isSettingsPanelOpen ? false : isActive,
+                    hoveredNavKey === 'metricas',
+                    isSidebarCollapsed,
+                  )
+                }
+                onMouseEnter={() => setHoveredNavKey('metricas')}
+                onMouseLeave={() => setHoveredNavKey(null)}
+              >
+                <ChartNoAxesColumnIncreasing size={16} />
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Métricas</span>
+                ) : null}
               </NavLink>
             </li>
             <li>
@@ -1414,14 +1673,16 @@ export function AuthenticatedLayout() {
                   navItemStyle(
                     isSettingsPanelOpen ? false : isActive,
                     hoveredNavKey === 'informacoes',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   )
                 }
                 onMouseEnter={() => setHoveredNavKey('informacoes')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
                 <CircleHelp size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Informações</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Informações</span>
+                ) : null}
               </NavLink>
             </li>
           </ul>
@@ -1434,17 +1695,19 @@ export function AuthenticatedLayout() {
                   ...navItemStyle(
                     isSettingsPanelOpen,
                     hoveredNavKey === 'configuracoes',
-                    isSidebarCollapsed
+                    isSidebarCollapsed,
                   ),
                   fontFamily: 'inherit',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={() => setHoveredNavKey('configuracoes')}
                 onMouseLeave={() => setHoveredNavKey(null)}
                 onClick={handleOpenSettingsPanel}
               >
                 <Settings size={16} />
-                {!isSidebarCollapsed ? <span style={{ marginLeft: 8 }}>Configurações</span> : null}
+                {!isSidebarCollapsed ? (
+                  <span style={{ marginLeft: 8 }}>Configurações</span>
+                ) : null}
               </button>
             </li>
           </ul>
@@ -1459,7 +1722,7 @@ export function AuthenticatedLayout() {
             marginLeft: isSidebarCollapsed ? -10 : -16,
             marginRight: isSidebarCollapsed ? -10 : -16,
             borderTop: sidebarBorder,
-            padding: isSidebarCollapsed ? '14px 10px 4px' : '14px 12px 4px'
+            padding: isSidebarCollapsed ? '14px 10px 4px' : '14px 12px 4px',
           }}
         >
           {!isSidebarCollapsed ? (
@@ -1472,7 +1735,7 @@ export function AuthenticatedLayout() {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                maxWidth: 170
+                maxWidth: 170,
               }}
             >
               {userFullName}
@@ -1489,7 +1752,7 @@ export function AuthenticatedLayout() {
               padding: 0,
               display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
             }}
           >
             <LogOut size={16} />
@@ -1501,15 +1764,19 @@ export function AuthenticatedLayout() {
         style={{
           flex: 1,
           minWidth: 0,
-          height: isMobile ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)` : '100%',
-          maxHeight: isMobile ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)` : '100%',
+          height: isMobile
+            ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)`
+            : '100%',
+          maxHeight: isMobile
+            ? `calc(100% - ${mobileBottomNavOffset} - ${mobileBodyExtraTrim}px)`
+            : '100%',
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           paddingTop: 0,
-          paddingBottom: 0
+          paddingBottom: 0,
         }}
       >
         {isMobile && isHomePage ? (
@@ -1523,10 +1790,18 @@ export function AuthenticatedLayout() {
               background: '#fcfdff',
               borderBottom: sidebarBorder,
               boxShadow: '0 8px 18px -16px rgba(148, 163, 184, 0.45)',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           >
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 16,
+              }}
+            >
               <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
                 <span
                   style={{
@@ -1535,7 +1810,7 @@ export function AuthenticatedLayout() {
                     lineHeight: 1.2,
                     fontWeight: 500,
                     fontFamily: 'Canela, serif',
-                    fontStyle: 'italic'
+                    fontStyle: 'italic',
                   }}
                 >
                   StrativyFlow
@@ -1548,7 +1823,7 @@ export function AuthenticatedLayout() {
                     fontWeight: 500,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   {greetingLabel}, {userFirstName}
@@ -1560,7 +1835,9 @@ export function AuthenticatedLayout() {
                 aria-label="Abrir notificações"
                 onClick={() => setIsMobileHomeNotificationsOpen(true)}
                 onMouseEnter={() => setIsMobileNotificationsButtonHovered(true)}
-                onMouseLeave={() => setIsMobileNotificationsButtonHovered(false)}
+                onMouseLeave={() =>
+                  setIsMobileNotificationsButtonHovered(false)
+                }
                 style={{
                   position: 'relative',
                   width: 42,
@@ -1568,11 +1845,13 @@ export function AuthenticatedLayout() {
                   borderRadius: 12,
                   border: 'none',
                   background:
-                    isMobileHomeNotificationsOpen || isMobileNotificationsButtonHovered
+                    isMobileHomeNotificationsOpen ||
+                    isMobileNotificationsButtonHovered
                       ? interactionTheme.sidebarItemActiveBackground
                       : 'transparent',
                   color:
-                    isMobileHomeNotificationsOpen || isMobileNotificationsButtonHovered
+                    isMobileHomeNotificationsOpen ||
+                    isMobileNotificationsButtonHovered
                       ? interactionTheme.sidebarItemActiveColor
                       : interactionTheme.sidebarItemDefaultColor,
                   display: 'inline-flex',
@@ -1580,7 +1859,7 @@ export function AuthenticatedLayout() {
                   justifyContent: 'center',
                   cursor: 'pointer',
                   flexShrink: 0,
-                  transition: 'background 120ms ease, color 120ms ease'
+                  transition: 'background 120ms ease, color 120ms ease',
                 }}
               >
                 <Bell size={18} />
@@ -1602,10 +1881,12 @@ export function AuthenticatedLayout() {
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: '2px solid #fcfdff'
+                      border: '2px solid #fcfdff',
                     }}
                   >
-                    {mobileHomeNotificationsCount > 99 ? '99+' : mobileHomeNotificationsCount}
+                    {mobileHomeNotificationsCount > 99
+                      ? '99+'
+                      : mobileHomeNotificationsCount}
                   </span>
                 ) : null}
               </button>
@@ -1615,12 +1896,14 @@ export function AuthenticatedLayout() {
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <Outlet
-            context={{
-              isMobileHomeNotificationsOpen,
-              setIsMobileHomeNotificationsOpen,
-              setMobileHomeNotificationsCount,
-              userFirstName
-            } satisfies AuthenticatedLayoutOutletContext}
+            context={
+              {
+                isMobileHomeNotificationsOpen,
+                setIsMobileHomeNotificationsOpen,
+                setMobileHomeNotificationsCount,
+                userFirstName,
+              } satisfies AuthenticatedLayoutOutletContext
+            }
           />
         </div>
 
@@ -1640,7 +1923,7 @@ export function AuthenticatedLayout() {
               padding: 0,
               margin: 0,
               background: isMobile ? 'rgba(15, 23, 42, 0.18)' : 'transparent',
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
         ) : null}
@@ -1657,23 +1940,34 @@ export function AuthenticatedLayout() {
               zIndex: isMobile ? 80 : 30,
               borderLeft: isMobile ? 'none' : '2px solid #edf1f5',
               background: '#ffffff',
-              boxShadow: isMobile ? 'none' : '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isSettingsPanelVisible ? 'translateX(0)' : 'translateX(100%)',
+              boxShadow: isMobile
+                ? 'none'
+                : '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
+              transform: isSettingsPanelVisible
+                ? 'translateX(0)'
+                : 'translateX(100%)',
               transition: 'transform 120ms ease',
               display: 'flex',
               flexDirection: 'column',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           >
             <header
               style={{
-                padding: isMobile ? '18px 16px 0' : '24px 24px 0'
+                padding: isMobile ? '18px 16px 0' : '24px 24px 0',
               }}
             >
               <div style={{ display: 'grid', gap: 0 }}>
                 {isMobile ? (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 36 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        minHeight: 36,
+                      }}
+                    >
                       <button
                         type="button"
                         aria-label="Voltar de configurações"
@@ -1689,24 +1983,36 @@ export function AuthenticatedLayout() {
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
                         }}
                       >
                         <ChevronLeft size={20} />
                       </button>
 
-                      <strong style={{ color: '#0f172a', fontSize: 22, fontWeight: 800, lineHeight: 1.1 }}>
+                      <strong
+                        style={{
+                          color: '#0f172a',
+                          fontSize: 22,
+                          fontWeight: 800,
+                          lineHeight: 1.1,
+                        }}
+                      >
                         Configurações
                       </strong>
                     </div>
 
-                    <div style={{ marginTop: 12 }}>
-                      {renderSettingsTabs()}
-                    </div>
+                    <div style={{ marginTop: 12 }}>{renderSettingsTabs()}</div>
                   </>
                 ) : (
                   <nav style={{ padding: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
                       {renderSettingsTabs()}
 
                       <button
@@ -1724,7 +2030,7 @@ export function AuthenticatedLayout() {
                           cursor: 'pointer',
                           fontSize: 14,
                           fontWeight: 600,
-                          lineHeight: 1
+                          lineHeight: 1,
                         }}
                       >
                         X
@@ -1733,17 +2039,25 @@ export function AuthenticatedLayout() {
                   </nav>
                 )}
 
-                <div style={{ borderBottom: '1px solid #e5e7eb', marginTop: 8, marginBottom: 10 }} />
+                <div
+                  style={{
+                    borderBottom: '1px solid #e5e7eb',
+                    marginTop: 8,
+                    marginBottom: 10,
+                  }}
+                />
               </div>
             </header>
 
             <div
               style={{
-                padding: isMobile ? '0 16px calc(24px + env(safe-area-inset-bottom))' : '0 24px 24px 24px',
+                padding: isMobile
+                  ? '0 16px calc(24px + env(safe-area-inset-bottom))'
+                  : '0 24px 24px 24px',
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 minHeight: 0,
-                flex: 1
+                flex: 1,
               }}
             >
               {selectedSettingsTab === 'usuario' ? (
@@ -1758,33 +2072,34 @@ export function AuthenticatedLayout() {
                     minHeight: '100%',
                     minWidth: 0,
                     overflowX: 'hidden',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
                   }}
                 >
-                  <div style={{ display: 'grid', justifyItems: 'center', gap: 10 }}>
+                  <div
+                    style={{ display: 'grid', justifyItems: 'center', gap: 10 }}
+                  >
                     <div
                       style={{
                         width: 66,
                         height: 66,
                         borderRadius: 999,
-                        background: 'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
+                        background:
+                          'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
                         color: '#ffffff',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: 33 / 1.3,
                         fontWeight: 800,
-                        letterSpacing: 0.4
+                        letterSpacing: 0.4,
                       }}
                     >
-                      {(
-                        (settingsUserName || userFirstName || 'ST')
-                          .split(' ')
-                          .filter(Boolean)
-                          .slice(0, 2)
-                          .map((token) => token.charAt(0).toUpperCase())
-                          .join('') || 'ST'
-                      )}
+                      {(settingsUserName || userFirstName || 'ST')
+                        .split(' ')
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((token) => token.charAt(0).toUpperCase())
+                        .join('') || 'ST'}
                     </div>
 
                     <h3
@@ -1796,7 +2111,7 @@ export function AuthenticatedLayout() {
                         width: '100%',
                         textAlign: 'center',
                         lineHeight: 1.2,
-                        overflowWrap: 'anywhere'
+                        overflowWrap: 'anywhere',
                       }}
                     >
                       {settingsUserName || userFirstName || 'Usuário'}
@@ -1815,12 +2130,31 @@ export function AuthenticatedLayout() {
                               : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
                             columnGap: 12,
-                            borderBottom: '1px solid #e5e7eb'
+                            borderBottom: '1px solid #e5e7eb',
                           }}
                         >
                           <Phone size={16} color="#64748b" />
-                          <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>Telefone</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              color: '#64748b',
+                              fontSize: 28 / 1.7,
+                              fontWeight: 700,
+                            }}
+                          >
+                            Telefone
+                          </span>
+                          <span
+                            style={{
+                              color: '#1f2937',
+                              fontSize: 30 / 1.7,
+                              fontWeight: 700,
+                              textAlign: 'right',
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {formatPhoneNumber(settingsUserPhoneNumber)}
                           </span>
                         </div>
@@ -1834,12 +2168,31 @@ export function AuthenticatedLayout() {
                               : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
                             columnGap: 12,
-                            borderBottom: '1px solid #e5e7eb'
+                            borderBottom: '1px solid #e5e7eb',
                           }}
                         >
                           <Mail size={16} color="#64748b" />
-                          <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>E-mail</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              color: '#64748b',
+                              fontSize: 28 / 1.7,
+                              fontWeight: 700,
+                            }}
+                          >
+                            E-mail
+                          </span>
+                          <span
+                            style={{
+                              color: '#1f2937',
+                              fontSize: 30 / 1.7,
+                              fontWeight: 700,
+                              textAlign: 'right',
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {settingsUserEmail || authUserEmail || '-'}
                           </span>
                         </div>
@@ -1852,12 +2205,31 @@ export function AuthenticatedLayout() {
                               ? '20px 88px minmax(0, 1fr)'
                               : '22px 112px minmax(0, 1fr)',
                             alignItems: 'center',
-                            columnGap: 12
+                            columnGap: 12,
                           }}
                         >
                           <Briefcase size={16} color="#64748b" />
-                          <span style={{ color: '#64748b', fontSize: 28 / 1.7, fontWeight: 700 }}>Função</span>
-                          <span style={{ color: '#1f2937', fontSize: 30 / 1.7, fontWeight: 700, textAlign: 'right', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              color: '#64748b',
+                              fontSize: 28 / 1.7,
+                              fontWeight: 700,
+                            }}
+                          >
+                            Função
+                          </span>
+                          <span
+                            style={{
+                              color: '#1f2937',
+                              fontSize: 30 / 1.7,
+                              fontWeight: 700,
+                              textAlign: 'right',
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {settingsUserRole}
                           </span>
                         </div>
@@ -1871,7 +2243,8 @@ export function AuthenticatedLayout() {
                           minHeight: 46,
                           border: 'none',
                           borderRadius: 10,
-                          background: 'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
+                          background:
+                            'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
                           color: '#ffffff',
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1879,7 +2252,7 @@ export function AuthenticatedLayout() {
                           gap: 8,
                           fontSize: 30 / 1.7,
                           fontWeight: 700,
-                          cursor: 'pointer'
+                          cursor: 'pointer',
                         }}
                       >
                         <Lock size={15} />
@@ -1890,9 +2263,11 @@ export function AuthenticatedLayout() {
                         <p
                           style={{
                             margin: 0,
-                            color: passwordChangeSucceeded ? '#166534' : '#b91c1c',
+                            color: passwordChangeSucceeded
+                              ? '#166534'
+                              : '#b91c1c',
                             fontSize: 13,
-                            fontWeight: 600
+                            fontWeight: 600,
                           }}
                         >
                           {passwordChangeFeedback}
@@ -1902,11 +2277,21 @@ export function AuthenticatedLayout() {
                   ) : (
                     <div style={{ display: 'grid', gap: 14, marginTop: 4 }}>
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <span style={{ color: '#374151', fontSize: 13, fontWeight: 700 }}>Senha atual</span>
+                        <span
+                          style={{
+                            color: '#374151',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Senha atual
+                        </span>
                         <input
                           type="password"
                           value={currentPasswordInput}
-                          onChange={(event) => setCurrentPasswordInput(event.target.value)}
+                          onChange={(event) =>
+                            setCurrentPasswordInput(event.target.value)
+                          }
                           autoComplete="current-password"
                           style={{
                             width: '100%',
@@ -1916,17 +2301,27 @@ export function AuthenticatedLayout() {
                             padding: '0 12px',
                             fontSize: 14,
                             color: '#111827',
-                            boxSizing: 'border-box'
+                            boxSizing: 'border-box',
                           }}
                         />
                       </div>
 
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <span style={{ color: '#374151', fontSize: 13, fontWeight: 700 }}>Nova senha</span>
+                        <span
+                          style={{
+                            color: '#374151',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Nova senha
+                        </span>
                         <input
                           type="password"
                           value={newPasswordInput}
-                          onChange={(event) => setNewPasswordInput(event.target.value)}
+                          onChange={(event) =>
+                            setNewPasswordInput(event.target.value)
+                          }
                           autoComplete="new-password"
                           style={{
                             width: '100%',
@@ -1936,17 +2331,27 @@ export function AuthenticatedLayout() {
                             padding: '0 12px',
                             fontSize: 14,
                             color: '#111827',
-                            boxSizing: 'border-box'
+                            boxSizing: 'border-box',
                           }}
                         />
                       </div>
 
                       <div style={{ display: 'grid', gap: 4 }}>
-                        <span style={{ color: '#374151', fontSize: 13, fontWeight: 700 }}>Confirmar nova senha</span>
+                        <span
+                          style={{
+                            color: '#374151',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Confirmar nova senha
+                        </span>
                         <input
                           type="password"
                           value={newPasswordConfirmationInput}
-                          onChange={(event) => setNewPasswordConfirmationInput(event.target.value)}
+                          onChange={(event) =>
+                            setNewPasswordConfirmationInput(event.target.value)
+                          }
                           autoComplete="new-password"
                           style={{
                             width: '100%',
@@ -1956,12 +2361,19 @@ export function AuthenticatedLayout() {
                             padding: '0 12px',
                             fontSize: 14,
                             color: '#111827',
-                            boxSizing: 'border-box'
+                            boxSizing: 'border-box',
                           }}
                         />
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: 10,
+                          marginTop: 4,
+                        }}
+                      >
                         <button
                           type="button"
                           onClick={handleCancelPasswordChange}
@@ -1975,8 +2387,10 @@ export function AuthenticatedLayout() {
                             padding: '0 16px',
                             fontSize: 13,
                             fontWeight: 700,
-                            cursor: isUpdatingPassword ? 'not-allowed' : 'pointer',
-                            opacity: isUpdatingPassword ? 0.7 : 1
+                            cursor: isUpdatingPassword
+                              ? 'not-allowed'
+                              : 'pointer',
+                            opacity: isUpdatingPassword ? 0.7 : 1,
                           }}
                         >
                           Cancelar
@@ -1992,13 +2406,16 @@ export function AuthenticatedLayout() {
                             minHeight: 42,
                             border: 'none',
                             borderRadius: 8,
-                            background: 'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
+                            background:
+                              'linear-gradient(135deg, #2f8f55 0%, #1f7a4d 100%)',
                             color: '#ffffff',
                             padding: '0 16px',
                             fontSize: 13,
                             fontWeight: 700,
-                            cursor: isUpdatingPassword ? 'not-allowed' : 'pointer',
-                            opacity: isUpdatingPassword ? 0.7 : 1
+                            cursor: isUpdatingPassword
+                              ? 'not-allowed'
+                              : 'pointer',
+                            opacity: isUpdatingPassword ? 0.7 : 1,
                           }}
                         >
                           {isUpdatingPassword ? 'Confirmando...' : 'Confirmar'}
@@ -2009,9 +2426,11 @@ export function AuthenticatedLayout() {
                         <p
                           style={{
                             margin: 0,
-                            color: passwordChangeSucceeded ? '#166534' : '#b91c1c',
+                            color: passwordChangeSucceeded
+                              ? '#166534'
+                              : '#b91c1c',
                             fontSize: 13,
-                            fontWeight: 600
+                            fontWeight: 600,
                           }}
                         >
                           {passwordChangeFeedback}
@@ -2029,18 +2448,26 @@ export function AuthenticatedLayout() {
                     background: '#ffffff',
                     overflow: 'hidden',
                     display: 'grid',
-                    gridTemplateRows: 'auto 1fr'
+                    gridTemplateRows: 'auto 1fr',
                   }}
                 >
-                  <div style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}>
+                  <div
+                    style={{ display: 'flex', gap: 8, padding: '12px 16px 0' }}
+                  >
                     <button
                       type="button"
                       onClick={() => setSelectedNotificationsTab('tipos')}
                       style={{
                         padding: '8px 14px',
                         borderRadius: 8,
-                        background: selectedNotificationsTab === 'tipos' ? '#2f8f55' : '#ffffff',
-                        color: selectedNotificationsTab === 'tipos' ? '#ffffff' : '#111827',
+                        background:
+                          selectedNotificationsTab === 'tipos'
+                            ? '#2f8f55'
+                            : '#ffffff',
+                        color:
+                          selectedNotificationsTab === 'tipos'
+                            ? '#ffffff'
+                            : '#111827',
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2048,8 +2475,11 @@ export function AuthenticatedLayout() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
-                        border: selectedNotificationsTab === 'tipos' ? 'none' : '1px solid #d1d5db',
-                        flex: 1
+                        border:
+                          selectedNotificationsTab === 'tipos'
+                            ? 'none'
+                            : '1px solid #d1d5db',
+                        flex: 1,
                       }}
                     >
                       {!hideMobileNotificationIcons ? <Bell size={16} /> : null}
@@ -2061,8 +2491,14 @@ export function AuthenticatedLayout() {
                       style={{
                         padding: '8px 14px',
                         borderRadius: 8,
-                        background: selectedNotificationsTab === 'canais' ? '#2f8f55' : '#ffffff',
-                        color: selectedNotificationsTab === 'canais' ? '#ffffff' : '#111827',
+                        background:
+                          selectedNotificationsTab === 'canais'
+                            ? '#2f8f55'
+                            : '#ffffff',
+                        color:
+                          selectedNotificationsTab === 'canais'
+                            ? '#ffffff'
+                            : '#111827',
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2070,21 +2506,34 @@ export function AuthenticatedLayout() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
-                        border: selectedNotificationsTab === 'canais' ? 'none' : '1px solid #d1d5db',
-                        flex: 1
+                        border:
+                          selectedNotificationsTab === 'canais'
+                            ? 'none'
+                            : '1px solid #d1d5db',
+                        flex: 1,
                       }}
                     >
-                      {!hideMobileNotificationIcons ? <MessageCircle size={16} /> : null}
+                      {!hideMobileNotificationIcons ? (
+                        <MessageCircle size={16} />
+                      ) : null}
                       WhatsApps
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedNotificationsTab('preferencias')}
+                      onClick={() =>
+                        setSelectedNotificationsTab('preferencias')
+                      }
                       style={{
                         padding: '8px 14px',
                         borderRadius: 8,
-                        background: selectedNotificationsTab === 'preferencias' ? '#2f8f55' : '#ffffff',
-                        color: selectedNotificationsTab === 'preferencias' ? '#ffffff' : '#111827',
+                        background:
+                          selectedNotificationsTab === 'preferencias'
+                            ? '#2f8f55'
+                            : '#ffffff',
+                        color:
+                          selectedNotificationsTab === 'preferencias'
+                            ? '#ffffff'
+                            : '#111827',
                         fontSize: 14,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -2092,8 +2541,11 @@ export function AuthenticatedLayout() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 6,
-                        border: selectedNotificationsTab === 'preferencias' ? 'none' : '1px solid #d1d5db',
-                        flex: 1
+                        border:
+                          selectedNotificationsTab === 'preferencias'
+                            ? 'none'
+                            : '1px solid #d1d5db',
+                        flex: 1,
                       }}
                     >
                       {!hideMobileNotificationIcons ? <Mail size={16} /> : null}
@@ -2103,12 +2555,32 @@ export function AuthenticatedLayout() {
 
                   {selectedNotificationsTab === 'tipos' ? (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                          padding: '12px 16px 0',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 900,
+                            letterSpacing: '-0.2px',
+                          }}
+                        >
                           Eventos
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b' }}>
-                          Escolha quais eventos você deseja receber e por qual canal
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#5b5b5b',
+                          }}
+                        >
+                          Escolha quais eventos você deseja receber e por qual
+                          canal
                         </div>
                       </div>
 
@@ -2127,9 +2599,13 @@ export function AuthenticatedLayout() {
                               marginTop: 24,
                             }}
                           >
-                            <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 600 }}>
-                              
-                            </span>
+                            <span
+                              style={{
+                                color: '#6b7280',
+                                fontSize: 13,
+                                fontWeight: 600,
+                              }}
+                            ></span>
                             <span
                               style={{
                                 display: 'inline-flex',
@@ -2138,10 +2614,12 @@ export function AuthenticatedLayout() {
                                 gap: 6,
                                 color: '#111827',
                                 fontSize: 14,
-                                fontWeight: 600
+                                fontWeight: 600,
                               }}
                             >
-                              {!hideMobileNotificationIcons ? <Bell size={15} /> : null}
+                              {!hideMobileNotificationIcons ? (
+                                <Bell size={15} />
+                              ) : null}
                               App
                             </span>
                             <span
@@ -2152,10 +2630,12 @@ export function AuthenticatedLayout() {
                                 gap: 6,
                                 color: '#111827',
                                 fontSize: 14,
-                                fontWeight: 600
+                                fontWeight: 600,
                               }}
                             >
-                              {!hideMobileNotificationIcons ? <MessageCircle size={15} /> : null}
+                              {!hideMobileNotificationIcons ? (
+                                <MessageCircle size={15} />
+                              ) : null}
                               WhatsApp
                             </span>
                             <span
@@ -2166,124 +2646,177 @@ export function AuthenticatedLayout() {
                                 gap: 6,
                                 color: '#111827',
                                 fontSize: 14,
-                                fontWeight: 600
+                                fontWeight: 600,
                               }}
                             >
-                              {!hideMobileNotificationIcons ? <Mail size={15} /> : null}
+                              {!hideMobileNotificationIcons ? (
+                                <Mail size={15} />
+                              ) : null}
                               E-mail
                             </span>
                           </div>
 
                           <div>
-                            {notificationPreferences.map((preference, index) => (
-                          <div
-                            key={preference.id}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '40% 20% 20% 20%',
-                              alignItems: 'center',
-                              gap: 0,
-                              padding: '14px 16px',
-                              borderBottom:
-                                index === notificationPreferences.length - 1
-                                  ? 'none'
-                                  : '1px solid #e5e7eb',
-                              background: '#ffffff'
-                            }}
-                          >
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                              {renderNotificationIcon(preference.icon)}
-                              <span
-                                style={{
-                                  color: '#111827',
-                                  fontSize: 14,
-                                  fontWeight: 600,
-                                  lineHeight: 1.2
-                                }}
-                              >
-                                {preference.title}
-                              </span>
-                              {preference.title === 'Lista Follow-ups do dia' ? (
-                                <div style={{ position: 'relative', display: 'inline-flex' }}>
-                                  <button
-                                    type="button"
-                                    onMouseEnter={() => setIsListFollowupsTooltipVisible(true)}
-                                    onMouseLeave={() => setIsListFollowupsTooltipVisible(false)}
+                            {notificationPreferences.map(
+                              (preference, index) => (
+                                <div
+                                  key={preference.id}
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '40% 20% 20% 20%',
+                                    alignItems: 'center',
+                                    gap: 0,
+                                    padding: '14px 16px',
+                                    borderBottom:
+                                      index ===
+                                      notificationPreferences.length - 1
+                                        ? 'none'
+                                        : '1px solid #e5e7eb',
+                                    background: '#ffffff',
+                                  }}
+                                >
+                                  <div
                                     style={{
-                                      border: 'none',
-                                      background: 'transparent',
-                                      padding: 0,
-                                      cursor: 'help',
                                       display: 'inline-flex',
-                                      alignItems: 'center'
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      width: '100%',
+                                      minWidth: 0,
                                     }}
-                                    aria-label="Informação sobre envio da lista"
                                   >
-                                    <AlertCircle size={14} color="#6b7280" />
-                                  </button>
-                                  {isListFollowupsTooltipVisible ? (
-                                    <div
+                                    {renderNotificationIcon(preference.icon)}
+                                    <span
                                       style={{
-                                        position: 'absolute',
-                                        bottom: '100%',
-                                        left: '50%',
-                                        transform: 'translateX(-50%)',
-                                        marginBottom: 8,
-                                        background: '#1f2937',
-                                        color: '#ffffff',
-                                        padding: '8px 12px',
-                                        borderRadius: 6,
-                                        fontSize: 12,
+                                        color: '#111827',
+                                        fontSize: 14,
                                         fontWeight: 600,
-                                        whiteSpace: 'nowrap',
-                                        zIndex: 1000,
-                                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                                        lineHeight: 1.2,
                                       }}
                                     >
-                                      Enviada às 7 da manhã
+                                      {preference.title}
+                                    </span>
+                                    {[
+                                      'followup-list',
+                                      'installment-due-tomorrow',
+                                      'installment-overdue',
+                                    ].includes(preference.id) ? (
                                       <div
                                         style={{
-                                          position: 'absolute',
-                                          top: '100%',
-                                          left: '50%',
-                                          transform: 'translateX(-50%)',
-                                          width: 0,
-                                          height: 0,
-                                          borderLeft: '6px solid transparent',
-                                          borderRight: '6px solid transparent',
-                                          borderTop: '6px solid #1f2937'
+                                          position: 'relative',
+                                          display: 'inline-flex',
+                                          flex: '0 0 auto',
+                                          marginLeft: 'auto',
                                         }}
-                                      />
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
+                                      >
+                                        <button
+                                          type="button"
+                                          onMouseEnter={() =>
+                                            setActiveListTooltipId(
+                                              preference.id,
+                                            )
+                                          }
+                                          onMouseLeave={() =>
+                                            setActiveListTooltipId(null)
+                                          }
+                                          style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            padding: 0,
+                                            cursor: 'help',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                          }}
+                                          aria-label="Informação sobre envio da lista"
+                                        >
+                                          <AlertCircle
+                                            size={14}
+                                            color="#6b7280"
+                                          />
+                                        </button>
+                                        {activeListTooltipId ===
+                                        preference.id ? (
+                                          <div
+                                            style={{
+                                              position: 'absolute',
+                                              bottom: '100%',
+                                              left: '50%',
+                                              transform: 'translateX(-50%)',
+                                              marginBottom: 8,
+                                              background: '#1f2937',
+                                              color: '#ffffff',
+                                              padding: '8px 12px',
+                                              borderRadius: 6,
+                                              fontSize: 12,
+                                              fontWeight: 600,
+                                              whiteSpace: 'nowrap',
+                                              zIndex: 1000,
+                                              boxShadow:
+                                                '0 4px 6px rgba(0, 0, 0, 0.1)',
+                                            }}
+                                          >
+                                            Enviada às 7 da manhã
+                                            <div
+                                              style={{
+                                                position: 'absolute',
+                                                top: '100%',
+                                                left: '50%',
+                                                transform: 'translateX(-50%)',
+                                                width: 0,
+                                                height: 0,
+                                                borderLeft:
+                                                  '6px solid transparent',
+                                                borderRight:
+                                                  '6px solid transparent',
+                                                borderTop: '6px solid #1f2937',
+                                              }}
+                                            />
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                  </div>
 
-                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                              {preference.id !== 'followup-list' && renderChannelSwitch(
-                                preference.id,
-                                'inApp',
-                                preference.channels.inApp
-                              )}
-                            </div>
-                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                              {renderChannelSwitch(
-                                preference.id,
-                                'whatsApp',
-                                preference.channels.whatsApp
-                              )}
-                            </div>
-                            <div style={{ display: 'inline-flex', justifyContent: 'center' }}>
-                              {preference.id !== 'new-message' && renderChannelSwitch(
-                                preference.id,
-                                'email',
-                                preference.channels.email
-                              )}
-                            </div>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {renderChannelSwitch(
+                                      preference.id,
+                                      'inApp',
+                                      preference.channels.inApp,
+                                    )}
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {renderChannelSwitch(
+                                      preference.id,
+                                      'whatsApp',
+                                      preference.channels.whatsApp,
+                                    )}
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {preference.id !== 'new-message' &&
+                                      renderChannelSwitch(
+                                        preference.id,
+                                        'email',
+                                        preference.channels.email,
+                                      )}
+                                  </div>
+                                </div>
+                              ),
+                            )}
                           </div>
-                        ))}
-                      </div>
                         </>
                       )}
                     </div>
@@ -2295,248 +2828,426 @@ export function AuthenticatedLayout() {
                         <NotificationChannelsSkeleton isMobile={isMobile} />
                       ) : (
                         <>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                          <div>
-                            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
-                              Números de WhatsApp
-                            </div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
-                              Gerencie os números que irão receber notificações via WhatsApp
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsAddingWhatsAppNumber(true)}
-                            style={{
-                              padding: '8px 14px',
-                              borderRadius: 8,
-                              background: '#2f8f55',
-                              color: '#ffffff',
-                              fontSize: 14,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6,
-                              border: 'none',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0
-                            }}
-                          >
-                            + Adicionar número
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{ padding: '12px 16px' }}>
-                        {isAddingWhatsAppNumber ? (
                           <div
                             style={{
-                              display: 'grid',
-                              gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
-                              alignItems: 'center',
-                              gap: 12,
-                              padding: '12px 0',
-                              borderBottom: '1px solid #e5e7eb'
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 4,
+                              padding: '12px 16px 0',
                             }}
                           >
-                            {!hideMobileNotificationIcons ? (
-                              <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                <MessageCircle size={20} color="#2f8f55" />
-                              </div>
-                            ) : null}
-                            <input
-                              type="text"
-                              value={newWhatsAppNumber}
-                              onChange={(e) => setNewWhatsAppNumber(formatWhatsAppInputNumber(e.target.value))}
-                              placeholder="(00)00000-0000"
-                              maxLength={14}
+                            <div
                               style={{
-                                fontSize: hideMobileNotificationIcons ? 16 : 14,
-                                fontWeight: 600,
-                                color: '#111827',
-                                border: '1px solid #d1d5db',
-                                borderRadius: 6,
-                                padding: '6px 10px',
-                                fontFamily: 'inherit'
-                              }}
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              onClick={handleCancelAddWhatsAppNumber}
-                              aria-label="Cancelar"
-                              style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#6b7280',
-                                cursor: 'pointer',
-                                padding: 0,
-                                display: 'inline-flex',
+                                display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center'
+                                justifyContent: 'space-between',
+                                gap: 16,
                               }}
                             >
-                              {hideMobileNotificationIcons ? 'Cancelar' : <X size={16} />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleConfirmAddWhatsAppNumber}
-                              disabled={!isValidWhatsAppNumber(newWhatsAppNumber)}
-                              aria-label="Confirmar"
-                              style={hideMobileNotificationIcons ? {
-                                ...mobileNotificationActionTextStyle,
-                                color: isValidWhatsAppNumber(newWhatsAppNumber) ? '#2f8f55' : '#d1d5db',
-                                cursor: isValidWhatsAppNumber(newWhatsAppNumber) ? 'pointer' : 'not-allowed'
-                              } : {
-                                border: 'none',
-                                background: 'transparent',
-                                color: isValidWhatsAppNumber(newWhatsAppNumber) ? '#2f8f55' : '#d1d5db',
-                                cursor: isValidWhatsAppNumber(newWhatsAppNumber) ? 'pointer' : 'not-allowed',
-                                padding: 0,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              {hideMobileNotificationIcons ? 'Salvar' : <Check size={16} />}
-                            </button>
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: 18,
+                                    fontWeight: 900,
+                                    letterSpacing: '-0.2px',
+                                  }}
+                                >
+                                  Números de WhatsApp
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: '#5b5b5b',
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  Gerencie os números que irão receber
+                                  notificações via WhatsApp
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingWhatsAppNumber(true)}
+                                style={{
+                                  padding: '8px 14px',
+                                  borderRadius: 8,
+                                  background: '#2f8f55',
+                                  color: '#ffffff',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 6,
+                                  border: 'none',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                + Adicionar número
+                              </button>
+                            </div>
                           </div>
-                        ) : null}
-                        {whatsAppNumbers.map((item, index) => (
-                          <div key={item.id}>
-                            {editingWhatsAppNumberId === item.id ? (
+
+                          <div style={{ padding: '12px 16px' }}>
+                            {isAddingWhatsAppNumber ? (
                               <div
                                 style={{
                                   display: 'grid',
-                                  gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
+                                  gridTemplateColumns:
+                                    hideMobileNotificationIcons
+                                      ? '1fr auto auto'
+                                      : 'auto 1fr auto auto',
                                   alignItems: 'center',
                                   gap: 12,
-                                  padding: '12px 0'
+                                  padding: '12px 0',
+                                  borderBottom: '1px solid #e5e7eb',
                                 }}
                               >
                                 {!hideMobileNotificationIcons ? (
-                                  <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
                                     <MessageCircle size={20} color="#2f8f55" />
                                   </div>
                                 ) : null}
                                 <input
                                   type="text"
-                                  value={editingWhatsAppNumberValue}
-                                  onChange={(e) => setEditingWhatsAppNumberValue(formatWhatsAppInputNumber(e.target.value))}
+                                  value={newWhatsAppNumber}
+                                  onChange={(e) =>
+                                    setNewWhatsAppNumber(
+                                      formatWhatsAppInputNumber(e.target.value),
+                                    )
+                                  }
                                   placeholder="(00)00000-0000"
+                                  maxLength={14}
                                   style={{
-                                    fontSize: hideMobileNotificationIcons ? 16 : 14,
+                                    fontSize: hideMobileNotificationIcons
+                                      ? 16
+                                      : 14,
                                     fontWeight: 600,
                                     color: '#111827',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: 4,
-                                    padding: '8px 12px',
-                                    fontFamily: 'inherit'
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: 6,
+                                    padding: '6px 10px',
+                                    fontFamily: 'inherit',
                                   }}
+                                  autoFocus
                                 />
                                 <button
                                   type="button"
-                                  onClick={handleCancelEditWhatsAppNumber}
+                                  onClick={handleCancelAddWhatsAppNumber}
                                   aria-label="Cancelar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? mobileNotificationActionTextStyle
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: '#6b7280',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Cancelar' : <X size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Cancelar'
+                                  ) : (
+                                    <X size={16} />
+                                  )}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleConfirmEditWhatsAppNumber(item.id)}
-                                  disabled={!isValidWhatsAppNumber(editingWhatsAppNumberValue)}
+                                  onClick={handleConfirmAddWhatsAppNumber}
+                                  disabled={
+                                    !isValidWhatsAppNumber(newWhatsAppNumber)
+                                  }
                                   aria-label="Confirmar"
-                                  style={hideMobileNotificationIcons ? {
-                                    ...mobileNotificationActionTextStyle,
-                                    color: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? '#2f8f55' : '#d1d5db',
-                                    cursor: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? 'pointer' : 'not-allowed'
-                                  } : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? '#2f8f55' : '#d1d5db',
-                                    cursor: isValidWhatsAppNumber(editingWhatsAppNumberValue) ? 'pointer' : 'not-allowed',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? {
+                                          ...mobileNotificationActionTextStyle,
+                                          color: isValidWhatsAppNumber(
+                                            newWhatsAppNumber,
+                                          )
+                                            ? '#2f8f55'
+                                            : '#d1d5db',
+                                          cursor: isValidWhatsAppNumber(
+                                            newWhatsAppNumber,
+                                          )
+                                            ? 'pointer'
+                                            : 'not-allowed',
+                                        }
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: isValidWhatsAppNumber(
+                                            newWhatsAppNumber,
+                                          )
+                                            ? '#2f8f55'
+                                            : '#d1d5db',
+                                          cursor: isValidWhatsAppNumber(
+                                            newWhatsAppNumber,
+                                          )
+                                            ? 'pointer'
+                                            : 'not-allowed',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Salvar' : <Check size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Salvar'
+                                  ) : (
+                                    <Check size={16} />
+                                  )}
                                 </button>
                               </div>
-                            ) : (
-                              <div
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
-                                  alignItems: 'center',
-                                  gap: 12,
-                                  padding: '12px 0'
-                                }}
-                              >
-                                {!hideMobileNotificationIcons ? (
-                                  <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-                                    <MessageCircle size={20} color="#2f8f55" />
-                                  </div>
-                                ) : null}
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
-                                  {formatWhatsAppNumber(item.number)}
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditWhatsAppNumber(item.id, item.number)}
-                                  aria-label="Editar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
-                                >
-                                  {hideMobileNotificationIcons ? 'Editar' : <Edit size={16} />}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteWhatsAppNumber(item.id)}
-                                  aria-label="Deletar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
-                                >
-                                  {hideMobileNotificationIcons ? 'Excluir' : <Trash2 size={16} />}
-                                </button>
-                              </div>
-                            )}
-                            {index < whatsAppNumbers.length - 1 ? (
-                              <div style={{ height: '1px', background: '#e5e7eb' }} />
                             ) : null}
+                            {whatsAppNumbers.map((item, index) => (
+                              <div key={item.id}>
+                                {editingWhatsAppNumberId === item.id ? (
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns:
+                                        hideMobileNotificationIcons
+                                          ? '1fr auto auto'
+                                          : 'auto 1fr auto auto',
+                                      alignItems: 'center',
+                                      gap: 12,
+                                      padding: '12px 0',
+                                    }}
+                                  >
+                                    {!hideMobileNotificationIcons ? (
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                        }}
+                                      >
+                                        <MessageCircle
+                                          size={20}
+                                          color="#2f8f55"
+                                        />
+                                      </div>
+                                    ) : null}
+                                    <input
+                                      type="text"
+                                      value={editingWhatsAppNumberValue}
+                                      onChange={(e) =>
+                                        setEditingWhatsAppNumberValue(
+                                          formatWhatsAppInputNumber(
+                                            e.target.value,
+                                          ),
+                                        )
+                                      }
+                                      placeholder="(00)00000-0000"
+                                      style={{
+                                        fontSize: hideMobileNotificationIcons
+                                          ? 16
+                                          : 14,
+                                        fontWeight: 600,
+                                        color: '#111827',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: 4,
+                                        padding: '8px 12px',
+                                        fontFamily: 'inherit',
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditWhatsAppNumber}
+                                      aria-label="Cancelar"
+                                      style={
+                                        hideMobileNotificationIcons
+                                          ? mobileNotificationActionTextStyle
+                                          : {
+                                              border: 'none',
+                                              background: 'transparent',
+                                              color: '#6b7280',
+                                              cursor: 'pointer',
+                                              padding: 0,
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }
+                                      }
+                                    >
+                                      {hideMobileNotificationIcons ? (
+                                        'Cancelar'
+                                      ) : (
+                                        <X size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleConfirmEditWhatsAppNumber(item.id)
+                                      }
+                                      disabled={
+                                        !isValidWhatsAppNumber(
+                                          editingWhatsAppNumberValue,
+                                        )
+                                      }
+                                      aria-label="Confirmar"
+                                      style={
+                                        hideMobileNotificationIcons
+                                          ? {
+                                              ...mobileNotificationActionTextStyle,
+                                              color: isValidWhatsAppNumber(
+                                                editingWhatsAppNumberValue,
+                                              )
+                                                ? '#2f8f55'
+                                                : '#d1d5db',
+                                              cursor: isValidWhatsAppNumber(
+                                                editingWhatsAppNumberValue,
+                                              )
+                                                ? 'pointer'
+                                                : 'not-allowed',
+                                            }
+                                          : {
+                                              border: 'none',
+                                              background: 'transparent',
+                                              color: isValidWhatsAppNumber(
+                                                editingWhatsAppNumberValue,
+                                              )
+                                                ? '#2f8f55'
+                                                : '#d1d5db',
+                                              cursor: isValidWhatsAppNumber(
+                                                editingWhatsAppNumberValue,
+                                              )
+                                                ? 'pointer'
+                                                : 'not-allowed',
+                                              padding: 0,
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }
+                                      }
+                                    >
+                                      {hideMobileNotificationIcons ? (
+                                        'Salvar'
+                                      ) : (
+                                        <Check size={16} />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns:
+                                        hideMobileNotificationIcons
+                                          ? '1fr auto auto'
+                                          : 'auto 1fr auto auto',
+                                      alignItems: 'center',
+                                      gap: 12,
+                                      padding: '12px 0',
+                                    }}
+                                  >
+                                    {!hideMobileNotificationIcons ? (
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                        }}
+                                      >
+                                        <MessageCircle
+                                          size={20}
+                                          color="#2f8f55"
+                                        />
+                                      </div>
+                                    ) : null}
+                                    <div
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: '#111827',
+                                      }}
+                                    >
+                                      {formatWhatsAppNumber(item.number)}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleStartEditWhatsAppNumber(
+                                          item.id,
+                                          item.number,
+                                        )
+                                      }
+                                      aria-label="Editar"
+                                      style={
+                                        hideMobileNotificationIcons
+                                          ? mobileNotificationActionTextStyle
+                                          : {
+                                              border: 'none',
+                                              background: 'transparent',
+                                              color: '#6b7280',
+                                              cursor: 'pointer',
+                                              padding: 0,
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }
+                                      }
+                                    >
+                                      {hideMobileNotificationIcons ? (
+                                        'Editar'
+                                      ) : (
+                                        <Edit size={16} />
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteWhatsAppNumber(item.id)
+                                      }
+                                      aria-label="Deletar"
+                                      style={
+                                        hideMobileNotificationIcons
+                                          ? mobileNotificationActionTextStyle
+                                          : {
+                                              border: 'none',
+                                              background: 'transparent',
+                                              color: '#6b7280',
+                                              cursor: 'pointer',
+                                              padding: 0,
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                            }
+                                      }
+                                    >
+                                      {hideMobileNotificationIcons ? (
+                                        'Excluir'
+                                      ) : (
+                                        <Trash2 size={16} />
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                                {index < whatsAppNumbers.length - 1 ? (
+                                  <div
+                                    style={{
+                                      height: '1px',
+                                      background: '#e5e7eb',
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
                         </>
                       )}
                     </div>
@@ -2544,14 +3255,42 @@ export function AuthenticatedLayout() {
 
                   {selectedNotificationsTab === 'preferencias' ? (
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                          padding: '12px 16px 0',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 16,
+                          }}
+                        >
                           <div>
-                            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                            <div
+                              style={{
+                                fontSize: 18,
+                                fontWeight: 900,
+                                letterSpacing: '-0.2px',
+                              }}
+                            >
                               Endereços de E-mail
                             </div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
-                              Gerencie os endereços que irão receber notificações via e-mail
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: '#5b5b5b',
+                                marginTop: 4,
+                              }}
+                            >
+                              Gerencie os endereços que irão receber
+                              notificações via e-mail
                             </div>
                           </div>
                           <button
@@ -2571,7 +3310,7 @@ export function AuthenticatedLayout() {
                               gap: 6,
                               border: 'none',
                               whiteSpace: 'nowrap',
-                              flexShrink: 0
+                              flexShrink: 0,
                             }}
                           >
                             + Adicionar e-mail
@@ -2584,21 +3323,30 @@ export function AuthenticatedLayout() {
                           <div
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
+                              gridTemplateColumns: hideMobileNotificationIcons
+                                ? '1fr auto auto'
+                                : 'auto 1fr auto auto',
                               alignItems: 'center',
                               gap: 12,
-                              padding: '12px 0'
+                              padding: '12px 0',
                             }}
                           >
                             {!hideMobileNotificationIcons ? (
-                              <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                }}
+                              >
                                 <Mail size={20} color="#2f8f55" />
                               </div>
                             ) : null}
                             <input
                               type="text"
                               value={newEmailAddress}
-                              onChange={(e) => setNewEmailAddress(e.target.value)}
+                              onChange={(e) =>
+                                setNewEmailAddress(e.target.value)
+                              }
                               placeholder="mail@email.com"
                               style={{
                                 fontSize: hideMobileNotificationIcons ? 16 : 14,
@@ -2607,47 +3355,71 @@ export function AuthenticatedLayout() {
                                 border: '1px solid #e5e7eb',
                                 borderRadius: 4,
                                 padding: '8px 12px',
-                                fontFamily: 'inherit'
+                                fontFamily: 'inherit',
                               }}
                             />
                             <button
                               type="button"
                               onClick={handleCancelAddEmailAddress}
                               aria-label="Cancelar"
-                              style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#6b7280',
-                                cursor: 'pointer',
-                                padding: 0,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
+                              style={
+                                hideMobileNotificationIcons
+                                  ? mobileNotificationActionTextStyle
+                                  : {
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: '#6b7280',
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }
+                              }
                             >
-                              {hideMobileNotificationIcons ? 'Cancelar' : <X size={16} />}
+                              {hideMobileNotificationIcons ? (
+                                'Cancelar'
+                              ) : (
+                                <X size={16} />
+                              )}
                             </button>
                             <button
                               type="button"
                               onClick={handleConfirmAddEmailAddress}
                               disabled={!isValidEmail(newEmailAddress)}
                               aria-label="Confirmar"
-                              style={hideMobileNotificationIcons ? {
-                                ...mobileNotificationActionTextStyle,
-                                color: isValidEmail(newEmailAddress) ? '#2f8f55' : '#d1d5db',
-                                cursor: isValidEmail(newEmailAddress) ? 'pointer' : 'not-allowed'
-                              } : {
-                                border: 'none',
-                                background: 'transparent',
-                                color: isValidEmail(newEmailAddress) ? '#2f8f55' : '#d1d5db',
-                                cursor: isValidEmail(newEmailAddress) ? 'pointer' : 'not-allowed',
-                                padding: 0,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
+                              style={
+                                hideMobileNotificationIcons
+                                  ? {
+                                      ...mobileNotificationActionTextStyle,
+                                      color: isValidEmail(newEmailAddress)
+                                        ? '#2f8f55'
+                                        : '#d1d5db',
+                                      cursor: isValidEmail(newEmailAddress)
+                                        ? 'pointer'
+                                        : 'not-allowed',
+                                    }
+                                  : {
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: isValidEmail(newEmailAddress)
+                                        ? '#2f8f55'
+                                        : '#d1d5db',
+                                      cursor: isValidEmail(newEmailAddress)
+                                        ? 'pointer'
+                                        : 'not-allowed',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }
+                              }
                             >
-                              {hideMobileNotificationIcons ? 'Salvar' : <Check size={16} />}
+                              {hideMobileNotificationIcons ? (
+                                'Salvar'
+                              ) : (
+                                <Check size={16} />
+                              )}
                             </button>
                           </div>
                         ) : null}
@@ -2657,128 +3429,215 @@ export function AuthenticatedLayout() {
                               <div
                                 style={{
                                   display: 'grid',
-                                  gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
+                                  gridTemplateColumns:
+                                    hideMobileNotificationIcons
+                                      ? '1fr auto auto'
+                                      : 'auto 1fr auto auto',
                                   alignItems: 'center',
                                   gap: 12,
-                                  padding: '12px 0'
+                                  padding: '12px 0',
                                 }}
                               >
                                 {!hideMobileNotificationIcons ? (
-                                  <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
                                     <Mail size={20} color="#2f8f55" />
                                   </div>
                                 ) : null}
                                 <input
                                   type="text"
                                   value={editingEmailAddressValue}
-                                  onChange={(e) => setEditingEmailAddressValue(e.target.value)}
+                                  onChange={(e) =>
+                                    setEditingEmailAddressValue(e.target.value)
+                                  }
                                   placeholder="mail@email.com"
                                   style={{
-                                    fontSize: hideMobileNotificationIcons ? 16 : 14,
+                                    fontSize: hideMobileNotificationIcons
+                                      ? 16
+                                      : 14,
                                     fontWeight: 600,
                                     color: '#111827',
                                     border: '1px solid #e5e7eb',
                                     borderRadius: 4,
                                     padding: '8px 12px',
-                                    fontFamily: 'inherit'
+                                    fontFamily: 'inherit',
                                   }}
                                 />
                                 <button
                                   type="button"
                                   onClick={handleCancelEditEmailAddress}
                                   aria-label="Cancelar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? mobileNotificationActionTextStyle
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: '#6b7280',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Cancelar' : <X size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Cancelar'
+                                  ) : (
+                                    <X size={16} />
+                                  )}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleConfirmEditEmailAddress(item.id)}
-                                  disabled={!isValidEmail(editingEmailAddressValue)}
+                                  onClick={() =>
+                                    handleConfirmEditEmailAddress(item.id)
+                                  }
+                                  disabled={
+                                    !isValidEmail(editingEmailAddressValue)
+                                  }
                                   aria-label="Confirmar"
-                                  style={hideMobileNotificationIcons ? {
-                                    ...mobileNotificationActionTextStyle,
-                                    color: isValidEmail(editingEmailAddressValue) ? '#2f8f55' : '#d1d5db',
-                                    cursor: isValidEmail(editingEmailAddressValue) ? 'pointer' : 'not-allowed'
-                                  } : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: isValidEmail(editingEmailAddressValue) ? '#2f8f55' : '#d1d5db',
-                                    cursor: isValidEmail(editingEmailAddressValue) ? 'pointer' : 'not-allowed',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? {
+                                          ...mobileNotificationActionTextStyle,
+                                          color: isValidEmail(
+                                            editingEmailAddressValue,
+                                          )
+                                            ? '#2f8f55'
+                                            : '#d1d5db',
+                                          cursor: isValidEmail(
+                                            editingEmailAddressValue,
+                                          )
+                                            ? 'pointer'
+                                            : 'not-allowed',
+                                        }
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: isValidEmail(
+                                            editingEmailAddressValue,
+                                          )
+                                            ? '#2f8f55'
+                                            : '#d1d5db',
+                                          cursor: isValidEmail(
+                                            editingEmailAddressValue,
+                                          )
+                                            ? 'pointer'
+                                            : 'not-allowed',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Salvar' : <Check size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Salvar'
+                                  ) : (
+                                    <Check size={16} />
+                                  )}
                                 </button>
                               </div>
                             ) : (
                               <div
                                 style={{
                                   display: 'grid',
-                                  gridTemplateColumns: hideMobileNotificationIcons ? '1fr auto auto' : 'auto 1fr auto auto',
+                                  gridTemplateColumns:
+                                    hideMobileNotificationIcons
+                                      ? '1fr auto auto'
+                                      : 'auto 1fr auto auto',
                                   alignItems: 'center',
                                   gap: 12,
-                                  padding: '12px 0'
+                                  padding: '12px 0',
                                 }}
                               >
                                 {!hideMobileNotificationIcons ? (
-                                  <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                    }}
+                                  >
                                     <Mail size={20} color="#2f8f55" />
                                   </div>
                                 ) : null}
-                                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+                                <div
+                                  style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: '#111827',
+                                  }}
+                                >
                                   {item.email}
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => handleStartEditEmailAddress(item.id, item.email)}
+                                  onClick={() =>
+                                    handleStartEditEmailAddress(
+                                      item.id,
+                                      item.email,
+                                    )
+                                  }
                                   aria-label="Editar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? mobileNotificationActionTextStyle
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: '#6b7280',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Editar' : <Edit size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Editar'
+                                  ) : (
+                                    <Edit size={16} />
+                                  )}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteEmailAddress(item.id)}
+                                  onClick={() =>
+                                    handleDeleteEmailAddress(item.id)
+                                  }
                                   aria-label="Deletar"
-                                  style={hideMobileNotificationIcons ? mobileNotificationActionTextStyle : {
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
+                                  style={
+                                    hideMobileNotificationIcons
+                                      ? mobileNotificationActionTextStyle
+                                      : {
+                                          border: 'none',
+                                          background: 'transparent',
+                                          color: '#6b7280',
+                                          cursor: 'pointer',
+                                          padding: 0,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                        }
+                                  }
                                 >
-                                  {hideMobileNotificationIcons ? 'Excluir' : <Trash2 size={16} />}
+                                  {hideMobileNotificationIcons ? (
+                                    'Excluir'
+                                  ) : (
+                                    <Trash2 size={16} />
+                                  )}
                                 </button>
                               </div>
                             )}
                             {index < emailAddresses.length - 1 ? (
-                              <div style={{ height: '1px', background: '#e5e7eb' }} />
+                              <div
+                                style={{ height: '1px', background: '#e5e7eb' }}
+                              />
                             ) : null}
                           </div>
                         ))}
@@ -2794,18 +3653,48 @@ export function AuthenticatedLayout() {
                     borderRadius: 12,
                     background: '#ffffff',
                     overflow: 'hidden',
-                    display: 'block'
+                    display: 'block',
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 16px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        padding: '12px 16px 0',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 16,
+                        }}
+                      >
                         <div>
-                          <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.2px' }}>
+                          <div
+                            style={{
+                              fontSize: 18,
+                              fontWeight: 900,
+                              letterSpacing: '-0.2px',
+                            }}
+                          >
                             Atalhos
                           </div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#5b5b5b', marginTop: 4 }}>
-                            Digite <strong style={{ color: '#111827' }}>/</strong> no início de uma mensagem no chat para ver e usar seus atalhos rapidamente
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#5b5b5b',
+                              marginTop: 4,
+                            }}
+                          >
+                            Digite{' '}
+                            <strong style={{ color: '#111827' }}>/</strong> no
+                            início de uma mensagem no chat para ver e usar seus
+                            atalhos rapidamente
                           </div>
                         </div>
                         <button
@@ -2819,7 +3708,9 @@ export function AuthenticatedLayout() {
                             color: '#ffffff',
                             fontSize: 14,
                             fontWeight: 600,
-                            cursor: isLoadingShortcuts ? 'not-allowed' : 'pointer',
+                            cursor: isLoadingShortcuts
+                              ? 'not-allowed'
+                              : 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -2827,7 +3718,7 @@ export function AuthenticatedLayout() {
                             border: 'none',
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
-                            opacity: isLoadingShortcuts ? 0.6 : 1
+                            opacity: isLoadingShortcuts ? 0.6 : 1,
                           }}
                         >
                           + Adicionar atalho
@@ -2835,237 +3726,304 @@ export function AuthenticatedLayout() {
                       </div>
                     </div>
 
-                      {isLoadingShortcuts ? (
-                        <MessageShortcutsSkeleton />
-                      ) : (
-                        <>
-                          <div style={{ padding: '12px 16px' }}>
-                            {isAddingShortcut ? (
-                              <div
+                    {isLoadingShortcuts ? (
+                      <MessageShortcutsSkeleton />
+                    ) : (
+                      <>
+                        <div style={{ padding: '12px 16px' }}>
+                          {isAddingShortcut ? (
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 2fr auto auto',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '12px 0',
+                                borderBottom: '1px solid #e5e7eb',
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={newShortcutKey}
+                                onChange={(e) =>
+                                  setNewShortcutKey(e.target.value)
+                                }
+                                placeholder="Chave (ex: oi)"
                                 style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: '1fr 2fr auto auto',
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  color: '#111827',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                  fontFamily: 'inherit',
+                                }}
+                                autoFocus
+                              />
+                              <textarea
+                                value={newShortcutValue}
+                                onChange={(e) =>
+                                  setNewShortcutValue(e.target.value)
+                                }
+                                placeholder="Mensagem completa"
+                                rows={1}
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 600,
+                                  color: '#111827',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                  fontFamily: 'inherit',
+                                  lineHeight: 1.4,
+                                  resize: 'vertical',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleCancelAddShortcut}
+                                aria-label="Cancelar"
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#6b7280',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: 8,
-                                  padding: '12px 0',
-                                  borderBottom: '1px solid #e5e7eb'
+                                  justifyContent: 'center',
                                 }}
                               >
-                                <input
-                                  type="text"
-                                  value={newShortcutKey}
-                                  onChange={(e) => setNewShortcutKey(e.target.value)}
-                                  placeholder="Chave (ex: oi)"
+                                <X size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleConfirmAddShortcut}
+                                disabled={
+                                  !newShortcutKey.trim() ||
+                                  !newShortcutValue.trim()
+                                }
+                                aria-label="Confirmar"
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color:
+                                    newShortcutKey.trim() &&
+                                    newShortcutValue.trim()
+                                      ? '#2f8f55'
+                                      : '#d1d5db',
+                                  cursor:
+                                    newShortcutKey.trim() &&
+                                    newShortcutValue.trim()
+                                      ? 'pointer'
+                                      : 'not-allowed',
+                                  padding: 0,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Check size={16} />
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {messageShortcuts.map((shortcut, index) => (
+                            <div key={shortcut.id}>
+                              {editingShortcutId === shortcut.id ? (
+                                <div
                                   style={{
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    color: '#111827',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: 6,
-                                    padding: '6px 10px',
-                                    fontFamily: 'inherit'
-                                  }}
-                                  autoFocus
-                                />
-                                <textarea
-                                  value={newShortcutValue}
-                                  onChange={(e) => setNewShortcutValue(e.target.value)}
-                                  placeholder="Mensagem completa"
-                                  rows={1}
-                                  style={{
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    color: '#111827',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: 6,
-                                    padding: '6px 10px',
-                                    fontFamily: 'inherit',
-                                    lineHeight: 1.4,
-                                    resize: 'vertical'
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleCancelAddShortcut}
-                                  aria-label="Cancelar"
-                                  style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#6b7280',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    display: 'inline-flex',
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 2fr auto auto',
                                     alignItems: 'center',
-                                    justifyContent: 'center'
+                                    gap: 8,
+                                    padding: '12px 0',
                                   }}
                                 >
-                                  <X size={16} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleConfirmAddShortcut}
-                                  disabled={!newShortcutKey.trim() || !newShortcutValue.trim()}
-                                  aria-label="Confirmar"
+                                  <input
+                                    type="text"
+                                    value={editingShortcutKey}
+                                    onChange={(e) =>
+                                      setEditingShortcutKey(e.target.value)
+                                    }
+                                    placeholder="Chave"
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                      color: '#111827',
+                                      border: '1px solid #e5e7eb',
+                                      borderRadius: 4,
+                                      padding: '8px 12px',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={editingShortcutValue}
+                                    onChange={(e) =>
+                                      setEditingShortcutValue(e.target.value)
+                                    }
+                                    placeholder="Mensagem"
+                                    style={{
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                      color: '#111827',
+                                      border: '1px solid #e5e7eb',
+                                      borderRadius: 4,
+                                      padding: '8px 12px',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEditShortcut}
+                                    aria-label="Cancelar"
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: '#6b7280',
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleConfirmEditShortcut(shortcut.id)
+                                    }
+                                    disabled={
+                                      !editingShortcutKey.trim() ||
+                                      !editingShortcutValue.trim()
+                                    }
+                                    aria-label="Confirmar"
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color:
+                                        editingShortcutKey.trim() &&
+                                        editingShortcutValue.trim()
+                                          ? '#2f8f55'
+                                          : '#d1d5db',
+                                      cursor:
+                                        editingShortcutKey.trim() &&
+                                        editingShortcutValue.trim()
+                                          ? 'pointer'
+                                          : 'not-allowed',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div
                                   style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: newShortcutKey.trim() && newShortcutValue.trim() ? '#2f8f55' : '#d1d5db',
-                                    cursor: newShortcutKey.trim() && newShortcutValue.trim() ? 'pointer' : 'not-allowed',
-                                    padding: 0,
-                                    display: 'inline-flex',
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 2fr auto auto',
                                     alignItems: 'center',
-                                    justifyContent: 'center'
+                                    gap: 8,
+                                    padding: '12px 0',
                                   }}
                                 >
-                                  <Check size={16} />
-                                </button>
-                              </div>
-                            ) : null}
-
-                            {messageShortcuts.map((shortcut, index) => (
-                              <div key={shortcut.id}>
-                                {editingShortcutId === shortcut.id ? (
                                   <div
                                     style={{
-                                      display: 'grid',
-                                      gridTemplateColumns: '1fr 2fr auto auto',
-                                      alignItems: 'center',
-                                      gap: 8,
-                                      padding: '12px 0'
+                                      fontSize: 14,
+                                      fontWeight: 700,
+                                      color: '#111827',
                                     }}
                                   >
-                                    <input
-                                      type="text"
-                                      value={editingShortcutKey}
-                                      onChange={(e) => setEditingShortcutKey(e.target.value)}
-                                      placeholder="Chave"
-                                      style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        color: '#111827',
-                                        border: '1px solid #e5e7eb',
-                                        borderRadius: 4,
-                                        padding: '8px 12px',
-                                        fontFamily: 'inherit'
-                                      }}
-                                    />
-                                    <input
-                                      type="text"
-                                      value={editingShortcutValue}
-                                      onChange={(e) => setEditingShortcutValue(e.target.value)}
-                                      placeholder="Mensagem"
-                                      style={{
-                                        fontSize: 14,
-                                        fontWeight: 600,
-                                        color: '#111827',
-                                        border: '1px solid #e5e7eb',
-                                        borderRadius: 4,
-                                        padding: '8px 12px',
-                                        fontFamily: 'inherit'
-                                      }}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={handleCancelEditShortcut}
-                                      aria-label="Cancelar"
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#6b7280',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}
-                                    >
-                                      <X size={16} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleConfirmEditShortcut(shortcut.id)}
-                                      disabled={!editingShortcutKey.trim() || !editingShortcutValue.trim()}
-                                      aria-label="Confirmar"
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: editingShortcutKey.trim() && editingShortcutValue.trim() ? '#2f8f55' : '#d1d5db',
-                                        cursor: editingShortcutKey.trim() && editingShortcutValue.trim() ? 'pointer' : 'not-allowed',
-                                        padding: 0,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}
-                                    >
-                                      <Check size={16} />
-                                    </button>
+                                    /{shortcut.key}
                                   </div>
-                                ) : (
                                   <div
                                     style={{
-                                      display: 'grid',
-                                      gridTemplateColumns: '1fr 2fr auto auto',
-                                      alignItems: 'center',
-                                      gap: 8,
-                                      padding: '12px 0'
+                                      fontSize: 14,
+                                      color: '#6b7280',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
                                     }}
                                   >
-                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
-                                      /{shortcut.key}
-                                    </div>
-                                    <div style={{ fontSize: 14, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {shortcut.value}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditShortcut(shortcut.id, shortcut.key, shortcut.value)}
-                                      aria-label="Editar atalho"
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#6b7280',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}
-                                    >
-                                      <Pencil size={16} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteShortcut(shortcut.id)}
-                                      aria-label="Excluir atalho"
-                                      style={{
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: '#6b7280',
-                                        cursor: 'pointer',
-                                        padding: 0,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                      }}
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
+                                    {shortcut.value}
                                   </div>
-                                )}
-                                {index < messageShortcuts.length - 1 ? (
-                                  <div style={{ height: '1px', background: '#e5e7eb' }} />
-                                ) : null}
-                              </div>
-                            ))}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleStartEditShortcut(
+                                        shortcut.id,
+                                        shortcut.key,
+                                        shortcut.value,
+                                      )
+                                    }
+                                    aria-label="Editar atalho"
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: '#6b7280',
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDeleteShortcut(shortcut.id)
+                                    }
+                                    aria-label="Excluir atalho"
+                                    style={{
+                                      border: 'none',
+                                      background: 'transparent',
+                                      color: '#6b7280',
+                                      cursor: 'pointer',
+                                      padding: 0,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              )}
+                              {index < messageShortcuts.length - 1 ? (
+                                <div
+                                  style={{
+                                    height: '1px',
+                                    background: '#e5e7eb',
+                                  }}
+                                />
+                              ) : null}
+                            </div>
+                          ))}
 
-                            {messageShortcuts.length === 0 && !isAddingShortcut ? (
-                              <p style={{ margin: 0, color: '#9ca3af', fontSize: 14, paddingTop: 8 }}>
-                                Nenhum atalho cadastrado ainda.
-                              </p>
-                            ) : null}
-                          </div>
-                        </>
-                      )}
+                          {messageShortcuts.length === 0 &&
+                          !isAddingShortcut ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                color: '#9ca3af',
+                                fontSize: 14,
+                                paddingTop: 8,
+                              }}
+                            >
+                              Nenhum atalho cadastrado ainda.
+                            </p>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -3087,7 +4045,7 @@ export function AuthenticatedLayout() {
                   border: 'none',
                   padding: 0,
                   margin: 0,
-                  background: 'rgba(15, 23, 42, 0.3)'
+                  background: 'rgba(15, 23, 42, 0.3)',
                 }}
               />
             ) : null}
@@ -3106,8 +4064,10 @@ export function AuthenticatedLayout() {
                 borderTop: sidebarBorder,
                 boxShadow: '0 -16px 40px rgba(15, 23, 42, 0.18)',
                 padding: '16px 20px 28px',
-                transform: isMobileMenuOpen ? 'translateY(0)' : 'translateY(100%)',
-                transition: 'transform 160ms ease'
+                transform: isMobileMenuOpen
+                  ? 'translateY(0)'
+                  : 'translateY(100%)',
+                transition: 'transform 160ms ease',
               }}
             >
               <div
@@ -3116,7 +4076,7 @@ export function AuthenticatedLayout() {
                   height: 4,
                   borderRadius: 999,
                   background: '#cbd5e1',
-                  margin: '0 auto 16px'
+                  margin: '0 auto 16px',
                 }}
               />
 
@@ -3129,10 +4089,14 @@ export function AuthenticatedLayout() {
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'agenda-mobile-menu', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'agenda-mobile-menu',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('agenda-mobile-menu')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3149,10 +4113,14 @@ export function AuthenticatedLayout() {
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'contatos-mobile-menu', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'contatos-mobile-menu',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('contatos-mobile-menu')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3168,10 +4136,14 @@ export function AuthenticatedLayout() {
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'arquivos-mobile', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'arquivos-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('arquivos-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3187,10 +4159,14 @@ export function AuthenticatedLayout() {
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'arquivados-mobile', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'arquivados-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('arquivados-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3206,10 +4182,14 @@ export function AuthenticatedLayout() {
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'financeiro-mobile', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'financeiro-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('financeiro-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3219,16 +4199,43 @@ export function AuthenticatedLayout() {
                 </NavLink>
 
                 <NavLink
+                  to="/metricas"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false)
+                    setIsSettingsPanelOpen(false)
+                  }}
+                  style={({ isActive }) => ({
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'metricas-mobile',
+                      false,
+                    ),
+                    justifyContent: 'flex-start',
+                    minHeight: 48,
+                    padding: '12px 14px',
+                  })}
+                  onMouseEnter={() => setHoveredNavKey('metricas-mobile')}
+                  onMouseLeave={() => setHoveredNavKey(null)}
+                >
+                  <ChartNoAxesColumnIncreasing size={18} />
+                  <span style={{ marginLeft: 10 }}>Métricas</span>
+                </NavLink>
+
+                <NavLink
                   to="/informacoes"
                   onClick={() => {
                     setIsMobileMenuOpen(false)
                     setIsSettingsPanelOpen(false)
                   }}
                   style={({ isActive }) => ({
-                    ...navItemStyle(isSettingsPanelOpen ? false : isActive, hoveredNavKey === 'informacoes-mobile', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen ? false : isActive,
+                      hoveredNavKey === 'informacoes-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
-                    padding: '12px 14px'
+                    padding: '12px 14px',
                   })}
                   onMouseEnter={() => setHoveredNavKey('informacoes-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3240,12 +4247,16 @@ export function AuthenticatedLayout() {
                 <button
                   type="button"
                   style={{
-                    ...navItemStyle(isSettingsPanelOpen, hoveredNavKey === 'configuracoes-mobile', false),
+                    ...navItemStyle(
+                      isSettingsPanelOpen,
+                      hoveredNavKey === 'configuracoes-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
                     padding: '12px 14px',
                     fontFamily: 'inherit',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                   onMouseEnter={() => setHoveredNavKey('configuracoes-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3259,13 +4270,17 @@ export function AuthenticatedLayout() {
                   type="button"
                   onClick={() => void handleLogout()}
                   style={{
-                    ...navItemStyle(false, hoveredNavKey === 'logout-mobile', false),
+                    ...navItemStyle(
+                      false,
+                      hoveredNavKey === 'logout-mobile',
+                      false,
+                    ),
                     justifyContent: 'flex-start',
                     minHeight: 48,
                     padding: '12px 14px',
                     fontFamily: 'inherit',
                     cursor: 'pointer',
-                    width: '100%'
+                    width: '100%',
                   }}
                   onMouseEnter={() => setHoveredNavKey('logout-mobile')}
                   onMouseLeave={() => setHoveredNavKey(null)}
@@ -3288,7 +4303,7 @@ export function AuthenticatedLayout() {
                 background: '#fcfdff',
                 borderTop: sidebarBorder,
                 boxShadow: '0 -10px 18px -12px rgba(148, 163, 184, 0.36)',
-                padding: '8px 12px'
+                padding: '8px 12px',
               }}
             >
               <ul
@@ -3299,7 +4314,7 @@ export function AuthenticatedLayout() {
                   display: 'grid',
                   gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
                   alignItems: 'stretch',
-                  gap: 6
+                  gap: 6,
                 }}
               >
                 <li>
@@ -3320,10 +4335,10 @@ export function AuthenticatedLayout() {
                               ? false
                               : isActive,
                         hoveredNavKey === 'inicio-mobile',
-                        true
+                        true,
                       ),
                       minHeight: 58,
-                      padding: '8px 6px'
+                      padding: '8px 6px',
                     })}
                     onMouseEnter={() => setHoveredNavKey('inicio-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}
@@ -3341,12 +4356,16 @@ export function AuthenticatedLayout() {
                     }}
                     style={({ isActive }) => ({
                       ...navItemStyle(
-                        isMobileMenuOpen ? false : isSettingsPanelOpen ? false : isActive,
+                        isMobileMenuOpen
+                          ? false
+                          : isSettingsPanelOpen
+                            ? false
+                            : isActive,
                         hoveredNavKey === 'leads-mobile',
-                        true
+                        true,
                       ),
                       minHeight: 58,
-                      padding: '8px 6px'
+                      padding: '8px 6px',
                     })}
                     onMouseEnter={() => setHoveredNavKey('leads-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}
@@ -3364,12 +4383,16 @@ export function AuthenticatedLayout() {
                     }}
                     style={({ isActive }) => ({
                       ...navItemStyle(
-                        isMobileMenuOpen ? false : isSettingsPanelOpen ? false : isActive,
+                        isMobileMenuOpen
+                          ? false
+                          : isSettingsPanelOpen
+                            ? false
+                            : isActive,
                         hoveredNavKey === 'negocios-mobile',
-                        true
+                        true,
                       ),
                       minHeight: 58,
-                      padding: '8px 6px'
+                      padding: '8px 6px',
                     })}
                     onMouseEnter={() => setHoveredNavKey('negocios-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}
@@ -3387,12 +4410,16 @@ export function AuthenticatedLayout() {
                     }}
                     style={({ isActive }) => ({
                       ...navItemStyle(
-                        isMobileMenuOpen ? false : isSettingsPanelOpen ? false : isActive,
+                        isMobileMenuOpen
+                          ? false
+                          : isSettingsPanelOpen
+                            ? false
+                            : isActive,
                         hoveredNavKey === 'conversas-mobile',
-                        true
+                        true,
                       ),
                       minHeight: 58,
-                      padding: '8px 6px'
+                      padding: '8px 6px',
                     })}
                     onMouseEnter={() => setHoveredNavKey('conversas-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}
@@ -3404,14 +4431,20 @@ export function AuthenticatedLayout() {
                   <button
                     type="button"
                     aria-label="Abrir mais opções"
-                    onClick={() => setIsMobileMenuOpen((currentState) => !currentState)}
+                    onClick={() =>
+                      setIsMobileMenuOpen((currentState) => !currentState)
+                    }
                     style={{
-                      ...navItemStyle(false, hoveredNavKey === 'mais-mobile' || isMobileMenuOpen, true),
+                      ...navItemStyle(
+                        false,
+                        hoveredNavKey === 'mais-mobile' || isMobileMenuOpen,
+                        true,
+                      ),
                       minHeight: 58,
                       padding: '8px 6px',
                       border: 'none',
                       fontFamily: 'inherit',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
                     }}
                     onMouseEnter={() => setHoveredNavKey('mais-mobile')}
                     onMouseLeave={() => setHoveredNavKey(null)}

@@ -144,6 +144,20 @@ export function FollowUpActionFields({
         </select>
       </div>
 
+      {value.type === 'agenda' ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={labelStyle}>Descrição</label>
+          <textarea
+            value={value.description}
+            readOnly={readOnly}
+            disabled={readOnly}
+            onChange={(event) => onChange({ ...value, description: event.target.value })}
+            placeholder="Digite a descrição"
+            style={{ ...controlStyle, minHeight: isMobile ? 110 : 96, padding: '10px 14px', resize: 'vertical', lineHeight: 1.4 }}
+          />
+        </div>
+      ) : null}
+
       {value.type === 'send_message' ? (
         <>
           <div style={{ display: 'grid', gap: 8 }}>

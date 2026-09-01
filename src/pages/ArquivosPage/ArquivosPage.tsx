@@ -1,6 +1,6 @@
 import { ChevronDown, Download, FileText, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -10,6 +10,7 @@ import { TotalCount } from '../../core/components/TotalCount'
 import { formatDate, getApiDateTimestamp } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
+import LeadPage from '../LeadPage'
 
 type ArquivoRow = {
   id: string
@@ -56,6 +57,8 @@ const formatFileSize = (sizeInBytes: number): string => {
 
 export default function ArquivosPage() {
   const { isMobile } = useViewportBreakpoint()
+  const { leadId } = useParams<{ leadId?: string }>()
+  const location = useLocation()
   const navigate = useNavigate()
   useEffect(() => {
     const bodyStyle = document.body.style
@@ -83,37 +86,56 @@ export default function ArquivosPage() {
     }
   }, [])
 
-  const { data: leadsData, isLoading: isLeadsLoading, error: leadsError } = useLeadsBootstrap()
+  const {
+    data: leadsData,
+    isLoading: isLeadsLoading,
+    error: leadsError,
+  } = useLeadsBootstrap()
   const [isLoadingArquivos, setIsLoadingArquivos] = useState<boolean>(true)
   const [arquivosError, setArquivosError] = useState<string | null>(null)
   const [arquivos, setArquivos] = useState<ArquivoRow[]>([])
   const [negocios, setNegocios] = useState<NegocioOption[]>([])
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
+  const [isSearchInputFocused, setIsSearchInputFocused] =
+    useState<boolean>(false)
   const [hoveredArquivoId, setHoveredArquivoId] = useState<string | null>(null)
-  const [confirmingDeleteArquivoId, setConfirmingDeleteArquivoId] = useState<string | null>(null)
-  const [deletingArquivoId, setDeletingArquivoId] = useState<string | null>(null)
-  const [downloadingArquivoId, setDownloadingArquivoId] = useState<string | null>(null)
-  const [isCreateArquivoPanelOpen, setIsCreateArquivoPanelOpen] = useState<boolean>(false)
-  const [isArquivoPanelEntering, setIsArquivoPanelEntering] = useState<boolean>(false)
-  const [arquivoCreateDraft, setArquivoCreateDraft] = useState<ArquivoCreateDraft>({
-    leadId: '',
-    negotiationId: '',
-    file: null
-  })
-  const [arquivoCreateError, setArquivoCreateError] = useState<string | null>(null)
+  const [confirmingDeleteArquivoId, setConfirmingDeleteArquivoId] = useState<
+    string | null
+  >(null)
+  const [deletingArquivoId, setDeletingArquivoId] = useState<string | null>(
+    null,
+  )
+  const [downloadingArquivoId, setDownloadingArquivoId] = useState<
+    string | null
+  >(null)
+  const [isCreateArquivoPanelOpen, setIsCreateArquivoPanelOpen] =
+    useState<boolean>(false)
+  const [isArquivoPanelEntering, setIsArquivoPanelEntering] =
+    useState<boolean>(false)
+  const [arquivoCreateDraft, setArquivoCreateDraft] =
+    useState<ArquivoCreateDraft>({
+      leadId: '',
+      negotiationId: '',
+      file: null,
+    })
+  const [arquivoCreateError, setArquivoCreateError] = useState<string | null>(
+    null,
+  )
   const [isCreatingArquivo, setIsCreatingArquivo] = useState<boolean>(false)
+  const [arquivosRefreshVersion, setArquivosRefreshVersion] =
+    useState<number>(0)
   const arquivoInputRef = useRef<HTMLInputElement | null>(null)
+  const isLeadSelected = Boolean(leadId)
 
   const leadNameById = useMemo(
     () =>
       new Map(
         (leadsData.leads ?? []).map((lead, index) => [
           lead.id,
-          lead.name?.trim() || `Lead ${index + 1}`
-        ])
+          lead.name?.trim() || `Lead ${index + 1}`,
+        ]),
       ),
-    [leadsData.leads]
+    [leadsData.leads],
   )
 
   useEffect(() => {
@@ -127,40 +149,41 @@ export default function ArquivosPage() {
         const leads = leadsData.leads ?? []
         const userLeadIdSet = new Set(leads.map((lead) => lead.id))
 
-        const loadedNegocios = await WebhookService.loadNegotiations()
+        const [loadedNegocios, attachments] = await Promise.all([
+          WebhookService.loadNegotiations(),
+          WebhookService.loadAllNegotiationAttachments(),
+        ])
         const userNegocios = loadedNegocios.filter((negocio) =>
-          userLeadIdSet.has(negocio.leadId)
+          userLeadIdSet.has(negocio.leadId),
+        )
+        const userNegocioById = new Map(
+          userNegocios.map((negocio) => [negocio.id, negocio]),
         )
 
-        const attachmentsByNegotiation = await Promise.all(
-          userNegocios.map(async (negocio) => {
-            const attachments = await WebhookService.loadNegotiationAttachments(negocio.id)
+        const rows: ArquivoRow[] = attachments.flatMap((attachment) => {
+          const negocio = userNegocioById.get(attachment.negotiationId)
 
-            return {
-              negocio,
-              attachments
-            }
-          })
-        )
+          if (!negocio) {
+            return []
+          }
 
-        const rows: ArquivoRow[] = attachmentsByNegotiation.flatMap(
-          ({ negocio, attachments }) => {
-            const leadName = leadNameById.get(negocio.leadId) ?? '-'
-            const negocioNome = negocio.title?.trim() || 'Negócio sem nome'
+          const leadName = leadNameById.get(attachment.leadId) ?? '-'
+          const negocioNome = negocio.title?.trim() || 'Negócio sem nome'
 
-            return attachments.map((attachment) => ({
+          return [
+            {
               id: attachment.id,
-              negotiationId: negocio.id,
-              leadId: negocio.leadId,
+              negotiationId: attachment.negotiationId,
+              leadId: attachment.leadId,
               nome: attachment.originalName,
               tipo: attachment.extension.toUpperCase(),
               tamanho: attachment.size,
               enviadoEm: attachment.createdAt,
               negocio: negocioNome,
-              lead: leadName
-            }))
-          }
-        )
+              lead: leadName,
+            },
+          ]
+        })
 
         rows.sort((first, second) => {
           const firstTimestamp = getApiDateTimestamp(first.enviadoEm)
@@ -181,7 +204,9 @@ export default function ArquivosPage() {
         }
 
         const message =
-          exception instanceof Error ? exception.message : 'Falha ao carregar arquivos.'
+          exception instanceof Error
+            ? exception.message
+            : 'Falha ao carregar arquivos.'
 
         setArquivosError(message)
         setNegocios([])
@@ -198,7 +223,7 @@ export default function ArquivosPage() {
     return () => {
       isMounted = false
     }
-  }, [leadNameById, leadsData.leads])
+  }, [arquivosRefreshVersion, leadNameById, leadsData.leads])
 
   const negociosBySelectedLead = useMemo(
     () =>
@@ -209,7 +234,7 @@ export default function ArquivosPage() {
 
         return negocio.leadId === arquivoCreateDraft.leadId
       }),
-    [arquivoCreateDraft.leadId, negocios]
+    [arquivoCreateDraft.leadId, negocios],
   )
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
@@ -220,7 +245,7 @@ export default function ArquivosPage() {
     }
 
     return arquivos.filter((arquivo) =>
-      arquivo.nome.toLowerCase().includes(normalizedSearchTerm)
+      arquivo.nome.toLowerCase().includes(normalizedSearchTerm),
     )
   }, [arquivos, normalizedSearchTerm])
 
@@ -251,7 +276,7 @@ export default function ArquivosPage() {
 
   const applyActionHoverBackground = (
     isHovered: boolean,
-    target: HTMLButtonElement
+    target: HTMLButtonElement,
   ) => {
     target.style.background = isHovered
       ? interactionTheme.clickableCardHoverBackground
@@ -262,7 +287,7 @@ export default function ArquivosPage() {
     setArquivoCreateDraft({
       leadId: '',
       negotiationId: '',
-      file: null
+      file: null,
     })
     setArquivoCreateError(null)
     setIsCreateArquivoPanelOpen(true)
@@ -279,9 +304,8 @@ export default function ArquivosPage() {
 
     try {
       setArquivosError(null)
-      const response = await WebhookService.getNegotiationAttachmentDownloadUrl(
-        attachmentId
-      )
+      const response =
+        await WebhookService.getNegotiationAttachmentDownloadUrl(attachmentId)
 
       window.open(response.url, '_blank', 'noopener,noreferrer')
     } catch (exception: unknown) {
@@ -303,7 +327,7 @@ export default function ArquivosPage() {
       setArquivosError(null)
       await WebhookService.deleteNegotiationAttachment(attachmentId)
       setArquivos((currentArquivos) =>
-        currentArquivos.filter((arquivo) => arquivo.id !== attachmentId)
+        currentArquivos.filter((arquivo) => arquivo.id !== attachmentId),
       )
       setConfirmingDeleteArquivoId(null)
     } catch (exception: unknown) {
@@ -319,13 +343,17 @@ export default function ArquivosPage() {
   }
 
   const handleOpenArquivoLeadBusinessFiles = (arquivo: ArquivoRow) => {
-    navigate(`/leads/${arquivo.leadId}`, {
+    navigate(`/arquivos/${arquivo.leadId}${location.search}`, {
       state: {
         initialLeadTab: 'negocios',
         initialBusinessId: arquivo.negotiationId,
-        initialBusinessTab: 'arquivos'
-      }
+        initialBusinessTab: 'arquivos',
+      },
     })
+  }
+
+  const handleLeadUpdated = () => {
+    setArquivosRefreshVersion((currentVersion) => currentVersion + 1)
   }
 
   const handleCreateArquivo = async () => {
@@ -340,13 +368,15 @@ export default function ArquivosPage() {
       setArquivoCreateError(null)
       setArquivosError(null)
 
-      const createdAttachment = await WebhookService.uploadNegotiationAttachment(
-        arquivoCreateDraft.negotiationId,
-        arquivoCreateDraft.file
-      )
+      const createdAttachment =
+        await WebhookService.uploadNegotiationAttachment(
+          arquivoCreateDraft.negotiationId,
+          arquivoCreateDraft.file,
+        )
 
       const negocio = negocios.find(
-        (currentNegocio) => currentNegocio.id === arquivoCreateDraft.negotiationId
+        (currentNegocio) =>
+          currentNegocio.id === arquivoCreateDraft.negotiationId,
       )
 
       const leadName = leadNameById.get(arquivoCreateDraft.leadId) ?? '-'
@@ -361,7 +391,7 @@ export default function ArquivosPage() {
         tamanho: createdAttachment.size,
         enviadoEm: createdAttachment.createdAt,
         negocio: negocioNome,
-        lead: leadName
+        lead: leadName,
       }
 
       setArquivos((currentArquivos) => {
@@ -378,7 +408,9 @@ export default function ArquivosPage() {
       closeCreateArquivoPanel()
     } catch (exception: unknown) {
       const message =
-        exception instanceof Error ? exception.message : 'Falha ao enviar arquivo.'
+        exception instanceof Error
+          ? exception.message
+          : 'Falha ao enviar arquivo.'
 
       setArquivoCreateError(message)
     } finally {
@@ -398,17 +430,63 @@ export default function ArquivosPage() {
           background: '#fafbfd',
           boxSizing: 'border-box',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Arquivos</h1>
-          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+        {isLeadSelected ? (
+          <aside
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 50,
+              background: '#ffffff',
+              overflow: 'hidden',
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        ) : null}
+
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              color: '#111827',
+              lineHeight: 1.1,
+              fontWeight: 800,
+            }}
+          >
+            Arquivos
+          </h1>
+          <span
+            style={{
+              width: 52,
+              color: '#6b7280',
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
             <TotalCount isLoading={isLoading} total={filteredArquivos.length} />
           </span>
         </header>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 52px',
+            gap: 12,
+          }}
+        >
           <input
             type="text"
             value={searchTerm}
@@ -433,7 +511,7 @@ export default function ArquivosPage() {
                 : 'none',
               outline: 'none',
               fontSize: 16,
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           />
 
@@ -452,165 +530,327 @@ export default function ArquivosPage() {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              flexShrink: 0
+              flexShrink: 0,
             }}
           >
             <Plus size={26} />
           </button>
         </div>
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div
+          style={{
+            maxHeight: '100%',
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            paddingRight: 2,
+          }}
+        >
           {isLoading ? <MobileListSkeleton /> : null}
-          {!isLoading && paginatedArquivos.map((arquivo) => {
-            const isHovered = hoveredArquivoId === arquivo.id
+          {!isLoading &&
+            paginatedArquivos.map((arquivo) => {
+              const isHovered = hoveredArquivoId === arquivo.id
 
-            if (confirmingDeleteArquivoId === arquivo.id) {
+              if (confirmingDeleteArquivoId === arquivo.id) {
+                return (
+                  <article
+                    key={arquivo.id}
+                    onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
+                    onMouseLeave={() => setHoveredArquivoId(null)}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Deletar arquivo?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Cancelar exclusão de arquivo"
+                        onClick={() => setConfirmingDeleteArquivoId(null)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        X
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Confirmar exclusão de arquivo"
+                        disabled={deletingArquivoId === arquivo.id}
+                        onClick={() => void handleDeleteArquivo(arquivo.id)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          opacity: deletingArquivoId === arquivo.id ? 0.7 : 1,
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
+
               return (
                 <article
                   key={arquivo.id}
+                  onClick={() => handleOpenArquivoLeadBusinessFiles(arquivo)}
                   onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
                   onMouseLeave={() => setHoveredArquivoId(null)}
                   style={{
-                    background: interactionTheme.clickableCardHoverBackground,
-                    border: '1px solid #e5e7eb',
+                    background: isHovered
+                      ? interactionTheme.clickableCardHoverBackground
+                      : '#ffffff',
+                    border: '1px solid #f1f5f9',
                     borderRadius: 18,
                     boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
                     padding: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12
+                    display: 'grid',
+                    gap: 18,
+                    transition: 'background 120ms ease',
+                    cursor: 'pointer',
                   }}
                 >
-                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar arquivo?</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Cancelar exclusão de arquivo"
-                      onClick={() => setConfirmingDeleteArquivoId(null)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'start',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, display: 'grid', gap: 8 }}>
+                      <h2
+                        style={{
+                          margin: 0,
+                          color: '#111827',
+                          fontSize: 20,
+                          lineHeight: 1.2,
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={arquivo.nome}
+                      >
+                        <FileText
+                          size={18}
+                          color="#4b5563"
+                          style={{
+                            flexShrink: 0,
+                            verticalAlign: '-3px',
+                            marginRight: 8,
+                          }}
+                        />
+                        {arquivo.nome}
+                      </h2>
+                    </div>
+
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
                     >
-                      X
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Confirmar exclusão de arquivo"
-                      disabled={deletingArquivoId === arquivo.id}
-                      onClick={() => void handleDeleteArquivo(arquivo.id)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer', opacity: deletingArquivoId === arquivo.id ? 0.7 : 1 }}
+                      <button
+                        type="button"
+                        aria-label="Baixar arquivo"
+                        disabled={downloadingArquivoId === arquivo.id}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handleDownloadArquivo(arquivo.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          opacity:
+                            downloadingArquivoId === arquivo.id ? 0.7 : 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Download size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label="Excluir arquivo"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setConfirmingDeleteArquivoId(arquivo.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#4b5563',
+                        whiteSpace: 'nowrap',
+                        background: '#f1f5f9',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
                     >
-                      ✓
-                    </button>
+                      {arquivo.tipo}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#475569',
+                        whiteSpace: 'nowrap',
+                        background: '#e2e8f0',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {formatFileSize(arquivo.tamanho)}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#7c2d12',
+                        whiteSpace: 'nowrap',
+                        background: '#ffedd5',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {formatDate(arquivo.enviadoEm)}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#2563eb',
+                        whiteSpace: 'nowrap',
+                        background: '#dbeafe',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      Lead: {arquivo.lead}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#1f7a4d',
+                        whiteSpace: 'nowrap',
+                        background: '#dcfce7',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      Negócio: {arquivo.negocio}
+                    </span>
                   </div>
                 </article>
               )
-            }
-
-            return (
-              <article
-                key={arquivo.id}
-                onClick={() => handleOpenArquivoLeadBusinessFiles(arquivo)}
-                onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
-                onMouseLeave={() => setHoveredArquivoId(null)}
-                style={{
-                  background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
-                  border: '1px solid #f1f5f9',
-                  borderRadius: 18,
-                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                  padding: 16,
-                  display: 'grid',
-                  gap: 18,
-                  transition: 'background 120ms ease',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
-                  <div style={{ minWidth: 0, display: 'grid', gap: 8 }}>
-                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={arquivo.nome}>
-                      <FileText size={18} color="#4b5563" style={{ flexShrink: 0, verticalAlign: '-3px', marginRight: 8 }} />
-                      {arquivo.nome}
-                    </h2>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Baixar arquivo"
-                      disabled={downloadingArquivoId === arquivo.id}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void handleDownloadArquivo(arquivo.id)
-                      }}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        opacity: downloadingArquivoId === arquivo.id ? 0.7 : 1,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Download size={16} />
-                    </button>
-
-                    <button
-                      type="button"
-                      aria-label="Excluir arquivo"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setConfirmingDeleteArquivoId(arquivo.id)
-                      }}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', whiteSpace: 'nowrap', background: '#f1f5f9', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    {arquivo.tipo}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap', background: '#e2e8f0', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    {formatFileSize(arquivo.tamanho)}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#7c2d12', whiteSpace: 'nowrap', background: '#ffedd5', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    {formatDate(arquivo.enviadoEm)}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap', background: '#dbeafe', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    Lead: {arquivo.lead}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1f7a4d', whiteSpace: 'nowrap', background: '#dcfce7', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '7px 12px', lineHeight: 1.1 }}>
-                    Negócio: {arquivo.negocio}
-                  </span>
-                </div>
-              </article>
-            )
-          })}
+            })}
 
           {!isLoading && !error && filteredArquivos.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum arquivo encontrado.</div>
+            <div
+              style={{
+                color: '#6b7280',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              Nenhum arquivo encontrado.
+            </div>
           ) : null}
           {error ? (
-            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+            <div
+              style={{
+                color: '#b91c1c',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              {error}
+            </div>
           ) : null}
         </div>
 
@@ -626,7 +866,7 @@ export default function ArquivosPage() {
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
                 zIndex: 40,
-                cursor: 'default'
+                cursor: 'default',
               }}
             />
 
@@ -645,29 +885,66 @@ export default function ArquivosPage() {
                 padding: '22px 18px 28px',
                 boxSizing: 'border-box',
                 display: 'grid',
-                gap: 18
+                gap: 18,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 24, fontWeight: 800, lineHeight: 1 }}>Adicionar Arquivo</h2>
+                  <h2
+                    style={{
+                      margin: 0,
+                      color: '#0f172a',
+                      fontSize: 24,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    Adicionar Arquivo
+                  </h2>
                 </div>
 
                 <button
                   type="button"
                   onClick={closeCreateArquivoPanel}
                   aria-label="Fechar painel de criação de arquivo"
-                  style={{ height: 28, minWidth: 28, border: 'none', borderRadius: 6, background: 'transparent', color: '#6b7280', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{
+                    height: 28,
+                    minWidth: 28,
+                    border: 'none',
+                    borderRadius: 6,
+                    background: 'transparent',
+                    color: '#6b7280',
+                    padding: 0,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
                   <X size={18} strokeWidth={2.4} />
                 </button>
               </div>
 
-              {arquivoCreateError ? <p style={{ margin: 0, color: '#b91c1c' }}>{arquivoCreateError}</p> : null}
+              {arquivoCreateError ? (
+                <p style={{ margin: 0, color: '#b91c1c' }}>
+                  {arquivoCreateError}
+                </p>
+              ) : null}
 
               <div style={{ display: 'grid', gap: 14 }}>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
+                  <label
+                    style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}
+                  >
+                    Lead
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <select
                       value={arquivoCreateDraft.leadId}
@@ -677,43 +954,107 @@ export default function ArquivosPage() {
                         setArquivoCreateDraft((currentDraft) => ({
                           ...currentDraft,
                           leadId: selectedLeadId,
-                          negotiationId: ''
+                          negotiationId: '',
                         }))
                       }}
-                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: arquivoCreateDraft.leadId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                      style={{
+                        width: '100%',
+                        height: 48,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 12,
+                        padding: '0 42px 0 14px',
+                        color: arquivoCreateDraft.leadId
+                          ? '#111827'
+                          : '#6b7280',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        boxSizing: 'border-box',
+                        appearance: 'none',
+                        background: '#ffffff',
+                      }}
                     >
                       <option value="">Selecione</option>
                       {(leadsData.leads ?? []).map((lead, index) => (
-                        <option key={lead.id} value={lead.id}>{lead.name?.trim() || `Lead ${index + 1}`}</option>
+                        <option key={lead.id} value={lead.id}>
+                          {lead.name?.trim() || `Lead ${index + 1}`}
+                        </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#6b7280',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <ChevronDown size={18} />
+                    </span>
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                  <label
+                    style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}
+                  >
+                    Negócio
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <select
                       value={arquivoCreateDraft.negotiationId}
-                      disabled={!arquivoCreateDraft.leadId || negociosBySelectedLead.length === 0}
+                      disabled={
+                        !arquivoCreateDraft.leadId ||
+                        negociosBySelectedLead.length === 0
+                      }
                       onChange={(event) => {
                         setArquivoCreateDraft((currentDraft) => ({
                           ...currentDraft,
-                          negotiationId: event.target.value
+                          negotiationId: event.target.value,
                         }))
                       }}
-                      style={{ width: '100%', height: 48, border: '1px solid #d7dce4', borderRadius: 12, padding: '0 42px 0 14px', color: arquivoCreateDraft.negotiationId ? '#111827' : '#6b7280', fontSize: 15, fontWeight: 600, boxSizing: 'border-box', appearance: 'none', background: '#ffffff' }}
+                      style={{
+                        width: '100%',
+                        height: 48,
+                        border: '1px solid #d7dce4',
+                        borderRadius: 12,
+                        padding: '0 42px 0 14px',
+                        color: arquivoCreateDraft.negotiationId
+                          ? '#111827'
+                          : '#6b7280',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        boxSizing: 'border-box',
+                        appearance: 'none',
+                        background: '#ffffff',
+                      }}
                     >
                       <option value="">Selecione</option>
                       {negociosBySelectedLead.map((negocio) => (
-                        <option key={negocio.id} value={negocio.id}>{negocio.title?.trim() || 'Negócio sem nome'}</option>
+                        <option key={negocio.id} value={negocio.id}>
+                          {negocio.title?.trim() || 'Negócio sem nome'}
+                        </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}><ChevronDown size={18} /></span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#6b7280',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <ChevronDown size={18} />
+                    </span>
                   </div>
-                  {arquivoCreateDraft.leadId && negociosBySelectedLead.length === 0 ? (
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                  {arquivoCreateDraft.leadId &&
+                  negociosBySelectedLead.length === 0 ? (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>
+                      Esse lead ainda não tem negócios.
+                    </p>
                   ) : null}
                 </div>
 
@@ -726,7 +1067,7 @@ export default function ArquivosPage() {
                       const nextFile = event.target.files?.[0] ?? null
                       setArquivoCreateDraft((currentDraft) => ({
                         ...currentDraft,
-                        file: nextFile
+                        file: nextFile,
                       }))
                     }}
                     style={{ display: 'none' }}
@@ -734,24 +1075,64 @@ export default function ArquivosPage() {
                   <button
                     type="button"
                     onClick={() => arquivoInputRef.current?.click()}
-                    style={{ width: 'fit-content', border: 'none', borderRadius: 8, background: '#ffffff', height: 42, padding: '0 14px', textAlign: 'left', color: '#555555', cursor: 'pointer', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', lineHeight: 1.2 }}
+                    style={{
+                      width: 'fit-content',
+                      border: 'none',
+                      borderRadius: 8,
+                      background: '#ffffff',
+                      height: 42,
+                      padding: '0 14px',
+                      textAlign: 'left',
+                      color: '#555555',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      lineHeight: 1.2,
+                    }}
                   >
                     + Adicionar arquivo
                   </button>
-                  <span style={{ color: arquivoCreateDraft.file ? '#111827' : '#6b7280', fontSize: 12, fontWeight: 600 }}>
-                    {arquivoCreateDraft.file?.name ?? 'Nenhum arquivo selecionado'}
+                  <span
+                    style={{
+                      color: arquivoCreateDraft.file ? '#111827' : '#6b7280',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {arquivoCreateDraft.file?.name ??
+                      'Nenhum arquivo selecionado'}
                   </span>
                 </div>
 
-                {(!leadsData.leads || leadsData.leads.length === 0) ? (
-                  <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Você não possui leads para vincular um arquivo.</p>
+                {!leadsData.leads || leadsData.leads.length === 0 ? (
+                  <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>
+                    Você não possui leads para vincular um arquivo.
+                  </p>
                 ) : null}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 2 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 12,
+                    marginTop: 2,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={closeCreateArquivoPanel}
-                    style={{ height: 50, borderRadius: 12, border: '1px solid #d7dce4', background: '#ffffff', color: '#334155', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+                    style={{
+                      height: 50,
+                      borderRadius: 12,
+                      border: '1px solid #d7dce4',
+                      background: '#ffffff',
+                      color: '#334155',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
                   >
                     Cancelar
                   </button>
@@ -760,7 +1141,19 @@ export default function ArquivosPage() {
                     type="button"
                     onClick={() => void handleCreateArquivo()}
                     disabled={!canCreateArquivo || isCreatingArquivo}
-                    style={{ height: 50, border: 'none', borderRadius: 12, background: canCreateArquivo ? interactionTheme.primaryButtonBackground : '#9ca3af', color: '#ffffff', fontSize: 15, fontWeight: 700, cursor: canCreateArquivo ? 'pointer' : 'not-allowed', opacity: isCreatingArquivo ? 0.8 : 1 }}
+                    style={{
+                      height: 50,
+                      border: 'none',
+                      borderRadius: 12,
+                      background: canCreateArquivo
+                        ? interactionTheme.primaryButtonBackground
+                        : '#9ca3af',
+                      color: '#ffffff',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      cursor: canCreateArquivo ? 'pointer' : 'not-allowed',
+                      opacity: isCreatingArquivo ? 0.8 : 1,
+                    }}
                   >
                     {isCreatingArquivo ? 'Enviando...' : 'Adicionar'}
                   </button>
@@ -784,7 +1177,7 @@ export default function ArquivosPage() {
         background: '#f3f4f6',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
       }}
     >
       <header
@@ -793,10 +1186,18 @@ export default function ArquivosPage() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          padding: '4px 2px'
+          padding: '4px 2px',
         }}
       >
-        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
+        <h1
+          style={{
+            margin: 0,
+            color: '#111827',
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}
+        >
           Arquivos
         </h1>
 
@@ -823,7 +1224,7 @@ export default function ArquivosPage() {
               boxShadow: isSearchInputFocused
                 ? interactionTheme.inputFocusBoxShadow
                 : 'none',
-              outline: 'none'
+              outline: 'none',
             }}
           />
 
@@ -838,7 +1239,7 @@ export default function ArquivosPage() {
               color: '#ffffff',
               padding: '0 16px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Adicionar Arquivo
@@ -851,7 +1252,7 @@ export default function ArquivosPage() {
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
         <div
@@ -863,7 +1264,7 @@ export default function ArquivosPage() {
             overflowY: 'auto',
             maxHeight: '100%',
             minHeight: 0,
-            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
+            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
           }}
         >
           <table
@@ -871,7 +1272,7 @@ export default function ArquivosPage() {
               width: '100%',
               borderCollapse: 'collapse',
               background: '#ffffff',
-              tableLayout: 'fixed'
+              tableLayout: 'fixed',
             }}
           >
             <colgroup>
@@ -885,26 +1286,111 @@ export default function ArquivosPage() {
             </colgroup>
 
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+              <tr
+                style={{
+                  textAlign: 'left',
+                  borderBottom: '1px solid #ececec',
+                  background: '#f3f4f6',
+                }}
+              >
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   Nome
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Tipo
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Tamanho
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   Enviado em
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   Negócio
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   Lead
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   Ações
                 </th>
               </tr>
@@ -920,218 +1406,297 @@ export default function ArquivosPage() {
                     { width: '72%' },
                     { width: '76%' },
                     { width: '72%' },
-                    { width: 32, align: 'center' }
+                    { width: 32, align: 'center' },
                   ]}
                 />
               ) : null}
-              {!isLoading && paginatedArquivos.map((arquivo) => {
-                const rowBackground =
-                  hoveredArquivoId === arquivo.id
-                    ? interactionTheme.clickableCardHoverBackground
-                    : '#ffffff'
+              {!isLoading &&
+                paginatedArquivos.map((arquivo) => {
+                  const rowBackground =
+                    hoveredArquivoId === arquivo.id
+                      ? interactionTheme.clickableCardHoverBackground
+                      : '#ffffff'
 
-                if (confirmingDeleteArquivoId === arquivo.id) {
+                  if (confirmingDeleteArquivoId === arquivo.id) {
+                    return (
+                      <tr
+                        key={arquivo.id}
+                        style={{
+                          borderBottom: '1px solid #f0f0f0',
+                          background: rowBackground,
+                        }}
+                        onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
+                        onMouseLeave={() => setHoveredArquivoId(null)}
+                      >
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Deletar arquivo?
+                        </td>
+                        <td />
+                        <td />
+                        <td />
+                        <td />
+                        <td />
+                        <td style={{ padding: '14px 16px', textAlign: 'left' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Cancelar exclusão de arquivo"
+                              onClick={() => setConfirmingDeleteArquivoId(null)}
+                              onMouseEnter={(event) =>
+                                applyActionHoverBackground(
+                                  true,
+                                  event.currentTarget,
+                                )
+                              }
+                              onMouseLeave={(event) =>
+                                applyActionHoverBackground(
+                                  false,
+                                  event.currentTarget,
+                                )
+                              }
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              X
+                            </button>
+
+                            <button
+                              type="button"
+                              aria-label="Confirmar exclusão de arquivo"
+                              disabled={deletingArquivoId === arquivo.id}
+                              onClick={() =>
+                                void handleDeleteArquivo(arquivo.id)
+                              }
+                              onMouseEnter={(event) =>
+                                applyActionHoverBackground(
+                                  true,
+                                  event.currentTarget,
+                                )
+                              }
+                              onMouseLeave={(event) =>
+                                applyActionHoverBackground(
+                                  false,
+                                  event.currentTarget,
+                                )
+                              }
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                opacity:
+                                  deletingArquivoId === arquivo.id ? 0.7 : 1,
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr
                       key={arquivo.id}
-                      style={{ borderBottom: '1px solid #f0f0f0', background: rowBackground }}
+                      onClick={() =>
+                        handleOpenArquivoLeadBusinessFiles(arquivo)
+                      }
+                      style={{
+                        borderBottom: '1px solid #f0f0f0',
+                        background: rowBackground,
+                        cursor: 'pointer',
+                      }}
                       onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
                       onMouseLeave={() => setHoveredArquivoId(null)}
                     >
-                      <td style={{ padding: '14px 16px', color: '#2f2f2f', fontSize: 13, fontWeight: 600 }}>
-                        Deletar arquivo?
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#2f2f2f',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={arquivo.nome}
+                      >
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            minWidth: 0,
+                          }}
+                        >
+                          <FileText
+                            size={14}
+                            color="#4b5563"
+                            style={{ flexShrink: 0 }}
+                          />
+                          <span
+                            style={{
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {arquivo.nome}
+                          </span>
+                        </div>
                       </td>
-                      <td />
-                      <td />
-                      <td />
-                      <td />
-                      <td />
+
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <span
+                          style={{
+                            color: '#4b5563',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {arquivo.tipo}
+                        </span>
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          textAlign: 'center',
+                          color: '#4b5563',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {formatFileSize(arquivo.tamanho)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#4b5563',
+                          fontSize: 13,
+                        }}
+                      >
+                        {formatDate(arquivo.enviadoEm)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          fontSize: 13,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={arquivo.negocio}
+                      >
+                        {arquivo.negocio}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          fontSize: 13,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={arquivo.lead}
+                      >
+                        {arquivo.lead}
+                      </td>
+
                       <td style={{ padding: '14px 16px', textAlign: 'left' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
                           <button
                             type="button"
-                            aria-label="Cancelar exclusão de arquivo"
-                            onClick={() => setConfirmingDeleteArquivoId(null)}
-                            onMouseEnter={(event) =>
-                              applyActionHoverBackground(true, event.currentTarget)
-                            }
-                            onMouseLeave={(event) =>
-                              applyActionHoverBackground(false, event.currentTarget)
-                            }
+                            aria-label="Baixar arquivo"
+                            disabled={downloadingArquivoId === arquivo.id}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void handleDownloadArquivo(arquivo.id)
+                            }}
                             style={{
                               height: 24,
                               width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
+                              border: 'none',
+                              background: 'transparent',
                               color: '#4b5563',
                               padding: 0,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              opacity:
+                                downloadingArquivoId === arquivo.id ? 0.7 : 1,
                             }}
                           >
-                            X
+                            <Download size={14} />
                           </button>
 
                           <button
                             type="button"
-                            aria-label="Confirmar exclusão de arquivo"
-                            disabled={deletingArquivoId === arquivo.id}
-                            onClick={() => void handleDeleteArquivo(arquivo.id)}
-                            onMouseEnter={(event) =>
-                              applyActionHoverBackground(true, event.currentTarget)
-                            }
-                            onMouseLeave={(event) =>
-                              applyActionHoverBackground(false, event.currentTarget)
-                            }
+                            aria-label="Excluir arquivo"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setConfirmingDeleteArquivoId(arquivo.id)
+                            }}
                             style={{
                               height: 24,
                               width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
+                              border: 'none',
+                              background: 'transparent',
                               color: '#4b5563',
                               padding: 0,
                               cursor: 'pointer',
-                              opacity: deletingArquivoId === arquivo.id ? 0.7 : 1
                             }}
                           >
-                            ✓
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
                     </tr>
                   )
-                }
-
-                return (
-                  <tr
-                    key={arquivo.id}
-                    onClick={() => handleOpenArquivoLeadBusinessFiles(arquivo)}
-                    style={{ borderBottom: '1px solid #f0f0f0', background: rowBackground, cursor: 'pointer' }}
-                    onMouseEnter={() => setHoveredArquivoId(arquivo.id)}
-                    onMouseLeave={() => setHoveredArquivoId(null)}
-                  >
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#2f2f2f',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                      title={arquivo.nome}
-                    >
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        <FileText size={14} color="#4b5563" style={{ flexShrink: 0 }} />
-                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {arquivo.nome}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      <span
-                        style={{
-                          color: '#4b5563',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          lineHeight: 1
-                        }}
-                      >
-                        {arquivo.tipo}
-                      </span>
-                    </td>
-
-                    <td style={{ padding: '14px 16px', textAlign: 'center', color: '#4b5563', fontSize: 12, fontWeight: 700 }}>
-                      {formatFileSize(arquivo.tamanho)}
-                    </td>
-
-                    <td style={{ padding: '14px 16px', color: '#4b5563', fontSize: 13 }}>
-                      {formatDate(arquivo.enviadoEm)}
-                    </td>
-
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#111827',
-                        fontSize: 13,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                      title={arquivo.negocio}
-                    >
-                      {arquivo.negocio}
-                    </td>
-
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#111827',
-                        fontSize: 13,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                      title={arquivo.lead}
-                    >
-                      {arquivo.lead}
-                    </td>
-
-                    <td style={{ padding: '14px 16px', textAlign: 'left' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <button
-                          type="button"
-                          aria-label="Baixar arquivo"
-                          disabled={downloadingArquivoId === arquivo.id}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleDownloadArquivo(arquivo.id)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            opacity: downloadingArquivoId === arquivo.id ? 0.7 : 1
-                          }}
-                        >
-                          <Download size={14} />
-                        </button>
-
-                        <button
-                          type="button"
-                          aria-label="Excluir arquivo"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setConfirmingDeleteArquivoId(arquivo.id)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                })}
 
               {!isLoading && !error && filteredArquivos.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '14px 16px', color: '#6b7280' }}>
+                  <td
+                    colSpan={7}
+                    style={{ padding: '14px 16px', color: '#6b7280' }}
+                  >
                     Nenhum arquivo encontrado.
                   </td>
                 </tr>
@@ -1148,13 +1713,15 @@ export default function ArquivosPage() {
             marginTop: 10,
             color: '#6b7280',
             fontSize: 13,
-            padding: '0 8px'
+            padding: '0 8px',
           }}
         >
           <TotalCount isLoading={isLoading} total={filteredArquivos.length} />
         </div>
 
-        {error ? <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p> : null}
+        {error ? (
+          <p style={{ margin: '12px 0 0', color: '#b91c1c' }}>{error}</p>
+        ) : null}
 
         {isCreateArquivoPanelOpen ? (
           <button
@@ -1172,7 +1739,7 @@ export default function ArquivosPage() {
               padding: 0,
               margin: 0,
               background: 'transparent',
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
         ) : null}
@@ -1190,8 +1757,10 @@ export default function ArquivosPage() {
               background: '#ffffff',
               overflow: 'hidden',
               boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isArquivoPanelEntering ? 'translateX(0)' : 'translateX(100%)',
-              transition: `transform ${leadPanelTransitionMs}ms ease`
+              transform: isArquivoPanelEntering
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+              transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
             <section
@@ -1202,12 +1771,27 @@ export default function ArquivosPage() {
                 boxSizing: 'border-box',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16
+                gap: 16,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <h2 style={{ margin: 0, color: '#0f172a', fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+                  <h2
+                    style={{
+                      margin: 0,
+                      color: '#0f172a',
+                      fontSize: 26,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
                     Adicionar Arquivo
                   </h2>
                 </div>
@@ -1227,7 +1811,7 @@ export default function ArquivosPage() {
                     cursor: 'pointer',
                     fontSize: 14,
                     fontWeight: 600,
-                    lineHeight: 1
+                    lineHeight: 1,
                   }}
                 >
                   X
@@ -1235,7 +1819,9 @@ export default function ArquivosPage() {
               </div>
 
               {arquivoCreateError ? (
-                <p style={{ margin: 0, color: '#b91c1c' }}>{arquivoCreateError}</p>
+                <p style={{ margin: 0, color: '#b91c1c' }}>
+                  {arquivoCreateError}
+                </p>
               ) : null}
 
               <div style={{ borderBottom: '1px solid #e5e7eb' }} />
@@ -1255,11 +1841,15 @@ export default function ArquivosPage() {
                   overflowY: 'auto',
                   overflowX: 'hidden',
                   paddingRight: 6,
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
                 }}
               >
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Lead</label>
+                  <label
+                    style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}
+                  >
+                    Lead
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <select
                       value={arquivoCreateDraft.leadId}
@@ -1269,7 +1859,7 @@ export default function ArquivosPage() {
                         setArquivoCreateDraft((currentDraft) => ({
                           ...currentDraft,
                           leadId: selectedLeadId,
-                          negotiationId: ''
+                          negotiationId: '',
                         }))
                       }}
                       style={{
@@ -1278,12 +1868,14 @@ export default function ArquivosPage() {
                         border: '1px solid #d7dce4',
                         borderRadius: 10,
                         padding: '0 42px 0 14px',
-                        color: arquivoCreateDraft.leadId ? '#111827' : '#6b7280',
+                        color: arquivoCreateDraft.leadId
+                          ? '#111827'
+                          : '#6b7280',
                         fontSize: 14,
                         fontWeight: 600,
                         boxSizing: 'border-box',
                         appearance: 'none',
-                        background: '#ffffff'
+                        background: '#ffffff',
                       }}
                     >
                       <option value="">Selecione</option>
@@ -1293,22 +1885,38 @@ export default function ArquivosPage() {
                         </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#6b7280',
+                        pointerEvents: 'none',
+                      }}
+                    >
                       <ChevronDown size={18} />
                     </span>
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}>Negócio</label>
+                  <label
+                    style={{ color: '#1f2937', fontSize: 13, fontWeight: 700 }}
+                  >
+                    Negócio
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <select
                       value={arquivoCreateDraft.negotiationId}
-                      disabled={!arquivoCreateDraft.leadId || negociosBySelectedLead.length === 0}
+                      disabled={
+                        !arquivoCreateDraft.leadId ||
+                        negociosBySelectedLead.length === 0
+                      }
                       onChange={(event) => {
                         setArquivoCreateDraft((currentDraft) => ({
                           ...currentDraft,
-                          negotiationId: event.target.value
+                          negotiationId: event.target.value,
                         }))
                       }}
                       style={{
@@ -1317,12 +1925,14 @@ export default function ArquivosPage() {
                         border: '1px solid #d7dce4',
                         borderRadius: 10,
                         padding: '0 42px 0 14px',
-                        color: arquivoCreateDraft.negotiationId ? '#111827' : '#6b7280',
+                        color: arquivoCreateDraft.negotiationId
+                          ? '#111827'
+                          : '#6b7280',
                         fontSize: 14,
                         fontWeight: 600,
                         boxSizing: 'border-box',
                         appearance: 'none',
-                        background: '#ffffff'
+                        background: '#ffffff',
                       }}
                     >
                       <option value="">Selecione</option>
@@ -1332,12 +1942,24 @@ export default function ArquivosPage() {
                         </option>
                       ))}
                     </select>
-                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#6b7280',
+                        pointerEvents: 'none',
+                      }}
+                    >
                       <ChevronDown size={18} />
                     </span>
                   </div>
-                  {arquivoCreateDraft.leadId && negociosBySelectedLead.length === 0 ? (
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>Esse lead ainda não tem negócios.</p>
+                  {arquivoCreateDraft.leadId &&
+                  negociosBySelectedLead.length === 0 ? (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>
+                      Esse lead ainda não tem negócios.
+                    </p>
                   ) : null}
                 </div>
 
@@ -1350,7 +1972,7 @@ export default function ArquivosPage() {
                       const nextFile = event.target.files?.[0] ?? null
                       setArquivoCreateDraft((currentDraft) => ({
                         ...currentDraft,
-                        file: nextFile
+                        file: nextFile,
                       }))
                     }}
                     style={{ display: 'none' }}
@@ -1372,23 +1994,37 @@ export default function ArquivosPage() {
                       fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
-                      lineHeight: 1.2
+                      lineHeight: 1.2,
                     }}
                   >
                     + Adicionar arquivo
                   </button>
-                  <span style={{ color: arquivoCreateDraft.file ? '#111827' : '#6b7280', fontSize: 12, fontWeight: 600 }}>
-                    {arquivoCreateDraft.file?.name ?? 'Nenhum arquivo selecionado'}
+                  <span
+                    style={{
+                      color: arquivoCreateDraft.file ? '#111827' : '#6b7280',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {arquivoCreateDraft.file?.name ??
+                      'Nenhum arquivo selecionado'}
                   </span>
                 </div>
 
-                {(!leadsData.leads || leadsData.leads.length === 0) ? (
+                {!leadsData.leads || leadsData.leads.length === 0 ? (
                   <p style={{ margin: 0, color: '#6b7280', fontSize: 12 }}>
                     Você não possui leads para vincular um arquivo.
                   </p>
                 ) : null}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 8,
+                    marginTop: 6,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={closeCreateArquivoPanel}
@@ -1401,7 +2037,7 @@ export default function ArquivosPage() {
                       color: '#334155',
                       fontSize: 14,
                       fontWeight: 700,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
                     }}
                   >
                     Cancelar
@@ -1423,7 +2059,7 @@ export default function ArquivosPage() {
                       fontSize: 14,
                       fontWeight: 700,
                       cursor: canCreateArquivo ? 'pointer' : 'not-allowed',
-                      opacity: isCreatingArquivo ? 0.8 : 1
+                      opacity: isCreatingArquivo ? 0.8 : 1,
                     }}
                   >
                     {isCreatingArquivo ? 'Enviando...' : 'Adicionar'}
@@ -1434,6 +2070,45 @@ export default function ArquivosPage() {
           </aside>
         ) : null}
       </div>
+
+      {isLeadSelected && !isCreateArquivoPanelOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Fechar detalhes do arquivo"
+            onClick={() => navigate(`/arquivos${location.search}`)}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: leadPanelWidth,
+              bottom: 0,
+              zIndex: 20,
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              background: 'transparent',
+              cursor: 'default',
+            }}
+          />
+          <aside
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: leadPanelWidth,
+              zIndex: 30,
+              borderLeft: '2px solid #edf1f5',
+              background: '#ffffff',
+              overflow: 'hidden',
+              boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
+            }}
+          >
+            <LeadPage onLeadUpdated={handleLeadUpdated} />
+          </aside>
+        </>
+      ) : null}
     </section>
   )
 }

@@ -4,8 +4,12 @@ import type {
   ChatMessage,
   ChatMessageApi,
   CreateLeadPayload,
+  CreateNegotiationCostPayload,
   CreateNegotiationFollowUpPayload,
+  CreateNegotiationFinancialPayload,
   CreateNegotiationPayload,
+  CreateNegotiationPaymentPayload,
+  CreateNegotiationPaymentInstallmentsPayload,
   FollowUpDateSortOrder,
   FollowUpActionPayload,
   FollowUpSortFocus,
@@ -15,12 +19,18 @@ import type {
   LeadResponse,
   LeadRuntimeMode,
   MessageTemplateResponse,
+  NegotiationCostResponse,
   NegotiationAttachmentDownloadUrlResponse,
+  NegotiationAttachmentListItemResponse,
   NegotiationAttachmentResponse,
   NegotiationFollowUpResponse,
+  NegotiationPaymentResponse,
   NegotiationResponse,
   UpdateNegotiationPayload,
-  UpdateLeadPayload
+  UpdateNegotiationCostPayload,
+  UpdateNegotiationFinancialPayload,
+  UpdateNegotiationPaymentPayload,
+  UpdateLeadPayload,
 } from '../types/webhook.types'
 
 export const WebhookService = {
@@ -28,12 +38,13 @@ export const WebhookService = {
     return {
       id: message.id,
       content: message.content ?? null,
-      direction:
-        ['OUTBOUND', 'AUTOMATIC'].includes(
-          String(message.direction ?? '').trim().toUpperCase()
-        )
-          ? 'outbound'
-          : 'inbound',
+      direction: ['OUTBOUND', 'AUTOMATIC'].includes(
+        String(message.direction ?? '')
+          .trim()
+          .toUpperCase(),
+      )
+        ? 'outbound'
+        : 'inbound',
       type:
         message.type === 'image' ||
         message.type === 'audio' ||
@@ -48,12 +59,14 @@ export const WebhookService = {
       fileName: message.fileName ?? null,
       source: message.source ?? 'normal',
       metadata: message.metadata ?? null,
-      createdAt: message.createdAt
+      createdAt: message.createdAt,
     }
   },
 
   async loadMessages(leadId: string): Promise<ChatMessage[]> {
-    const { data } = await appApiClient.get<ChatMessageApi[]>(`/leads/${leadId}/messages`)
+    const { data } = await appApiClient.get<ChatMessageApi[]>(
+      `/leads/${leadId}/messages`,
+    )
 
     return (data ?? []).map((message) => this.mapMessageFromApi(message))
   },
@@ -75,8 +88,14 @@ export const WebhookService = {
     }
   },
 
-  async updateLead(leadId: string, payload: UpdateLeadPayload): Promise<LeadResponse> {
-    const { data } = await appApiClient.patch<LeadResponse>(`/leads/${leadId}`, payload)
+  async updateLead(
+    leadId: string,
+    payload: UpdateLeadPayload,
+  ): Promise<LeadResponse> {
+    const { data } = await appApiClient.patch<LeadResponse>(
+      `/leads/${leadId}`,
+      payload,
+    )
     return data
   },
 
@@ -86,7 +105,7 @@ export const WebhookService = {
 
   async setLeadArchiveState(
     leadId: string,
-    state: 'active' | 'archived'
+    state: 'active' | 'archived',
   ): Promise<void> {
     await appApiClient.patch(`/leads/${leadId}/archive`, { state })
   },
@@ -105,38 +124,46 @@ export const WebhookService = {
     page: number = 1,
     limit: number = 13,
     statusFocus: FollowUpSortFocus = 'overdue',
-    dateOrder: FollowUpDateSortOrder = 'asc'
+    dateOrder: FollowUpDateSortOrder = 'asc',
   ): Promise<PaginatedResponse<LeadFollowUpResponse>> {
-    const { data } = await appApiClient.get<PaginatedResponse<LeadFollowUpResponse>>(
-      `/leads/${leadId}/followups`,
-      {
-        params: { page, limit, statusFocus, dateOrder }
-      }
-    )
+    const { data } = await appApiClient.get<
+      PaginatedResponse<LeadFollowUpResponse>
+    >(`/leads/${leadId}/followups`, {
+      params: { page, limit, statusFocus, dateOrder },
+    })
     return (
       data ?? {
         items: [],
         page,
         limit,
         totalItems: 0,
-        totalPages: 1
+        totalPages: 1,
       }
     )
   },
 
-  async createLeadFollowUp(leadId: string, title: string, dueAt: string): Promise<LeadFollowUpResponse> {
-    const { data } = await appApiClient.post<LeadFollowUpResponse>('/lead-followups', {
-      leadId,
-      title,
-      dueAt
-    })
+  async createLeadFollowUp(
+    leadId: string,
+    title: string,
+    dueAt: string,
+  ): Promise<LeadFollowUpResponse> {
+    const { data } = await appApiClient.post<LeadFollowUpResponse>(
+      '/lead-followups',
+      {
+        leadId,
+        title,
+        dueAt,
+      },
+    )
 
     return data
   },
 
-  async completeLeadFollowUp(followUpId: string): Promise<LeadFollowUpResponse> {
+  async completeLeadFollowUp(
+    followUpId: string,
+  ): Promise<LeadFollowUpResponse> {
     const { data } = await appApiClient.patch<LeadFollowUpResponse>(
-      `/lead-followups/${followUpId}/complete`
+      `/lead-followups/${followUpId}/complete`,
     )
     return data
   },
@@ -148,22 +175,28 @@ export const WebhookService = {
   async updateLeadFollowUp(
     followUpId: string,
     title: string,
-    dueAt: string
+    dueAt: string,
   ): Promise<LeadFollowUpResponse> {
-    const { data } = await appApiClient.patch<LeadFollowUpResponse>(`/lead-followups/${followUpId}`, {
-      title,
-      dueAt
-    })
+    const { data } = await appApiClient.patch<LeadFollowUpResponse>(
+      `/lead-followups/${followUpId}`,
+      {
+        title,
+        dueAt,
+      },
+    )
     return data
   },
 
   async updateLeadFollowUpStatus(
     followUpId: string,
-    status: LeadFollowUpStatus
+    status: LeadFollowUpStatus,
   ): Promise<LeadFollowUpResponse> {
-    const { data } = await appApiClient.patch<LeadFollowUpResponse>(`/lead-followups/${followUpId}`, {
-      status
-    })
+    const { data } = await appApiClient.patch<LeadFollowUpResponse>(
+      `/lead-followups/${followUpId}`,
+      {
+        status,
+      },
+    )
     return data
   },
 
@@ -171,21 +204,24 @@ export const WebhookService = {
     leadId: string,
     content: string,
     source?: 'normal' | 'template',
-    channel?: 'whatsapp' | 'messenger' | 'instagram'
+    channel?: 'whatsapp' | 'messenger' | 'instagram',
   ): Promise<ChatMessage> {
-    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
-      `/leads/${leadId}/messages`,
-      { content, source, channel }
-    )
+    const { data } = await appApiClient.post<{
+      success: boolean
+      message: ChatMessageApi
+    }>(`/leads/${leadId}/messages`, { content, source, channel })
 
     return this.mapMessageFromApi(data.message)
   },
 
-  async sendContacts(leadId: string, contactIds: string[]): Promise<ChatMessage> {
-    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
-      `/leads/${leadId}/messages/contacts`,
-      { contactIds }
-    )
+  async sendContacts(
+    leadId: string,
+    contactIds: string[],
+  ): Promise<ChatMessage> {
+    const { data } = await appApiClient.post<{
+      success: boolean
+      message: ChatMessageApi
+    }>(`/leads/${leadId}/messages/contacts`, { contactIds })
 
     return this.mapMessageFromApi(data.message)
   },
@@ -199,7 +235,7 @@ export const WebhookService = {
       metadata?: Record<string, unknown>
       channel?: 'messenger' | 'instagram'
       signal?: AbortSignal
-    }
+    },
   ): Promise<ChatMessage> {
     const formData = new FormData()
     formData.append('file', payload.file)
@@ -217,50 +253,178 @@ export const WebhookService = {
       formData.append('metadata', JSON.stringify(payload.metadata))
     }
 
-    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
-      `/leads/${leadId}/messages/media`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        signal: payload.signal
-      }
-    )
+    const { data } = await appApiClient.post<{
+      success: boolean
+      message: ChatMessageApi
+    }>(`/leads/${leadId}/messages/media`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      signal: payload.signal,
+    })
 
     return this.mapMessageFromApi(data.message)
   },
 
   async updateLeadRuntimeMode(
     leadId: string,
-    runtimeMode: LeadRuntimeMode
+    runtimeMode: LeadRuntimeMode,
   ): Promise<LeadRuntimeMode> {
     const { data } = await appApiClient.patch<LeadResponse>(
       `/leads/${leadId}/runtime-mode`,
-      { runtimeMode }
+      { runtimeMode },
     )
     return data.runtimeMode
   },
 
-  async loadNegotiations(): Promise<NegotiationResponse[]> {
-    const { data } = await appApiClient.get<NegotiationResponse[]>('/negotiations')
+  async loadNegotiations(leadId?: string): Promise<NegotiationResponse[]> {
+    const { data } = await appApiClient.get<NegotiationResponse[]>(
+      '/negotiations',
+      {
+        params: leadId ? { leadId } : undefined,
+      },
+    )
     return data ?? []
   },
 
-  async createNegotiation(payload: CreateNegotiationPayload): Promise<NegotiationResponse> {
-    const { data } = await appApiClient.post<NegotiationResponse>('/negotiations', payload)
+  async createNegotiation(
+    payload: CreateNegotiationPayload,
+  ): Promise<NegotiationResponse> {
+    const { data } = await appApiClient.post<NegotiationResponse>(
+      '/negotiations',
+      payload,
+    )
     return data
   },
 
   async updateNegotiation(
     negotiationId: string,
-    payload: UpdateNegotiationPayload
+    payload: UpdateNegotiationPayload,
   ): Promise<NegotiationResponse> {
     const { data } = await appApiClient.patch<NegotiationResponse>(
       `/negotiations/${negotiationId}`,
-      payload
+      payload,
     )
     return data
+  },
+
+  async createNegotiationFinancial(
+    negotiationId: string,
+    payload: CreateNegotiationFinancialPayload,
+  ): Promise<NegotiationResponse['financial']> {
+    const { data } = await appApiClient.post<NegotiationResponse['financial']>(
+      `/negotiations/${negotiationId}/financial`,
+      payload,
+    )
+    return data
+  },
+
+  async updateNegotiationFinancial(
+    negotiationId: string,
+    payload: UpdateNegotiationFinancialPayload,
+  ): Promise<NegotiationResponse['financial']> {
+    const { data } = await appApiClient.patch<NegotiationResponse['financial']>(
+      `/negotiations/${negotiationId}/financial`,
+      payload,
+    )
+    return data
+  },
+
+  async deleteNegotiationFinancial(negotiationId: string): Promise<void> {
+    await appApiClient.delete(`/negotiations/${negotiationId}/financial`)
+  },
+
+  async loadNegotiationCosts(
+    negotiationId: string,
+  ): Promise<NegotiationCostResponse[]> {
+    const { data } = await appApiClient.get<NegotiationCostResponse[]>(
+      `/negotiations/${negotiationId}/financial/costs`,
+    )
+    return data ?? []
+  },
+
+  async createNegotiationCost(
+    negotiationId: string,
+    payload: CreateNegotiationCostPayload,
+  ): Promise<NegotiationCostResponse> {
+    const { data } = await appApiClient.post<NegotiationCostResponse>(
+      `/negotiations/${negotiationId}/financial/costs`,
+      payload,
+    )
+    return data
+  },
+
+  async updateNegotiationCost(
+    negotiationId: string,
+    costId: string,
+    payload: UpdateNegotiationCostPayload,
+  ): Promise<NegotiationCostResponse> {
+    const { data } = await appApiClient.patch<NegotiationCostResponse>(
+      `/negotiations/${negotiationId}/financial/costs/${costId}`,
+      payload,
+    )
+    return data
+  },
+
+  async deleteNegotiationCost(
+    negotiationId: string,
+    costId: string,
+  ): Promise<void> {
+    await appApiClient.delete(
+      `/negotiations/${negotiationId}/financial/costs/${costId}`,
+    )
+  },
+
+  async loadNegotiationPayments(
+    negotiationId: string,
+  ): Promise<NegotiationPaymentResponse[]> {
+    const { data } = await appApiClient.get<NegotiationPaymentResponse[]>(
+      `/negotiations/${negotiationId}/financial/payments`,
+    )
+    return data ?? []
+  },
+
+  async createNegotiationPayment(
+    negotiationId: string,
+    payload: CreateNegotiationPaymentPayload,
+  ): Promise<NegotiationPaymentResponse> {
+    const { data } = await appApiClient.post<NegotiationPaymentResponse>(
+      `/negotiations/${negotiationId}/financial/payments`,
+      payload,
+    )
+    return data
+  },
+
+  async createNegotiationPaymentInstallments(
+    negotiationId: string,
+    payload: CreateNegotiationPaymentInstallmentsPayload,
+  ): Promise<NegotiationPaymentResponse[]> {
+    const { data } = await appApiClient.post<NegotiationPaymentResponse[]>(
+      `/negotiations/${negotiationId}/financial/payments/installments`,
+      payload,
+    )
+    return data ?? []
+  },
+
+  async updateNegotiationPayment(
+    negotiationId: string,
+    paymentId: string,
+    payload: UpdateNegotiationPaymentPayload,
+  ): Promise<NegotiationPaymentResponse> {
+    const { data } = await appApiClient.patch<NegotiationPaymentResponse>(
+      `/negotiations/${negotiationId}/financial/payments/${paymentId}`,
+      payload,
+    )
+    return data
+  },
+
+  async deleteNegotiationPayment(
+    negotiationId: string,
+    paymentId: string,
+  ): Promise<void> {
+    await appApiClient.delete(
+      `/negotiations/${negotiationId}/financial/payments/${paymentId}`,
+    )
   },
 
   async deleteNegotiation(negotiationId: string): Promise<void> {
@@ -268,34 +432,39 @@ export const WebhookService = {
   },
 
   async loadNegotiationFollowUps(): Promise<NegotiationFollowUpResponse[]> {
-    const { data } = await appApiClient.get<NegotiationFollowUpResponse[]>('/followups')
+    const { data } =
+      await appApiClient.get<NegotiationFollowUpResponse[]>('/followups')
     return data ?? []
   },
 
   async loadMessageTemplates(): Promise<MessageTemplateResponse[]> {
-    const { data } = await appApiClient.get<MessageTemplateResponse[]>('/message-templates')
+    const { data } =
+      await appApiClient.get<MessageTemplateResponse[]>('/message-templates')
     return data ?? []
   },
 
   async sendTemplate(
     leadId: string,
     templateId: string,
-    variables: Record<string, string>
+    variables: Record<string, string>,
   ): Promise<{ success: boolean; message: ChatMessageApi }> {
-    const { data } = await appApiClient.post<{ success: boolean; message: ChatMessageApi }>(
-      `/leads/${leadId}/messages/template`,
-      {
-        templateId,
-        variables
-      }
-    )
+    const { data } = await appApiClient.post<{
+      success: boolean
+      message: ChatMessageApi
+    }>(`/leads/${leadId}/messages/template`, {
+      templateId,
+      variables,
+    })
     return data
   },
 
   async createNegotiationFollowUp(
-    payload: CreateNegotiationFollowUpPayload
+    payload: CreateNegotiationFollowUpPayload,
   ): Promise<NegotiationFollowUpResponse> {
-    const { data } = await appApiClient.post<NegotiationFollowUpResponse>('/followups', payload)
+    const { data } = await appApiClient.post<NegotiationFollowUpResponse>(
+      '/followups',
+      payload,
+    )
     return data
   },
 
@@ -309,11 +478,11 @@ export const WebhookService = {
       status?: LeadFollowUpStatus
       completedAt?: string | null
       actions?: FollowUpActionPayload[]
-    }
+    },
   ): Promise<NegotiationFollowUpResponse> {
     const { data } = await appApiClient.patch<NegotiationFollowUpResponse>(
       `/followups/${followUpId}`,
-      payload
+      payload,
     )
     return data
   },
@@ -323,18 +492,28 @@ export const WebhookService = {
   },
 
   async loadNegotiationAttachments(
-    negotiationId: string
+    negotiationId: string,
   ): Promise<NegotiationAttachmentResponse[]> {
     const { data } = await appApiClient.get<NegotiationAttachmentResponse[]>(
-      `/negotiations/${negotiationId}/attachments`
+      `/negotiations/${negotiationId}/attachments`,
     )
+
+    return data ?? []
+  },
+
+  async loadAllNegotiationAttachments(): Promise<
+    NegotiationAttachmentListItemResponse[]
+  > {
+    const { data } = await appApiClient.get<
+      NegotiationAttachmentListItemResponse[]
+    >('/negotiation-attachments')
 
     return data ?? []
   },
 
   async uploadNegotiationAttachment(
     negotiationId: string,
-    file: File
+    file: File,
   ): Promise<NegotiationAttachmentResponse> {
     const formData = new FormData()
     formData.append('file', file)
@@ -344,25 +523,26 @@ export const WebhookService = {
       formData,
       {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     )
 
     return data
   },
 
   async getNegotiationAttachmentDownloadUrl(
-    attachmentId: string
+    attachmentId: string,
   ): Promise<NegotiationAttachmentDownloadUrlResponse> {
-    const { data } = await appApiClient.get<NegotiationAttachmentDownloadUrlResponse>(
-      `/negotiations/attachments/${attachmentId}/download`
-    )
+    const { data } =
+      await appApiClient.get<NegotiationAttachmentDownloadUrlResponse>(
+        `/negotiations/attachments/${attachmentId}/download`,
+      )
 
     return data
   },
 
   async deleteNegotiationAttachment(attachmentId: string): Promise<void> {
     await appApiClient.delete(`/negotiations/attachments/${attachmentId}`)
-  }
+  },
 }

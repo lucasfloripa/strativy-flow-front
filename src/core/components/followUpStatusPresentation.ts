@@ -1,6 +1,6 @@
 import type {
   FollowUpActionResponse,
-  LeadFollowUpStatus
+  LeadFollowUpStatus,
 } from '../../features/webhook/types/webhook.types'
 
 export type FollowUpStatusPresentation = {
@@ -12,13 +12,13 @@ export type FollowUpStatusPresentation = {
 export const getFollowUpStatusPresentation = (
   status: LeadFollowUpStatus,
   actions: FollowUpActionResponse[] = [],
-  isOverdue = false
+  isOverdue = false,
 ): FollowUpStatusPresentation => {
   if (actions.some((action) => action.status === 'manual_required')) {
     return {
       label: 'Ação manual',
       textColor: '#9a3412',
-      background: '#ffedd5'
+      background: '#ffedd5',
     }
   }
 
@@ -26,7 +26,15 @@ export const getFollowUpStatusPresentation = (
     return {
       label: 'Falha no envio',
       textColor: '#b91c1c',
-      background: '#fee2e2'
+      background: '#fee2e2',
+    }
+  }
+
+  if (actions.some((action) => action.status === 'awaiting_reply')) {
+    return {
+      label: 'Aguardando resposta',
+      textColor: '#854d0e',
+      background: '#fef9c3',
     }
   }
 
@@ -34,7 +42,7 @@ export const getFollowUpStatusPresentation = (
     return {
       label: 'Concluído',
       textColor: '#166534',
-      background: '#dcfce7'
+      background: '#dcfce7',
     }
   }
 
@@ -42,7 +50,7 @@ export const getFollowUpStatusPresentation = (
     return {
       label: 'Cancelado',
       textColor: '#b91c1c',
-      background: '#fee2e2'
+      background: '#fee2e2',
     }
   }
 
@@ -50,7 +58,7 @@ export const getFollowUpStatusPresentation = (
     return {
       label: 'Ignorado',
       textColor: '#7c2d12',
-      background: '#ffedd5'
+      background: '#ffedd5',
     }
   }
 
@@ -58,13 +66,21 @@ export const getFollowUpStatusPresentation = (
     return {
       label: 'Pendente',
       textColor: '#b91c1c',
-      background: '#fee2e2'
+      background: '#fee2e2',
+    }
+  }
+
+  if (actions.some((action) => action.status === 'scheduled')) {
+    return {
+      label: 'Agendado',
+      textColor: '#1d4ed8',
+      background: '#dbeafe',
     }
   }
 
   return {
     label: 'Pendente',
     textColor: '#1d4ed8',
-    background: '#dbeafe'
+    background: '#dbeafe',
   }
 }

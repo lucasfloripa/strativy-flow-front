@@ -14,6 +14,7 @@ import {
 export type FollowUpActionDraft = {
   type: '' | FollowUpActionType | 'agenda'
   channel: '' | FollowUpMessageChannel
+  description: string
   message: string
   phone: string
   templateId: string
@@ -27,6 +28,7 @@ export type FollowUpActionDraft = {
 export const initialFollowUpActionDraft: FollowUpActionDraft = {
   type: '',
   channel: '',
+  description: '',
   message: '',
   phone: '',
   templateId: '',
@@ -70,6 +72,7 @@ export const fromFollowUpActionResponse = (
   return {
     type: action.channel === 'Agenda' ? 'agenda' : action.type,
     channel: action.channel ?? '',
+    description: getPayloadString(payload, 'description'),
     message: getPayloadString(payload, 'message'),
     phone: formatStoredLeadPhoneInput(getPayloadString(payload, 'phone')),
     templateId: getPayloadString(payload, 'templateId'),
@@ -130,7 +133,7 @@ export const interpolateTemplateDescription = (
 
 export const isFollowUpActionDraftValid = (draft: FollowUpActionDraft): boolean => {
   if (draft.type === 'agenda') {
-    return true
+    return Boolean(draft.description.trim())
   }
 
   if (draft.type === 'send_message') {
@@ -165,7 +168,7 @@ export const toFollowUpActionPayload = (draft: FollowUpActionDraft): FollowUpAct
     return {
       type: 'send_message',
       channel: 'Agenda',
-      payload: {}
+      payload: { description: draft.description.trim() }
     }
   }
 

@@ -16,6 +16,7 @@ import type {
   DashboardConversationFilter,
   DashboardConversationStatus
 } from '../../features/home/types/home.types'
+import { WebhookService } from '../../features/webhook/services/WebhookService'
 import LeadPage from '../LeadPage'
 
 const conversationFilters: Array<{
@@ -224,26 +225,61 @@ const LastContactTag = ({ value }: { value: string | Date | null }) => {
   )
 }
 
-const RuntimeModeTag = ({ runtimeMode }: { runtimeMode: 'HUMAN' | 'AUTOMATION' }) => {
+const RuntimeModeTag = ({
+  disabled,
+  onChange,
+  runtimeMode
+}: {
+  disabled: boolean
+  onChange: (runtimeMode: DashboardConversation['runtimeMode']) => void
+  runtimeMode: DashboardConversation['runtimeMode']
+}) => {
   const isHuman = runtimeMode === 'HUMAN'
+  const color = isHuman ? '#166534' : '#475569'
 
   return (
     <span
       style={{
+        position: 'relative',
         fontSize: 12,
         fontWeight: 700,
-        color: isHuman ? '#166534' : '#475569',
+        color,
         whiteSpace: 'nowrap',
         background: isHuman ? '#dcfce7' : '#e2e8f0',
+        border: `1px solid ${color}`,
         borderRadius: 6,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '7px 12px',
-        lineHeight: 1
+        lineHeight: 1,
+        opacity: disabled ? 0.65 : 1
       }}
+      onClick={(event) => event.stopPropagation()}
     >
       {isHuman ? 'Humano' : 'Automação'}
+      <select
+        aria-label="Alterar atendimento"
+        value={runtimeMode}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(event.target.value as DashboardConversation['runtimeMode'])
+        }
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          padding: 0,
+          cursor: disabled ? 'wait' : 'pointer',
+          appearance: 'none',
+          opacity: 0
+        }}
+      >
+        <option value="HUMAN">Humano</option>
+        <option value="AUTOMATION">Automação</option>
+      </select>
     </span>
   )
 }
@@ -271,6 +307,7 @@ export default function ConversasPage() {
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<ConversationStatusSortValue[]>([])
   const [selectedSourceFilters, setSelectedSourceFilters] = useState<string[]>([])
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null)
+  const [updatingRuntimeModeLeadId, setUpdatingRuntimeModeLeadId] = useState<string | null>(null)
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
   const [reloadVersion, setReloadVersion] = useState<number>(0)
   const [sortKey, setSortKey] = useState<ConversationSortKey>('dateTime')
@@ -418,6 +455,33 @@ export default function ConversasPage() {
 
   const openConversation = (leadId: string) => {
     navigate(`/conversas/${leadId}`, { state: { initialLeadTab: 'chat' } })
+  }
+
+  const handleRuntimeModeChange = async (
+    leadId: string,
+    runtimeMode: DashboardConversation['runtimeMode']
+  ) => {
+    setUpdatingRuntimeModeLeadId(leadId)
+    setError(null)
+
+    try {
+      const updatedRuntimeMode = await WebhookService.updateLeadRuntimeMode(
+        leadId,
+        runtimeMode
+      )
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.leadId === leadId
+            ? { ...conversation, runtimeMode: updatedRuntimeMode }
+            : conversation
+        )
+      )
+    } catch {
+      setError('Não foi possível atualizar o atendimento.')
+    } finally {
+      setUpdatingRuntimeModeLeadId(null)
+    }
   }
 
   const handleSortToggle = (nextSortKey: ConversationSortKey) => {
@@ -854,13 +918,13 @@ export default function ConversasPage() {
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-                  <button type="button" onClick={() => handleSortToggle('runtimeMode')} style={getHeaderSortButtonStyle('runtimeMode', 'center')}>
-                    Atendimento <span>{getSortIndicator('runtimeMode')}</span>
+                  <button type="button" onClick={() => handleSortToggle('status')} style={getHeaderSortButtonStyle('status', 'center')}>
+                    Status <span>{getSortIndicator('status')}</span>
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-                  <button type="button" onClick={() => handleSortToggle('status')} style={getHeaderSortButtonStyle('status', 'center')}>
-                    Status <span>{getSortIndicator('status')}</span>
+                  <button type="button" onClick={() => handleSortToggle('runtimeMode')} style={getHeaderSortButtonStyle('runtimeMode', 'center')}>
+                    Atendimento <span>{getSortIndicator('runtimeMode')}</span>
                   </button>
                 </th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
@@ -877,8 +941,8 @@ export default function ConversasPage() {
                     { width: '68%' },
                     { width: '84%' },
                     { width: '68%', align: 'center' },
-                    { width: '72%', align: 'center' },
                     { width: '68%', align: 'center' },
+                    { width: '72%', align: 'center' },
                     { width: '66%', align: 'center' }
                   ]}
                 />
@@ -902,8 +966,19 @@ export default function ConversasPage() {
                     </DelayedTooltip>
                   </td>
                   <td style={{ padding: '14px 12px', textAlign: 'center' }}><LastContactTag value={conversation.lastInboundAt} /></td>
-                  <td style={{ padding: '14px 12px', textAlign: 'center' }}><RuntimeModeTag runtimeMode={conversation.runtimeMode} /></td>
                   <td style={{ padding: '14px 12px', textAlign: 'center' }}><StatusTag status={conversation.status} /></td>
+                  <td style={{ padding: '14px 12px', textAlign: 'center' }}>
+                    <RuntimeModeTag
+                      runtimeMode={conversation.runtimeMode}
+                      disabled={updatingRuntimeModeLeadId === conversation.leadId}
+                      onChange={(runtimeMode) =>
+                        void handleRuntimeModeChange(
+                          conversation.leadId,
+                          runtimeMode
+                        )
+                      }
+                    />
+                  </td>
                   <td style={{ padding: '14px 12px', textAlign: 'center' }}><SourceTag source={conversation.source} /></td>
                 </tr>
               ))}

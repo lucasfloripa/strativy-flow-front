@@ -1,7 +1,20 @@
-import { Archive, CalendarDays, Clock3, ListFilter, Plus, Star, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  CalendarDays,
+  Clock3,
+  ListFilter,
+  Plus,
+  Star,
+  Trash2,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
@@ -14,7 +27,7 @@ import {
   formatDateTime,
   getApiDateTimestamp,
   parseApiDateToBrowserDate,
-  parsePersistedUtcClockToBrowserDate
+  parsePersistedUtcClockToBrowserDate,
 } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
@@ -49,12 +62,91 @@ type TagPresentation = {
   icon?: ReactNode
 }
 
-type LeadSortKey = 'createdAt' | 'name' | 'qualification' | 'nextAgenda' | 'lastContact' | 'source'
+type LeadQualification = 'qualify' | 'not qualify' | null
+
+type LeadQualificationQuickSelectProps = {
+  disabled: boolean
+  onChange: (value: string) => void
+  value: LeadQualification
+}
+
+const LeadQualificationQuickSelect = ({
+  disabled,
+  onChange,
+  value,
+}: LeadQualificationQuickSelectProps) => {
+  const label = getLeadQualificationLabel(value)
+  const colors =
+    value === 'qualify'
+      ? { background: '#dcfce7', color: '#166534' }
+      : value === 'not qualify'
+        ? { background: '#fee2e2', color: '#b91c1c' }
+        : { background: '#f3f4f6', color: '#6b7280' }
+
+  return (
+    <span
+      onClick={(event) => event.stopPropagation()}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 28,
+        border: `1px solid ${colors.color}`,
+        borderRadius: 6,
+        padding: '6px 10px',
+        background: colors.background,
+        color: colors.color,
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1.1,
+        whiteSpace: 'nowrap',
+        boxSizing: 'border-box',
+        opacity: disabled ? 0.65 : 1,
+      }}
+    >
+      <span aria-hidden="true">{label}</span>
+      <select
+        aria-label="Alterar qualificação do lead"
+        value={value ?? ''}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          padding: 0,
+          cursor: disabled ? 'wait' : 'pointer',
+          appearance: 'none',
+          opacity: 0,
+        }}
+      >
+        <option value="">Sem qualificação</option>
+        <option value="qualify">Qualificado</option>
+        <option value="not qualify">Não qualificado</option>
+      </select>
+    </span>
+  )
+}
+
+type LeadSortKey =
+  | 'createdAt'
+  | 'name'
+  | 'qualification'
+  | 'nextAgenda'
+  | 'lastContact'
+  | 'source'
 type LeadSortDirection = 'asc' | 'desc'
 type QualificationSortFocus = 'qualify' | 'notQualify' | 'unqualified'
 type NextAgendaSortFocus = 'recentFirst' | 'oldestFirst' | 'noDateFirst'
-type SourceSortFocus = 'whatsappFirst' | 'directFirst' | 'metaAdsFirst' | 'googleAdsFirst' | 'indicacaoFirst'
-
+type SourceSortFocus =
+  | 'whatsappFirst'
+  | 'directFirst'
+  | 'metaAdsFirst'
+  | 'googleAdsFirst'
+  | 'indicacaoFirst'
 
 const normalizePhoneDigits = (value: string): string => value.replace(/\D/g, '')
 
@@ -62,7 +154,7 @@ const tagContentStyle = {
   display: 'inline-flex',
   alignItems: 'center',
   lineHeight: 1,
-  verticalAlign: 'middle' as const
+  verticalAlign: 'middle' as const,
 }
 
 const tagIconStyle = {
@@ -72,7 +164,7 @@ const tagIconStyle = {
   flexShrink: 0,
   marginRight: 4,
   lineHeight: 0,
-  verticalAlign: 'middle' as const
+  verticalAlign: 'middle' as const,
 }
 
 const isNewLead = (createdAt: string | Date | null): boolean => {
@@ -91,7 +183,7 @@ const isNewLead = (createdAt: string | Date | null): boolean => {
 
 const getInteractionTagPresentation = (
   lastMessageAt: string | Date | null,
-  createdAt: string | Date | null
+  createdAt: string | Date | null,
 ): TagPresentation => {
   const referenceValue = lastMessageAt ?? createdAt
   const referenceDate = parseApiDateToBrowserDate(referenceValue)
@@ -100,28 +192,39 @@ const getInteractionTagPresentation = (
     return {
       label: '-',
       textColor: '#6b7280',
-      background: '#f3f4f6'
+      background: '#f3f4f6',
     }
   }
 
   const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-  const colors = referenceDate < startOfToday
-    ? { textColor: '#b91c1c', background: '#fee2e2' }
-    : referenceDate <= endOfToday
-      ? { textColor: '#b45309', background: '#fef3c7' }
-      : { textColor: '#1d4ed8', background: '#dbeafe' }
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  )
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+    999,
+  )
+  const colors =
+    referenceDate < startOfToday
+      ? { textColor: '#b91c1c', background: '#fee2e2' }
+      : referenceDate <= endOfToday
+        ? { textColor: '#b45309', background: '#fef3c7' }
+        : { textColor: '#1d4ed8', background: '#dbeafe' }
 
   return {
     label: formatDateTime(referenceDate),
-    ...colors
+    ...colors,
   }
 }
 
-const getLeadQualificationLabel = (
-  value?: string | null
-): string => {
+const getLeadQualificationLabel = (value?: string | null): string => {
   const normalizedValue = normalizeLeadQualificationValue(value)
 
   if (normalizedValue === 'qualify') {
@@ -136,7 +239,7 @@ const getLeadQualificationLabel = (
 }
 
 const normalizeLeadQualificationValue = (
-  value: string | null | undefined
+  value: string | null | undefined,
 ): 'qualify' | 'not qualify' | null => {
   if (typeof value !== 'string') {
     return null
@@ -164,14 +267,22 @@ const formatAgendaDateTime = (value?: string | Date | null): string => {
 }
 
 const resolveNextAgendaStatus = (
-  lead: LeadsTableRow
+  lead: LeadsTableRow,
 ): LeadsTableRow['topFollowUpStatus'] => {
   if (lead.nextFollowUpDueAt) {
     const dueDate = parseApiDateToBrowserDate(lead.nextFollowUpDueAt)
 
     if (dueDate) {
       const now = new Date()
-      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+      const endOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        23,
+        59,
+        59,
+        999,
+      )
 
       if (dueDate < now) {
         return 'overdue'
@@ -215,32 +326,32 @@ const resolveNextAgendaStatus = (
 }
 
 const getNextAgendaTagColors = (
-  status?: LeadsTableRow['topFollowUpStatus']
+  status?: LeadsTableRow['topFollowUpStatus'],
 ): { textColor: string; background: string } => {
   if (status === 'overdue') {
     return {
       textColor: '#b91c1c',
-      background: '#fee2e2'
+      background: '#fee2e2',
     }
   }
 
   if (status === 'today') {
     return {
       textColor: '#b45309',
-      background: '#fef3c7'
+      background: '#fef3c7',
     }
   }
 
   if (status === 'completed') {
     return {
       textColor: '#166534',
-      background: '#dcfce7'
+      background: '#dcfce7',
     }
   }
 
   return {
     textColor: '#1d4ed8',
-    background: '#dbeafe'
+    background: '#dbeafe',
   }
 }
 
@@ -257,14 +368,16 @@ const getFilterOptionStyle = (isSelected: boolean) => ({
   textAlign: 'left' as const,
   cursor: 'pointer',
   outline: 'none',
-  WebkitTapHighlightColor: 'transparent'
+  WebkitTapHighlightColor: 'transparent',
 })
 
 const getQualificationSortRank = (
   lead: LeadsTableRow,
-  focus: QualificationSortFocus
+  focus: QualificationSortFocus,
 ): number => {
-  const normalizedLeadQualification = normalizeLeadQualificationValue(lead.leadQualification)
+  const normalizedLeadQualification = normalizeLeadQualificationValue(
+    lead.leadQualification,
+  )
   const qualificationKind =
     lead.state === 'archived'
       ? 'archived'
@@ -274,32 +387,35 @@ const getQualificationSortRank = (
           ? 'notQualify'
           : 'unqualified'
 
-  const ranksByFocus: Record<QualificationSortFocus, Record<'qualify' | 'notQualify' | 'unqualified' | 'archived', number>> = {
+  const ranksByFocus: Record<
+    QualificationSortFocus,
+    Record<'qualify' | 'notQualify' | 'unqualified' | 'archived', number>
+  > = {
     qualify: {
       qualify: 0,
       notQualify: 1,
       unqualified: 2,
-      archived: 3
+      archived: 3,
     },
     notQualify: {
       notQualify: 0,
       qualify: 1,
       unqualified: 2,
-      archived: 3
+      archived: 3,
     },
     unqualified: {
       unqualified: 0,
       qualify: 1,
       notQualify: 2,
-      archived: 3
-    }
+      archived: 3,
+    },
   }
 
   return ranksByFocus[focus][qualificationKind]
 }
 
 const normalizeSourceValue = (
-  source: string
+  source: string,
 ): 'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other' => {
   const normalizedSource = source
     .trim()
@@ -340,7 +456,10 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
 
   const ranksByFocus: Record<
     SourceSortFocus,
-    Record<'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other', number>
+    Record<
+      'whatsapp' | 'direct' | 'metaads' | 'googleads' | 'indicacao' | 'other',
+      number
+    >
   > = {
     whatsappFirst: {
       whatsapp: 0,
@@ -348,7 +467,7 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
       metaads: 2,
       googleads: 3,
       indicacao: 4,
-      other: 5
+      other: 5,
     },
     directFirst: {
       direct: 0,
@@ -356,7 +475,7 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
       metaads: 2,
       googleads: 3,
       indicacao: 4,
-      other: 5
+      other: 5,
     },
     metaAdsFirst: {
       metaads: 0,
@@ -364,7 +483,7 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
       direct: 2,
       googleads: 3,
       indicacao: 4,
-      other: 5
+      other: 5,
     },
     googleAdsFirst: {
       googleads: 0,
@@ -372,7 +491,7 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
       direct: 2,
       metaads: 3,
       indicacao: 4,
-      other: 5
+      other: 5,
     },
     indicacaoFirst: {
       indicacao: 0,
@@ -380,8 +499,8 @@ const getSourceSortRank = (source: string, focus: SourceSortFocus): number => {
       direct: 2,
       metaads: 3,
       googleads: 4,
-      other: 5
-    }
+      other: 5,
+    },
   }
 
   return ranksByFocus[focus][normalizedSource]
@@ -411,17 +530,26 @@ export default function LeadsPage() {
   const { leadId } = useParams<{ leadId?: string }>()
   const { data, isLoading, error, reload } = useLeadsBootstrap()
   const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null)
-  const [hoveredNextAgendaValueLeadId, setHoveredNextAgendaValueLeadId] = useState<string | null>(null)
-  const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
-  const [isFiltersButtonHovered, setIsFiltersButtonHovered] = useState<boolean>(false)
+  const [hoveredNextAgendaValueLeadId, setHoveredNextAgendaValueLeadId] =
+    useState<string | null>(null)
+  const [isSearchInputFocused, setIsSearchInputFocused] =
+    useState<boolean>(false)
+  const [isFiltersButtonHovered, setIsFiltersButtonHovered] =
+    useState<boolean>(false)
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(false)
-  const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(null)
-  const [isAddLeadButtonHovered, setIsAddLeadButtonHovered] = useState<boolean>(false)
+  const [hoveredFilterOption, setHoveredFilterOption] = useState<string | null>(
+    null,
+  )
+  const [isAddLeadButtonHovered, setIsAddLeadButtonHovered] =
+    useState<boolean>(false)
   const [sortKey, setSortKey] = useState<LeadSortKey>('nextAgenda')
   const [sortDirection, setSortDirection] = useState<LeadSortDirection>('desc')
-  const [qualificationSortFocus, setQualificationSortFocus] = useState<QualificationSortFocus>('qualify')
-  const [nextAgendaSortFocus, setNextAgendaSortFocus] = useState<NextAgendaSortFocus>('oldestFirst')
-  const [sourceSortFocus, setSourceSortFocus] = useState<SourceSortFocus>('whatsappFirst')
+  const [qualificationSortFocus, setQualificationSortFocus] =
+    useState<QualificationSortFocus>('qualify')
+  const [nextAgendaSortFocus, setNextAgendaSortFocus] =
+    useState<NextAgendaSortFocus>('oldestFirst')
+  const [sourceSortFocus, setSourceSortFocus] =
+    useState<SourceSortFocus>('whatsappFirst')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [showOnlyFavorites, setShowOnlyFavorites] = useState<boolean>(() => {
     return searchParams.get('favorites') === 'true'
@@ -429,13 +557,24 @@ export default function LeadsPage() {
   const [showOnlyNewLeads, setShowOnlyNewLeads] = useState<boolean>(() => {
     return searchParams.get('newLeads') === 'true'
   })
-  const [showOnlyWithoutConversation24h, setShowOnlyWithoutConversation24h] = useState<boolean>(() => {
-    return searchParams.get('withoutConversation24h') === 'true'
-  })
+  const [showOnlyWithoutConversation24h, setShowOnlyWithoutConversation24h] =
+    useState<boolean>(() => {
+      return searchParams.get('withoutConversation24h') === 'true'
+    })
   const [showOnlyQualified, setShowOnlyQualified] = useState<boolean>(false)
-  const [showOnlyNotQualified, setShowOnlyNotQualified] = useState<boolean>(false)
-  const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<string | null>(null)
-  const [confirmingArchiveLeadId, setConfirmingArchiveLeadId] = useState<string | null>(null)
+  const [showOnlyNotQualified, setShowOnlyNotQualified] =
+    useState<boolean>(false)
+  const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<
+    string | null
+  >(null)
+  const [confirmingArchiveLeadId, setConfirmingArchiveLeadId] = useState<
+    string | null
+  >(null)
+  const [updatingLeadQualificationId, setUpdatingLeadQualificationId] =
+    useState<string | null>(null)
+  const [leadQualificationOverrides, setLeadQualificationOverrides] = useState<
+    Record<string, LeadQualification>
+  >({})
   const [wrappedLeadNames, setWrappedLeadNames] = useState<
     Record<string, boolean>
   >({})
@@ -443,7 +582,8 @@ export default function LeadsPage() {
   const isCreateLeadFormOpen = leadId === 'new'
   const previousIsLeadSelectedRef = useRef<boolean>(isLeadSelected)
   const leadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
-  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
+  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] =
+    useState<boolean>(false)
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
   const quickView = searchParams.get('view')
   const isNewTodayView = quickView === 'new-today'
@@ -462,7 +602,7 @@ export default function LeadsPage() {
           label: 'Favoritos',
           textColor: '#a16207',
           background: '#fef3c7',
-          onRemove: () => setShowOnlyFavorites(false)
+          onRemove: () => setShowOnlyFavorites(false),
         }
       : null,
     showOnlyNewLeads
@@ -471,7 +611,7 @@ export default function LeadsPage() {
           label: 'Novos',
           textColor: '#b45309',
           background: '#fef3c7',
-          onRemove: () => setShowOnlyNewLeads(false)
+          onRemove: () => setShowOnlyNewLeads(false),
         }
       : null,
     showOnlyWithoutConversation24h
@@ -480,7 +620,7 @@ export default function LeadsPage() {
           label: 'Sem conversa 24h+',
           textColor: '#1d4ed8',
           background: '#dbeafe',
-          onRemove: () => setShowOnlyWithoutConversation24h(false)
+          onRemove: () => setShowOnlyWithoutConversation24h(false),
         }
       : null,
     showOnlyQualified
@@ -489,7 +629,7 @@ export default function LeadsPage() {
           label: 'Qualificado',
           textColor: '#166534',
           background: '#dcfce7',
-          onRemove: () => setShowOnlyQualified(false)
+          onRemove: () => setShowOnlyQualified(false),
         }
       : null,
     showOnlyNotQualified
@@ -498,16 +638,20 @@ export default function LeadsPage() {
           label: 'Não qualificado',
           textColor: '#b91c1c',
           background: '#fee2e2',
-          onRemove: () => setShowOnlyNotQualified(false)
+          onRemove: () => setShowOnlyNotQualified(false),
         }
-      : null
-  ].filter((tag): tag is {
-    key: string
-    label: string
-    textColor: string
-    background: string
-    onRemove: () => void
-  } => tag !== null)
+      : null,
+  ].filter(
+    (
+      tag,
+    ): tag is {
+      key: string
+      label: string
+      textColor: string
+      background: string
+      onRemove: () => void
+    } => tag !== null,
+  )
 
   const handleLeadUpdated = () => {
     setShouldRefreshOnLeadClose(true)
@@ -554,30 +698,35 @@ export default function LeadsPage() {
     }
   }, [])
 
-  const leads: LeadsTableRow[] = (data.leads ?? [])
-    .map((lead, index) => ({
-      // Backward-compatible extraction in case API already returns this field.
-      nextFollowUpId: ((lead as { nextFollowUpId?: string | null }).nextFollowUpId ?? null),
-      id: lead.id,
-      name: lead.name ?? `Lead ${index + 1}`,
-      phone: lead.phone ?? '-',
-      state: lead.state ?? 'active',
-      source: lead.source ?? '-',
-      leadQualification: typeof lead.leadQualification === 'string'
+  const leads: LeadsTableRow[] = (data.leads ?? []).map((lead, index) => ({
+    // Backward-compatible extraction in case API already returns this field.
+    nextFollowUpId:
+      (lead as { nextFollowUpId?: string | null }).nextFollowUpId ?? null,
+    id: lead.id,
+    name: lead.name ?? `Lead ${index + 1}`,
+    phone: lead.phone ?? '-',
+    state: lead.state ?? 'active',
+    source: lead.source ?? '-',
+    leadQualification: Object.prototype.hasOwnProperty.call(
+      leadQualificationOverrides,
+      lead.id,
+    )
+      ? leadQualificationOverrides[lead.id]
+      : typeof lead.leadQualification === 'string'
         ? lead.leadQualification
         : null,
-      isFavorite: lead.isFavorite ?? false,
-      createdAt: lead.createdAt ?? null,
-      lastMessageAt: lead.lastMessageAt ?? null,
-      nextFollowUpDueAt: lead.nextFollowUpDueAt ?? null,
-      nextFollowUpNegotiationId: lead.nextFollowUpNegotiationId ?? null,
-      topFollowUpStatus: lead.topFollowUpStatus ?? null,
-      hasFollowUpOverdue: lead.hasFollowUpOverdue ?? false,
-      hasFollowUpToday: lead.hasFollowUpToday ?? false,
-      hasFollowUpScheduled: lead.hasFollowUpScheduled ?? false,
-      hasAnyFollowUp: lead.hasAnyFollowUp ?? false,
-      hasOnlyClosedNegotiations: lead.hasOnlyClosedNegotiations ?? false
-    }))
+    isFavorite: lead.isFavorite ?? false,
+    createdAt: lead.createdAt ?? null,
+    lastMessageAt: lead.lastMessageAt ?? null,
+    nextFollowUpDueAt: lead.nextFollowUpDueAt ?? null,
+    nextFollowUpNegotiationId: lead.nextFollowUpNegotiationId ?? null,
+    topFollowUpStatus: lead.topFollowUpStatus ?? null,
+    hasFollowUpOverdue: lead.hasFollowUpOverdue ?? false,
+    hasFollowUpToday: lead.hasFollowUpToday ?? false,
+    hasFollowUpScheduled: lead.hasFollowUpScheduled ?? false,
+    hasAnyFollowUp: lead.hasAnyFollowUp ?? false,
+    hasOnlyClosedNegotiations: lead.hasOnlyClosedNegotiations ?? false,
+  }))
 
   const openLeadNextAgendaFollowUp = async (lead: LeadsTableRow) => {
     if (!lead.nextFollowUpNegotiationId) {
@@ -587,15 +736,15 @@ export default function LeadsPage() {
     const baseState = {
       initialLeadTab: 'negocios' as const,
       initialBusinessId: lead.nextFollowUpNegotiationId,
-      initialBusinessTab: 'followups' as const
+      initialBusinessTab: 'followups' as const,
     }
 
     if (lead.nextFollowUpId) {
       navigate(`/leads/${lead.id}${location.search}`, {
         state: {
           ...baseState,
-          initialBusinessFollowUpId: lead.nextFollowUpId
-        }
+          initialBusinessFollowUpId: lead.nextFollowUpId,
+        },
       })
       return
     }
@@ -603,7 +752,7 @@ export default function LeadsPage() {
     try {
       const allFollowUps = await WebhookService.loadNegotiationFollowUps()
       const businessFollowUps = allFollowUps.filter(
-        (followUp) => followUp.negotiationId === lead.nextFollowUpNegotiationId
+        (followUp) => followUp.negotiationId === lead.nextFollowUpNegotiationId,
       )
 
       let targetFollowUpId: string | null = null
@@ -612,11 +761,18 @@ export default function LeadsPage() {
         : Number.NaN
 
       if (Number.isFinite(targetDueTimestamp) && businessFollowUps.length > 0) {
-        const pendingFollowUps = businessFollowUps.filter((followUp) => followUp.status === 'pending')
-        const candidates = pendingFollowUps.length > 0 ? pendingFollowUps : businessFollowUps
+        const pendingFollowUps = businessFollowUps.filter(
+          (followUp) => followUp.status === 'pending',
+        )
+        const candidates =
+          pendingFollowUps.length > 0 ? pendingFollowUps : businessFollowUps
         const sortedCandidates = [...candidates].sort((first, second) => {
-          const firstDiff = Math.abs(getApiDateTimestamp(first.dueAt) - targetDueTimestamp)
-          const secondDiff = Math.abs(getApiDateTimestamp(second.dueAt) - targetDueTimestamp)
+          const firstDiff = Math.abs(
+            getApiDateTimestamp(first.dueAt) - targetDueTimestamp,
+          )
+          const secondDiff = Math.abs(
+            getApiDateTimestamp(second.dueAt) - targetDueTimestamp,
+          )
           return firstDiff - secondDiff
         })
 
@@ -627,13 +783,13 @@ export default function LeadsPage() {
         state: targetFollowUpId
           ? {
               ...baseState,
-              initialBusinessFollowUpId: targetFollowUpId
+              initialBusinessFollowUpId: targetFollowUpId,
             }
-          : baseState
+          : baseState,
       })
     } catch {
       navigate(`/leads/${lead.id}${location.search}`, {
-        state: baseState
+        state: baseState,
       })
     }
   }
@@ -650,10 +806,13 @@ export default function LeadsPage() {
     const normalizedLeadPhone = normalizePhoneDigits(lead.phone)
 
     const matchesFavorite = showOnlyFavorites ? lead.isFavorite : true
-    const normalizedLeadQualification = normalizeLeadQualificationValue(lead.leadQualification)
+    const normalizedLeadQualification = normalizeLeadQualificationValue(
+      lead.leadQualification,
+    )
     const matchesQualification =
       showOnlyQualified && showOnlyNotQualified
-        ? normalizedLeadQualification === 'qualify' || normalizedLeadQualification === 'not qualify'
+        ? normalizedLeadQualification === 'qualify' ||
+          normalizedLeadQualification === 'not qualify'
         : showOnlyQualified
           ? normalizedLeadQualification === 'qualify'
           : showOnlyNotQualified
@@ -675,7 +834,9 @@ export default function LeadsPage() {
     const hasValidCreatedAt = Number.isFinite(createdAtTimestamp)
     const isCreatedWithin24h = isNewLead(lead.createdAt)
 
-    const lastMessageDate = parsePersistedUtcClockToBrowserDate(lead.lastMessageAt)
+    const lastMessageDate = parsePersistedUtcClockToBrowserDate(
+      lead.lastMessageAt,
+    )
     const lastMessageTimestamp = lastMessageDate?.getTime() ?? Number.NaN
     const hasRecentMessageInLast24h =
       Number.isFinite(lastMessageTimestamp) &&
@@ -683,7 +844,8 @@ export default function LeadsPage() {
     const hasAnyMessage = Number.isFinite(lastMessageTimestamp)
     const hasNoConversationFor24h = hasAnyMessage
       ? !hasRecentMessageInLast24h
-      : hasValidCreatedAt && Date.now() - createdAtTimestamp > 24 * 60 * 60 * 1000
+      : hasValidCreatedAt &&
+        Date.now() - createdAtTimestamp > 24 * 60 * 60 * 1000
 
     const matchesQuickView = isNewTodayView
       ? isCreatedWithin24h
@@ -692,7 +854,9 @@ export default function LeadsPage() {
         : true
     const matchesNewFilter = showOnlyNewLeads ? isCreatedWithin24h : true
     const matchesWithoutConversation24hFilter = showOnlyWithoutConversation24h
-      ? (hasAnyMessage && !hasRecentMessageInLast24h) && !lead.hasOnlyClosedNegotiations
+      ? hasAnyMessage &&
+        !hasRecentMessageInLast24h &&
+        !lead.hasOnlyClosedNegotiations
       : true
 
     return (
@@ -705,72 +869,90 @@ export default function LeadsPage() {
     )
   })
 
-  const sortedFilteredLeads = [...filteredLeads].sort((firstLead, secondLead) => {
-    const directionFactor = sortDirection === 'asc' ? 1 : -1
+  const sortedFilteredLeads = [...filteredLeads].sort(
+    (firstLead, secondLead) => {
+      const directionFactor = sortDirection === 'asc' ? 1 : -1
 
-    if (sortKey === 'createdAt') {
-      const dateDifference = toSortableTimestamp(firstLead.createdAt) - toSortableTimestamp(secondLead.createdAt)
-      return dateDifference * directionFactor
-    }
+      if (sortKey === 'createdAt') {
+        const dateDifference =
+          toSortableTimestamp(firstLead.createdAt) -
+          toSortableTimestamp(secondLead.createdAt)
+        return dateDifference * directionFactor
+      }
 
-    if (sortKey === 'name') {
-      return firstLead.name.localeCompare(secondLead.name, 'pt-BR', { sensitivity: 'base' }) * directionFactor
-    }
+      if (sortKey === 'name') {
+        return (
+          firstLead.name.localeCompare(secondLead.name, 'pt-BR', {
+            sensitivity: 'base',
+          }) * directionFactor
+        )
+      }
 
-    if (sortKey === 'qualification') {
-      return getQualificationSortRank(firstLead, qualificationSortFocus) - getQualificationSortRank(secondLead, qualificationSortFocus)
-    }
+      if (sortKey === 'qualification') {
+        return (
+          getQualificationSortRank(firstLead, qualificationSortFocus) -
+          getQualificationSortRank(secondLead, qualificationSortFocus)
+        )
+      }
 
-    if (sortKey === 'nextAgenda') {
-      const firstDate = getApiDateTimestamp(firstLead.nextFollowUpDueAt)
-      const secondDate = getApiDateTimestamp(secondLead.nextFollowUpDueAt)
-      const firstHasDate = Number.isFinite(firstDate)
-      const secondHasDate = Number.isFinite(secondDate)
+      if (sortKey === 'nextAgenda') {
+        const firstDate = getApiDateTimestamp(firstLead.nextFollowUpDueAt)
+        const secondDate = getApiDateTimestamp(secondLead.nextFollowUpDueAt)
+        const firstHasDate = Number.isFinite(firstDate)
+        const secondHasDate = Number.isFinite(secondDate)
 
-      if (nextAgendaSortFocus === 'noDateFirst') {
+        if (nextAgendaSortFocus === 'noDateFirst') {
+          if (!firstHasDate && secondHasDate) {
+            return -1
+          }
+
+          if (firstHasDate && !secondHasDate) {
+            return 1
+          }
+
+          if (!firstHasDate && !secondHasDate) {
+            return 0
+          }
+
+          return secondDate - firstDate
+        }
+
         if (!firstHasDate && secondHasDate) {
-          return -1
+          return 1
         }
 
         if (firstHasDate && !secondHasDate) {
-          return 1
+          return -1
         }
 
         if (!firstHasDate && !secondHasDate) {
           return 0
         }
 
+        if (nextAgendaSortFocus === 'oldestFirst') {
+          return firstDate - secondDate
+        }
+
         return secondDate - firstDate
       }
 
-      if (!firstHasDate && secondHasDate) {
-        return 1
+      if (sortKey === 'lastContact') {
+        const dateDifference =
+          getApiDateTimestamp(
+            parsePersistedUtcClockToBrowserDate(firstLead.lastMessageAt),
+          ) -
+          getApiDateTimestamp(
+            parsePersistedUtcClockToBrowserDate(secondLead.lastMessageAt),
+          )
+        return dateDifference * directionFactor
       }
 
-      if (firstHasDate && !secondHasDate) {
-        return -1
-      }
-
-      if (!firstHasDate && !secondHasDate) {
-        return 0
-      }
-
-      if (nextAgendaSortFocus === 'oldestFirst') {
-        return firstDate - secondDate
-      }
-
-      return secondDate - firstDate
-    }
-
-    if (sortKey === 'lastContact') {
-      const dateDifference =
-        getApiDateTimestamp(parsePersistedUtcClockToBrowserDate(firstLead.lastMessageAt)) -
-        getApiDateTimestamp(parsePersistedUtcClockToBrowserDate(secondLead.lastMessageAt))
-      return dateDifference * directionFactor
-    }
-
-    return getSourceSortRank(firstLead.source, sourceSortFocus) - getSourceSortRank(secondLead.source, sourceSortFocus)
-  })
+      return (
+        getSourceSortRank(firstLead.source, sourceSortFocus) -
+        getSourceSortRank(secondLead.source, sourceSortFocus)
+      )
+    },
+  )
 
   const paginatedLeads = sortedFilteredLeads
 
@@ -803,7 +985,7 @@ export default function LeadsPage() {
         }
 
         const lineCount = Math.round(
-          leadNameElement.getBoundingClientRect().height / lineHeight
+          leadNameElement.getBoundingClientRect().height / lineHeight,
         )
 
         nextWrappedNames[lead.id] = lineCount > 1
@@ -818,7 +1000,7 @@ export default function LeadsPage() {
         }
 
         const hasDifference = nextKeys.some(
-          (key) => currentWrappedNames[key] !== nextWrappedNames[key]
+          (key) => currentWrappedNames[key] !== nextWrappedNames[key],
         )
 
         return hasDifference ? nextWrappedNames : currentWrappedNames
@@ -854,7 +1036,8 @@ export default function LeadsPage() {
       setConfirmingDeleteLeadId(null)
       await reload()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao deletar lead.'
+      const message =
+        error instanceof Error ? error.message : 'Falha ao deletar lead.'
       console.error('Erro ao deletar lead:', message)
       setConfirmingDeleteLeadId(null)
     }
@@ -866,7 +1049,8 @@ export default function LeadsPage() {
       setConfirmingArchiveLeadId(null)
       await reload()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao arquivar lead.'
+      const message =
+        error instanceof Error ? error.message : 'Falha ao arquivar lead.'
       console.error('Erro ao arquivar lead:', message)
       setConfirmingArchiveLeadId(null)
     }
@@ -877,18 +1061,53 @@ export default function LeadsPage() {
       await LeadsService.setLeadArchiveState(leadId, 'active')
       await reload()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao desarquivar lead.'
+      const message =
+        error instanceof Error ? error.message : 'Falha ao desarquivar lead.'
       console.error('Erro ao desarquivar lead:', message)
     }
   }
 
   const handleToggleFavoriteLead = async (targetLead: LeadsTableRow) => {
     try {
-      await LeadsService.toggleFavoriteLead(targetLead.id, !targetLead.isFavorite)
+      await LeadsService.toggleFavoriteLead(
+        targetLead.id,
+        !targetLead.isFavorite,
+      )
       await reload()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Falha ao atualizar favorito do lead.'
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Falha ao atualizar favorito do lead.'
       console.error('Erro ao favoritar lead:', message)
+    }
+  }
+
+  const handleLeadQualificationChange = async (
+    lead: LeadsTableRow,
+    value: string,
+  ) => {
+    const leadQualification = (value || null) as LeadQualification
+
+    setUpdatingLeadQualificationId(lead.id)
+
+    try {
+      const updatedLead = await WebhookService.updateLead(lead.id, {
+        leadQualification,
+      })
+
+      setLeadQualificationOverrides((current) => ({
+        ...current,
+        [lead.id]: updatedLead.leadQualification ?? null,
+      }))
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Falha ao atualizar qualificação do lead.'
+      console.error('Erro ao atualizar qualificação do lead:', message)
+    } finally {
+      setUpdatingLeadQualificationId(null)
     }
   }
 
@@ -968,7 +1187,9 @@ export default function LeadsPage() {
     }
 
     if (sortKey === nextSortKey) {
-      setSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
+      setSortDirection((currentDirection) =>
+        currentDirection === 'asc' ? 'desc' : 'asc',
+      )
       return
     }
 
@@ -1008,7 +1229,7 @@ export default function LeadsPage() {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 6
+    gap: 6,
   })
 
   if (isMobile) {
@@ -1023,17 +1244,49 @@ export default function LeadsPage() {
           background: '#fafbfd',
           boxSizing: 'border-box',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads</h1>
-          <span style={{ width: 52, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              color: '#111827',
+              lineHeight: 1.1,
+              fontWeight: 800,
+            }}
+          >
+            Leads
+          </h1>
+          <span
+            style={{
+              width: 52,
+              color: '#6b7280',
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
             <TotalCount isLoading={isLoading} total={filteredLeads.length} />
           </span>
         </header>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 52px 52px', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 52px 52px',
+            gap: 12,
+          }}
+        >
           <input
             type="text"
             value={searchTerm}
@@ -1051,14 +1304,14 @@ export default function LeadsPage() {
               }`,
               borderRadius: 14,
               padding: '0 16px',
-              background: '#ffffff',
+              background: 'rgb(252, 253, 255)',
               color: '#111827',
               boxShadow: isSearchInputFocused
                 ? interactionTheme.inputFocusBoxShadow
                 : 'none',
               outline: 'none',
               fontSize: 16,
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           />
 
@@ -1072,9 +1325,12 @@ export default function LeadsPage() {
               width: 52,
               border: '1px solid #d1d5db',
               borderRadius: 14,
-              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
-                ? interactionTheme.clickableCardHoverBackground
-                : '#ffffff',
+              background:
+                isFiltersPanelOpen ||
+                isFiltersButtonHovered ||
+                activeFiltersCount > 0
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff',
               padding: 0,
               display: 'inline-flex',
               alignItems: 'center',
@@ -1082,7 +1338,7 @@ export default function LeadsPage() {
               cursor: 'pointer',
               color: '#111827',
               outline: 'none',
-              WebkitTapHighlightColor: 'transparent'
+              WebkitTapHighlightColor: 'transparent',
             }}
             aria-label="Abrir filtros"
           >
@@ -1108,7 +1364,7 @@ export default function LeadsPage() {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              flexShrink: 0
+              flexShrink: 0,
             }}
           >
             <Plus size={26} />
@@ -1127,7 +1383,7 @@ export default function LeadsPage() {
                 border: 'none',
                 background: 'transparent',
                 zIndex: 35,
-                cursor: 'default'
+                cursor: 'default',
               }}
             />
 
@@ -1143,7 +1399,7 @@ export default function LeadsPage() {
                 zIndex: 36,
                 padding: '14px 16px 12px',
                 boxSizing: 'border-box',
-                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)'
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
               }}
             >
               <div style={{ display: 'grid', gap: 2 }}>
@@ -1152,7 +1408,9 @@ export default function LeadsPage() {
                   onClick={() => setShowOnlyFavorites((current) => !current)}
                   onMouseEnter={() => setHoveredFilterOption('favorites')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(showOnlyFavorites || hoveredFilterOption === 'favorites')}
+                  style={getFilterOptionStyle(
+                    showOnlyFavorites || hoveredFilterOption === 'favorites',
+                  )}
                 >
                   Favoritos
                 </button>
@@ -1162,17 +1420,26 @@ export default function LeadsPage() {
                   onClick={() => setShowOnlyNewLeads((current) => !current)}
                   onMouseEnter={() => setHoveredFilterOption('new-leads')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(showOnlyNewLeads || hoveredFilterOption === 'new-leads')}
+                  style={getFilterOptionStyle(
+                    showOnlyNewLeads || hoveredFilterOption === 'new-leads',
+                  )}
                 >
                   Novos
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setShowOnlyWithoutConversation24h((current) => !current)}
-                  onMouseEnter={() => setHoveredFilterOption('without-conversation-24h')}
+                  onClick={() =>
+                    setShowOnlyWithoutConversation24h((current) => !current)
+                  }
+                  onMouseEnter={() =>
+                    setHoveredFilterOption('without-conversation-24h')
+                  }
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(showOnlyWithoutConversation24h || hoveredFilterOption === 'without-conversation-24h')}
+                  style={getFilterOptionStyle(
+                    showOnlyWithoutConversation24h ||
+                      hoveredFilterOption === 'without-conversation-24h',
+                  )}
                 >
                   Sem conversa 24h+
                 </button>
@@ -1182,7 +1449,9 @@ export default function LeadsPage() {
                   onClick={() => setShowOnlyQualified((current) => !current)}
                   onMouseEnter={() => setHoveredFilterOption('qualified')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(showOnlyQualified || hoveredFilterOption === 'qualified')}
+                  style={getFilterOptionStyle(
+                    showOnlyQualified || hoveredFilterOption === 'qualified',
+                  )}
                 >
                   Qualificado
                 </button>
@@ -1192,7 +1461,10 @@ export default function LeadsPage() {
                   onClick={() => setShowOnlyNotQualified((current) => !current)}
                   onMouseEnter={() => setHoveredFilterOption('not-qualified')}
                   onMouseLeave={() => setHoveredFilterOption(null)}
-                  style={getFilterOptionStyle(showOnlyNotQualified || hoveredFilterOption === 'not-qualified')}
+                  style={getFilterOptionStyle(
+                    showOnlyNotQualified ||
+                      hoveredFilterOption === 'not-qualified',
+                  )}
                 >
                   Não qualificado
                 </button>
@@ -1202,7 +1474,14 @@ export default function LeadsPage() {
         ) : null}
 
         {activeFilterTags.length > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
             {activeFilterTags.map((tag) => (
               <span
                 key={tag.key}
@@ -1216,7 +1495,7 @@ export default function LeadsPage() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 10px',
-                  lineHeight: 1
+                  lineHeight: 1,
                 }}
               >
                 <span>{tag.label}</span>
@@ -1235,7 +1514,7 @@ export default function LeadsPage() {
                     lineHeight: 1,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
                   }}
                 >
                   X
@@ -1245,294 +1524,488 @@ export default function LeadsPage() {
           </div>
         ) : null}
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: isCreateLeadFormOpen ? 'hidden' : 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div
+          style={{
+            maxHeight: '100%',
+            minHeight: 0,
+            overflowY: isCreateLeadFormOpen ? 'hidden' : 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            paddingRight: 2,
+          }}
+        >
           {isLoading ? <MobileListSkeleton /> : null}
-          {!isLoading && paginatedLeads.map((lead) => {
-            const isArchivedLead = lead.state === 'archived'
-            const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
-            const interactionTagPresentation = getInteractionTagPresentation(
-              lead.lastMessageAt,
-              lead.createdAt
-            )
-            const sourceTagPresentation = getLeadSourceTagPresentation(lead.source)
-            const nextAgendaLabel = formatAgendaDateTime(lead.nextFollowUpDueAt)
-            const nextAgendaTagColors = getNextAgendaTagColors(resolveNextAgendaStatus(lead))
-
-            if (confirmingArchiveLeadId === lead.id) {
-              return (
-                <article
-                  key={lead.id}
-                  style={{
-                    background: interactionTheme.clickableCardHoverBackground,
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 18,
-                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                    padding: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12
-                  }}
-                >
-                  <strong style={{ color: '#111827', fontSize: 15 }}>Arquivar Lead?</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Cancelar arquivamento de lead"
-                      onClick={() => setConfirmingArchiveLeadId(null)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      X
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Confirmar arquivamento de lead"
-                      onClick={() => void handleArchiveLead(lead.id)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                </article>
+          {!isLoading &&
+            paginatedLeads.map((lead) => {
+              const isArchivedLead = lead.state === 'archived'
+              const shouldShowNewTag =
+                isNewLead(lead.createdAt) && !lead.lastMessageAt
+              const interactionTagPresentation = getInteractionTagPresentation(
+                lead.lastMessageAt,
+                lead.createdAt,
               )
-            }
-
-            if (confirmingDeleteLeadId === lead.id) {
-              return (
-                <article
-                  key={lead.id}
-                  style={{
-                    background: interactionTheme.clickableCardHoverBackground,
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 18,
-                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                    padding: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12
-                  }}
-                >
-                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar Lead?</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Cancelar exclusão de lead"
-                      onClick={() => setConfirmingDeleteLeadId(null)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      X
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Confirmar exclusão de lead"
-                      onClick={() => void handleDeleteLead(lead.id)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
-                    >
-                      ✓
-                    </button>
-                  </div>
-                </article>
+              const sourceTagPresentation = getLeadSourceTagPresentation(
+                lead.source,
               )
-            }
+              const nextAgendaLabel = formatAgendaDateTime(
+                lead.nextFollowUpDueAt,
+              )
+              const nextAgendaTagColors = getNextAgendaTagColors(
+                resolveNextAgendaStatus(lead),
+              )
 
-            return (
-              <article
-                key={lead.id}
-                onClick={() => navigate(`/leads/${lead.id}${location.search}`)}
-                onMouseEnter={() => setHoveredLeadId(lead.id)}
-                onMouseLeave={() => {
-                  setHoveredLeadId(null)
-                  setHoveredNextAgendaValueLeadId(null)
-                }}
-                style={{
-                  background:
-                    hoveredLeadId === lead.id || leadId === lead.id
-                      ? interactionTheme.clickableCardHoverBackground
-                      : '#ffffff',
-                  border: '1px solid #f1f5f9',
-                  borderRadius: 18,
-                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                  padding: 16,
-                  display: 'grid',
-                  gap: 18,
-                  cursor: 'pointer',
-                  transition: 'background 120ms ease'
-                }}
-              >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.name}</h2>
-                    {isArchivedLead || sourceTagPresentation.label === '-' ? null : (
-                      <span
+              if (confirmingArchiveLeadId === lead.id) {
+                return (
+                  <article
+                    key={lead.id}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Arquivar Lead?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Cancelar arquivamento de lead"
+                        onClick={() => setConfirmingArchiveLeadId(null)}
                         style={{
-                          marginTop: 8,
-                          marginLeft: 8,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: sourceTagPresentation.textColor,
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        X
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Confirmar arquivamento de lead"
+                        onClick={() => void handleArchiveLead(lead.id)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
+
+              if (confirmingDeleteLeadId === lead.id) {
+                return (
+                  <article
+                    key={lead.id}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Deletar Lead?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Cancelar exclusão de lead"
+                        onClick={() => setConfirmingDeleteLeadId(null)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        X
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Confirmar exclusão de lead"
+                        onClick={() => void handleDeleteLead(lead.id)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
+
+              return (
+                <article
+                  key={lead.id}
+                  onClick={() =>
+                    navigate(`/leads/${lead.id}${location.search}`)
+                  }
+                  onMouseEnter={() => setHoveredLeadId(lead.id)}
+                  onMouseLeave={() => {
+                    setHoveredLeadId(null)
+                    setHoveredNextAgendaValueLeadId(null)
+                  }}
+                  style={{
+                    background:
+                      hoveredLeadId === lead.id || leadId === lead.id
+                        ? interactionTheme.clickableCardHoverBackground
+                        : '#ffffff',
+                    border: '1px solid #f1f5f9',
+                    borderRadius: 18,
+                    boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                    padding: 16,
+                    display: 'grid',
+                    gap: 18,
+                    cursor: 'pointer',
+                    transition: 'background 120ms ease',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'start',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <h2
+                        style={{
+                          margin: 0,
+                          color: '#111827',
+                          fontSize: 20,
+                          lineHeight: 1.2,
+                          fontWeight: 800,
                           whiteSpace: 'nowrap',
-                          background: sourceTagPresentation.backgroundColor,
-                          border: `1px solid ${sourceTagPresentation.borderColor}`,
-                          borderRadius: 6,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {lead.name}
+                      </h2>
+                      {isArchivedLead ||
+                      sourceTagPresentation.label === '-' ? null : (
+                        <span
+                          style={{
+                            marginTop: 8,
+                            marginLeft: 8,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: sourceTagPresentation.textColor,
+                            whiteSpace: 'nowrap',
+                            background: sourceTagPresentation.backgroundColor,
+                            border: `1px solid ${sourceTagPresentation.borderColor}`,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {sourceTagPresentation.icon ? (
+                            <span style={tagIconStyle}>
+                              {sourceTagPresentation.icon}
+                            </span>
+                          ) : null}
+                          <span style={tagContentStyle}>
+                            {sourceTagPresentation.label}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        aria-label={
+                          lead.isFavorite
+                            ? 'Desfavoritar lead'
+                            : 'Favoritar lead'
+                        }
+                        onClick={() => {
+                          void handleToggleFavoriteLead(lead)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: lead.isFavorite
+                            ? '1px solid #fde047'
+                            : '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: lead.isFavorite ? '#fef9c3' : '#ffffff',
+                          color: lead.isFavorite ? '#facc15' : '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1,
-                          flexShrink: 0
                         }}
                       >
-                        {sourceTagPresentation.icon ? (
-                          <span style={tagIconStyle}>{sourceTagPresentation.icon}</span>
-                        ) : null}
-                        <span style={tagContentStyle}>{sourceTagPresentation.label}</span>
-                      </span>
-                    )}
-                  </div>
+                        <Star
+                          size={17}
+                          fill={lead.isFavorite ? '#facc15' : 'none'}
+                          strokeWidth={2}
+                        />
+                      </button>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
-                    <button
-                      type="button"
-                      aria-label={lead.isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
-                      onClick={() => {
-                        void handleToggleFavoriteLead(lead)
-                      }}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: lead.isFavorite ? '1px solid #fde047' : '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: lead.isFavorite ? '#fef9c3' : '#ffffff',
-                        color: lead.isFavorite ? '#facc15' : '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Star size={17} fill={lead.isFavorite ? '#facc15' : 'none'} strokeWidth={2} />
-                    </button>
-
-                    <button
-                      type="button"
-                      aria-label={isArchivedLead ? 'Desarquivar lead' : 'Arquivar lead'}
-                      onClick={() => {
-                        setConfirmingDeleteLeadId(null)
-                        if (isArchivedLead) {
-                          void handleUnarchiveLead(lead.id)
-                          return
+                      <button
+                        type="button"
+                        aria-label={
+                          isArchivedLead ? 'Desarquivar lead' : 'Arquivar lead'
                         }
+                        onClick={() => {
+                          setConfirmingDeleteLeadId(null)
+                          if (isArchivedLead) {
+                            void handleUnarchiveLead(lead.id)
+                            return
+                          }
 
-                        setConfirmingArchiveLeadId(lead.id)
-                      }}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: isArchivedLead ? '1px solid #d1d5db' : '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: isArchivedLead ? '#e5e7eb' : '#ffffff',
-                        color: isArchivedLead ? '#6b7280' : '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Archive size={16} />
-                    </button>
+                          setConfirmingArchiveLeadId(lead.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: isArchivedLead
+                            ? '1px solid #d1d5db'
+                            : '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: isArchivedLead ? '#e5e7eb' : '#ffffff',
+                          color: isArchivedLead ? '#6b7280' : '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Archive size={16} />
+                      </button>
 
-                    <button
-                      type="button"
-                      aria-label="Excluir lead"
-                      onClick={() => {
-                        setConfirmingArchiveLeadId(null)
-                        setConfirmingDeleteLeadId(lead.id)
-                      }}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
-                      <Clock3 size={17} />
-                      <span>Último contato</span>
+                      <button
+                        type="button"
+                        aria-label="Excluir lead"
+                        onClick={() => {
+                          setConfirmingArchiveLeadId(null)
+                          setConfirmingDeleteLeadId(lead.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <p style={{ margin: '8px 0 0 8px', color: shouldShowNewTag ? '#b45309' : interactionTagPresentation.textColor, background: shouldShowNewTag ? '#fef3c7' : interactionTagPresentation.background, borderRadius: 6, display: 'flex', width: 'max-content', maxWidth: 'calc(100% - 24px)', padding: '7px 12px', fontSize: 12, fontWeight: 700, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {isArchivedLead ? '-' : shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
-                    </p>
                   </div>
 
-                  <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 'auto' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: '#4b5563', fontSize: 14, fontWeight: 700 }}>
-                      <CalendarDays size={17} />
-                      <span>Próxima agenda</span>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 16,
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 7,
+                          color: '#4b5563',
+                          fontSize: 14,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <Clock3 size={17} />
+                        <span>Último contato</span>
+                      </div>
+                      <p
+                        style={{
+                          margin: '8px 0 0 8px',
+                          color: shouldShowNewTag
+                            ? '#b45309'
+                            : interactionTagPresentation.textColor,
+                          background: shouldShowNewTag
+                            ? '#fef3c7'
+                            : interactionTagPresentation.background,
+                          borderRadius: 6,
+                          display: 'flex',
+                          width: 'max-content',
+                          maxWidth: 'calc(100% - 24px)',
+                          padding: '7px 12px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          lineHeight: 1.1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {isArchivedLead
+                          ? '-'
+                          : shouldShowNewTag
+                            ? 'Novo'
+                            : interactionTagPresentation.label}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={isArchivedLead || nextAgendaLabel === '-' || !lead.nextFollowUpNegotiationId}
-                      onClick={(event) => {
-                        event.stopPropagation()
 
-                        if (!lead.nextFollowUpNegotiationId) {
-                          return
+                    <div
+                      style={{
+                        minWidth: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        marginLeft: 'auto',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 7,
+                          color: '#4b5563',
+                          fontSize: 14,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <CalendarDays size={17} />
+                        <span>Próxima agenda</span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={
+                          isArchivedLead ||
+                          nextAgendaLabel === '-' ||
+                          !lead.nextFollowUpNegotiationId
                         }
+                        onClick={(event) => {
+                          event.stopPropagation()
 
-                        void openLeadNextAgendaFollowUp(lead)
-                      }}
-                      style={{
-                        margin: '8px 0 0 0',
-                        border: '1px solid transparent',
-                        borderRadius: 6,
-                        background: isArchivedLead || nextAgendaLabel === '-'
-                          ? 'transparent'
-                          : nextAgendaTagColors.background,
-                        color: isArchivedLead || nextAgendaLabel === '-'
-                          ? '#9ca3af'
-                          : nextAgendaTagColors.textColor,
-                        padding: isArchivedLead || nextAgendaLabel === '-' ? 0 : '7px 12px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        lineHeight: 1.1,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: '100%',
-                        cursor: lead.nextFollowUpNegotiationId ? 'pointer' : 'default',
-                        textAlign: 'right'
-                      }}
-                    >
-                      {isArchivedLead ? '-' : nextAgendaLabel}
-                    </button>
+                          if (!lead.nextFollowUpNegotiationId) {
+                            return
+                          }
+
+                          void openLeadNextAgendaFollowUp(lead)
+                        }}
+                        style={{
+                          margin: '8px 0 0 0',
+                          border: '1px solid transparent',
+                          borderRadius: 6,
+                          background:
+                            isArchivedLead || nextAgendaLabel === '-'
+                              ? 'transparent'
+                              : nextAgendaTagColors.background,
+                          color:
+                            isArchivedLead || nextAgendaLabel === '-'
+                              ? '#9ca3af'
+                              : nextAgendaTagColors.textColor,
+                          padding:
+                            isArchivedLead || nextAgendaLabel === '-'
+                              ? 0
+                              : '7px 12px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          lineHeight: 1.1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '100%',
+                          cursor: lead.nextFollowUpNegotiationId
+                            ? 'pointer'
+                            : 'default',
+                          textAlign: 'right',
+                        }}
+                      >
+                        {isArchivedLead ? '-' : nextAgendaLabel}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </article>
-            )
-          })}
+                </article>
+              )
+            })}
 
           {!isLoading && !error && filteredLeads.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead encontrado.</div>
+            <div
+              style={{
+                color: '#6b7280',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              Nenhum lead encontrado.
+            </div>
           ) : null}
           {error ? (
-            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+            <div
+              style={{
+                color: '#b91c1c',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              {error}
+            </div>
           ) : null}
         </div>
 
@@ -1548,7 +2021,7 @@ export default function LeadsPage() {
                 border: 'none',
                 background: 'rgba(15, 23, 42, 0.18)',
                 zIndex: 40,
-                cursor: 'default'
+                cursor: 'default',
               }}
             />
 
@@ -1565,10 +2038,13 @@ export default function LeadsPage() {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)'
+                boxShadow: '0 -18px 36px rgba(15, 23, 42, 0.18)',
               }}
             >
-              <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
+              <LeadPage
+                onLeadUpdated={handleLeadUpdated}
+                onLeadCreated={handleLeadCreated}
+              />
             </aside>
           </>
         ) : isLeadSelected ? (
@@ -1577,11 +2053,14 @@ export default function LeadsPage() {
               position: 'absolute',
               inset: 0,
               zIndex: 50,
-              background: '#ffffff',
-              overflow: 'hidden'
+              background: 'rgb(252, 253, 255)',
+              overflow: 'hidden',
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
+            <LeadPage
+              onLeadUpdated={handleLeadUpdated}
+              onLeadCreated={handleLeadCreated}
+            />
           </aside>
         ) : null}
       </section>
@@ -1599,7 +2078,7 @@ export default function LeadsPage() {
         background: '#f3f4f6',
         boxSizing: 'border-box',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
       <header
@@ -1608,10 +2087,20 @@ export default function LeadsPage() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          padding: '4px 2px'
+          padding: '4px 2px',
         }}
       >
-        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>Leads</h1>
+        <h1
+          style={{
+            margin: 0,
+            color: '#111827',
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}
+        >
+          Leads
+        </h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
@@ -1636,7 +2125,7 @@ export default function LeadsPage() {
               boxShadow: isSearchInputFocused
                 ? interactionTheme.inputFocusBoxShadow
                 : 'none',
-              outline: 'none'
+              outline: 'none',
             }}
           />
           <button
@@ -1648,9 +2137,12 @@ export default function LeadsPage() {
               height: 38,
               border: '1px solid #d1d5db',
               borderRadius: 8,
-              background: isFiltersPanelOpen || isFiltersButtonHovered || activeFiltersCount > 0
-                ? interactionTheme.clickableCardHoverBackground
-                : '#ffffff',
+              background:
+                isFiltersPanelOpen ||
+                isFiltersButtonHovered ||
+                activeFiltersCount > 0
+                  ? interactionTheme.clickableCardHoverBackground
+                  : '#ffffff',
               width: 38,
               padding: 0,
               display: 'inline-flex',
@@ -1659,7 +2151,7 @@ export default function LeadsPage() {
               cursor: 'pointer',
               color: '#111827',
               outline: 'none',
-              WebkitTapHighlightColor: 'transparent'
+              WebkitTapHighlightColor: 'transparent',
             }}
             aria-label="Abrir filtros"
           >
@@ -1680,7 +2172,7 @@ export default function LeadsPage() {
               color: '#ffffff',
               padding: '0 16px',
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Adicionar Lead
@@ -1700,7 +2192,7 @@ export default function LeadsPage() {
               border: 'none',
               background: 'transparent',
               zIndex: 35,
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
 
@@ -1710,12 +2202,12 @@ export default function LeadsPage() {
               top: 68,
               right: 20,
               width: 'min(180px, calc(100vw - 40px))',
-              background: '#fcfdff',
+              background: '#ffffff',
               border: `1px solid ${interactionTheme.sidebarItemActiveBackground}`,
               borderRadius: 18,
               zIndex: 36,
               padding: '14px 16px 12px',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           >
             <div style={{ display: 'grid', gap: 2 }}>
@@ -1724,7 +2216,9 @@ export default function LeadsPage() {
                 onClick={() => setShowOnlyFavorites((current) => !current)}
                 onMouseEnter={() => setHoveredFilterOption('favorites')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
-                style={getFilterOptionStyle(showOnlyFavorites || hoveredFilterOption === 'favorites')}
+                style={getFilterOptionStyle(
+                  showOnlyFavorites || hoveredFilterOption === 'favorites',
+                )}
               >
                 Favoritos
               </button>
@@ -1734,17 +2228,26 @@ export default function LeadsPage() {
                 onClick={() => setShowOnlyNewLeads((current) => !current)}
                 onMouseEnter={() => setHoveredFilterOption('new-leads')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
-                style={getFilterOptionStyle(showOnlyNewLeads || hoveredFilterOption === 'new-leads')}
+                style={getFilterOptionStyle(
+                  showOnlyNewLeads || hoveredFilterOption === 'new-leads',
+                )}
               >
                 Novos
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowOnlyWithoutConversation24h((current) => !current)}
-                onMouseEnter={() => setHoveredFilterOption('without-conversation-24h')}
+                onClick={() =>
+                  setShowOnlyWithoutConversation24h((current) => !current)
+                }
+                onMouseEnter={() =>
+                  setHoveredFilterOption('without-conversation-24h')
+                }
                 onMouseLeave={() => setHoveredFilterOption(null)}
-                style={getFilterOptionStyle(showOnlyWithoutConversation24h || hoveredFilterOption === 'without-conversation-24h')}
+                style={getFilterOptionStyle(
+                  showOnlyWithoutConversation24h ||
+                    hoveredFilterOption === 'without-conversation-24h',
+                )}
               >
                 Sem conversa 24h+
               </button>
@@ -1753,7 +2256,9 @@ export default function LeadsPage() {
                 onClick={() => setShowOnlyQualified((current) => !current)}
                 onMouseEnter={() => setHoveredFilterOption('qualified')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
-                style={getFilterOptionStyle(showOnlyQualified || hoveredFilterOption === 'qualified')}
+                style={getFilterOptionStyle(
+                  showOnlyQualified || hoveredFilterOption === 'qualified',
+                )}
               >
                 Qualificado
               </button>
@@ -1763,7 +2268,10 @@ export default function LeadsPage() {
                 onClick={() => setShowOnlyNotQualified((current) => !current)}
                 onMouseEnter={() => setHoveredFilterOption('not-qualified')}
                 onMouseLeave={() => setHoveredFilterOption(null)}
-                style={getFilterOptionStyle(showOnlyNotQualified || hoveredFilterOption === 'not-qualified')}
+                style={getFilterOptionStyle(
+                  showOnlyNotQualified ||
+                    hoveredFilterOption === 'not-qualified',
+                )}
               >
                 Não qualificado
               </button>
@@ -1777,7 +2285,7 @@ export default function LeadsPage() {
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
         {activeFilterTags.length > 0 ? (
@@ -1788,7 +2296,7 @@ export default function LeadsPage() {
               gap: 8,
               flexWrap: 'wrap',
               marginBottom: 10,
-              padding: '0 2px'
+              padding: '0 2px',
             }}
           >
             {activeFilterTags.map((tag) => (
@@ -1804,7 +2312,7 @@ export default function LeadsPage() {
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 10px',
-                  lineHeight: 1
+                  lineHeight: 1,
                 }}
               >
                 <span>{tag.label}</span>
@@ -1823,7 +2331,7 @@ export default function LeadsPage() {
                     lineHeight: 1,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
                   }}
                 >
                   X
@@ -1842,7 +2350,7 @@ export default function LeadsPage() {
             overflowY: 'auto',
             maxHeight: '100%',
             minHeight: 0,
-            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
+            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
           }}
         >
           <table
@@ -1850,7 +2358,7 @@ export default function LeadsPage() {
               width: '100%',
               borderCollapse: 'collapse',
               background: '#ffffff',
-              tableLayout: 'fixed'
+              tableLayout: 'fixed',
             }}
           >
             <colgroup>
@@ -1862,53 +2370,145 @@ export default function LeadsPage() {
               <col style={{ width: '10%' }} />
             </colgroup>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ececec', background: '#f3f4f6' }}>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600 }}>
+              <tr
+                style={{
+                  textAlign: 'left',
+                  borderBottom: '1px solid #ececec',
+                  background: '#f3f4f6',
+                }}
+              >
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('name')}
                     style={getHeaderSortButtonStyle('name')}
                   >
-                    Nome <span style={{ fontSize: 11 }}>{getSortIndicator('name')}</span>
+                    Nome{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('name')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('qualification')}
                     style={getHeaderSortButtonStyle('qualification')}
                   >
-                    Qualificação <span style={{ fontSize: 11 }}>{getSortIndicator('qualification')}</span>
+                    Qualificação{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('qualification')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('nextAgenda')}
                     style={getHeaderSortButtonStyle('nextAgenda')}
                   >
-                    Próxima agenda <span style={{ fontSize: 11 }}>{getSortIndicator('nextAgenda')}</span>
+                    Próxima agenda{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('nextAgenda')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('lastContact')}
                     style={getHeaderSortButtonStyle('lastContact')}
                   >
-                    Último contato <span style={{ fontSize: 11 }}>{getSortIndicator('lastContact')}</span>
+                    Último contato{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('lastContact')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleSortToggle('source')}
                     style={getHeaderSortButtonStyle('source')}
                   >
-                    Origem <span style={{ fontSize: 11 }}>{getSortIndicator('source')}</span>
+                    Origem{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {getSortIndicator('source')}
+                    </span>
                   </button>
                 </th>
-                <th style={{ position: 'sticky', top: 0, zIndex: 2, background: '#f3f4f6', padding: '10px 12px', color: '#4b5563', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Ações
                 </th>
               </tr>
@@ -1922,467 +2522,553 @@ export default function LeadsPage() {
                     { width: '76%', align: 'center' },
                     { width: '70%', align: 'center' },
                     { width: '64%', align: 'center' },
-                    { width: 32, align: 'center' }
+                    { width: 32, align: 'center' },
                   ]}
                 />
               ) : null}
-              {!isLoading && paginatedLeads.map((lead) => {
-                const isArchivedLead = lead.state === 'archived'
-                const shouldShowNewTag = isNewLead(lead.createdAt) && !lead.lastMessageAt
-                const interactionTagPresentation = getInteractionTagPresentation(
-                  lead.lastMessageAt,
-                  lead.createdAt
-                )
-                const sourceTagPresentation = getLeadSourceTagPresentation(lead.source)
-                const leadQualificationLabel = isArchivedLead
-                  ? 'Arquivado'
-                  : getLeadQualificationLabel(lead.leadQualification)
-                const nextAgendaLabel = formatAgendaDateTime(lead.nextFollowUpDueAt)
-                const nextAgendaTagColors = getNextAgendaTagColors(resolveNextAgendaStatus(lead))
-                if (confirmingArchiveLeadId === lead.id) {
+              {!isLoading &&
+                paginatedLeads.map((lead) => {
+                  const isArchivedLead = lead.state === 'archived'
+                  const shouldShowNewTag =
+                    isNewLead(lead.createdAt) && !lead.lastMessageAt
+                  const interactionTagPresentation =
+                    getInteractionTagPresentation(
+                      lead.lastMessageAt,
+                      lead.createdAt,
+                    )
+                  const sourceTagPresentation = getLeadSourceTagPresentation(
+                    lead.source,
+                  )
+                  const nextAgendaLabel = formatAgendaDateTime(
+                    lead.nextFollowUpDueAt,
+                  )
+                  const nextAgendaTagColors = getNextAgendaTagColors(
+                    resolveNextAgendaStatus(lead),
+                  )
+                  if (confirmingArchiveLeadId === lead.id) {
+                    return (
+                      <tr
+                        key={lead.id}
+                        style={{
+                          borderBottom: '1px solid #f3f4f6',
+                          background:
+                            interactionTheme.clickableCardHoverBackground,
+                        }}
+                        onMouseEnter={() => setHoveredLeadId(lead.id)}
+                        onMouseLeave={() => setHoveredLeadId(null)}
+                      >
+                        <td
+                          colSpan={5}
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Arquivar Lead?
+                        </td>
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Cancelar arquivamento de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setConfirmingArchiveLeadId(null)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              X
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Confirmar arquivamento de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleArchiveLead(lead.id)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  if (confirmingDeleteLeadId === lead.id) {
+                    return (
+                      <tr
+                        key={lead.id}
+                        style={{
+                          borderBottom: '1px solid #f3f4f6',
+                          background:
+                            interactionTheme.clickableCardHoverBackground,
+                        }}
+                        onMouseEnter={() => setHoveredLeadId(lead.id)}
+                        onMouseLeave={() => setHoveredLeadId(null)}
+                      >
+                        <td
+                          colSpan={5}
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Deletar Lead?
+                        </td>
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Cancelar exclusão de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setConfirmingDeleteLeadId(null)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              X
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Confirmar exclusão de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleDeleteLead(lead.id)
+                              }}
+                              onMouseEnter={(event) => {
+                                event.currentTarget.style.background =
+                                  interactionTheme.clickableCardHoverBackground
+                              }}
+                              onMouseLeave={(event) => {
+                                event.currentTarget.style.background = '#ffffff'
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: '1px solid #e5e7eb',
+                                borderRadius: 4,
+                                background: '#ffffff',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr
                       key={lead.id}
+                      onClick={() =>
+                        navigate(`/leads/${lead.id}${location.search}`)
+                      }
                       style={{
                         borderBottom: '1px solid #f3f4f6',
-                        background: interactionTheme.clickableCardHoverBackground
+                        background:
+                          hoveredLeadId === lead.id || leadId === lead.id
+                            ? interactionTheme.clickableCardHoverBackground
+                            : '#ffffff',
+                        cursor: 'pointer',
                       }}
                       onMouseEnter={() => setHoveredLeadId(lead.id)}
-                      onMouseLeave={() => setHoveredLeadId(null)}
-                    >
-                      <td
-                        colSpan={5}
-                        style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          fontSize: 13,
-                          fontWeight: 600
-                        }}
-                      >
-                        Arquivar Lead?
-                      </td>
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button
-                            type="button"
-                            aria-label="Cancelar arquivamento de lead"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setConfirmingArchiveLeadId(null)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
-                            style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                          >
-                            X
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Confirmar arquivamento de lead"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleArchiveLead(lead.id)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
-                            style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                }
-
-                if (confirmingDeleteLeadId === lead.id) {
-                  return (
-                    <tr
-                      key={lead.id}
-                      style={{
-                        borderBottom: '1px solid #f3f4f6',
-                        background: interactionTheme.clickableCardHoverBackground
-                      }}
-                      onMouseEnter={() => setHoveredLeadId(lead.id)}
-                      onMouseLeave={() => setHoveredLeadId(null)}
-                    >
-                      <td
-                        colSpan={5}
-                        style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          fontSize: 13,
-                          fontWeight: 600
-                        }}
-                      >
-                        Deletar Lead?
-                      </td>
-                      <td
-                        style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button
-                            type="button"
-                            aria-label="Cancelar exclusão de lead"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setConfirmingDeleteLeadId(null)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
-                            style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                          >
-                            X
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Confirmar exclusão de lead"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleDeleteLead(lead.id)
-                            }}
-                            onMouseEnter={(event) => {
-                              event.currentTarget.style.background = interactionTheme.clickableCardHoverBackground
-                            }}
-                            onMouseLeave={(event) => {
-                              event.currentTarget.style.background = '#ffffff'
-                            }}
-                            style={{
-                              height: 24,
-                              width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
-                              padding: 0,
-                              cursor: 'pointer',
-                              transition: 'background-color 0.2s'
-                            }}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                }
-
-                return (
-                  <tr
-                    key={lead.id}
-                    onClick={() => navigate(`/leads/${lead.id}${location.search}`)}
-                    style={{
-                      borderBottom: '1px solid #f3f4f6',
-                      background:
-                        hoveredLeadId === lead.id || leadId === lead.id
-                          ? interactionTheme.clickableCardHoverBackground
-                          : '#ffffff',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={() => setHoveredLeadId(lead.id)}
-                    onMouseLeave={() => {
-                      setHoveredLeadId(null)
-                      setHoveredNextAgendaValueLeadId(null)
-                    }}
-                  >
-                    <td
-                      style={{
-                        padding: wrappedLeadNames[lead.id]
-                          ? '6px 16px'
-                          : '14px 16px',
-                        color: '#111827'
+                      onMouseLeave={() => {
+                        setHoveredLeadId(null)
+                        setHoveredNextAgendaValueLeadId(null)
                       }}
                     >
-                      <DelayedTooltip content={lead.name}>
-                        <span
-                          ref={(element) => setLeadNameRef(lead.id, element)}
-                          style={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'normal',
-                            lineHeight: '18px',
-                            fontSize: 14,
-                            fontWeight: 700
-                          }}
-                        >
-                          {lead.name}
-                        </span>
-                      </DelayedTooltip>
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {leadQualificationLabel === '-' ? (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color:
-                              leadQualificationLabel === 'Qualificado'
-                                ? '#166534'
-                                : leadQualificationLabel === 'Não qualificado'
-                                  ? '#b91c1c'
-                                  : '#b45309',
-                            whiteSpace: 'nowrap',
-                            background:
-                              leadQualificationLabel === 'Qualificado'
-                                ? '#dcfce7'
-                                : leadQualificationLabel === 'Não qualificado'
-                                  ? '#fee2e2'
-                                  : '#fef3c7',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          <span style={tagContentStyle}>{leadQualificationLabel}</span>
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {isArchivedLead || nextAgendaLabel === '-' ? (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                      ) : (
-                        <span
-                          onMouseEnter={() => setHoveredNextAgendaValueLeadId(lead.id)}
-                          onMouseLeave={() => setHoveredNextAgendaValueLeadId(null)}
-                          onClick={(event) => {
-                            event.stopPropagation()
-
-                            if (!lead.nextFollowUpNegotiationId) {
-                              return
-                            }
-
-                            void openLeadNextAgendaFollowUp(lead)
-                          }}
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: nextAgendaTagColors.textColor,
-                            whiteSpace: 'nowrap',
-                            background: nextAgendaTagColors.background,
-                            border: hoveredNextAgendaValueLeadId === lead.id
-                              ? '1px solid #16a34a'
-                              : '1px solid transparent',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            cursor: lead.nextFollowUpNegotiationId ? 'pointer' : 'default',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          <span style={tagContentStyle}>{nextAgendaLabel}</span>
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {isArchivedLead ? (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: shouldShowNewTag ? '#b45309' : interactionTagPresentation.textColor,
-                            whiteSpace: 'nowrap',
-                            background: shouldShowNewTag ? '#fef3c7' : interactionTagPresentation.background,
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          <span style={tagContentStyle}>
-                            {shouldShowNewTag ? 'Novo' : interactionTagPresentation.label}
+                      <td
+                        style={{
+                          padding: wrappedLeadNames[lead.id]
+                            ? '6px 16px'
+                            : '14px 16px',
+                          color: '#111827',
+                        }}
+                      >
+                        <DelayedTooltip content={lead.name}>
+                          <span
+                            ref={(element) => setLeadNameRef(lead.id, element)}
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'normal',
+                              lineHeight: '18px',
+                              fontSize: 14,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {lead.name}
                           </span>
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '14px 16px', color: '#111827', textAlign: 'center' }}>
-                      {isArchivedLead || sourceTagPresentation.label === '-' ? (
-                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: sourceTagPresentation.textColor,
-                            whiteSpace: 'nowrap',
-                            background: sourceTagPresentation.backgroundColor,
-                            border: `1px solid ${sourceTagPresentation.borderColor}`,
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1.1
-                          }}
-                        >
-                          {sourceTagPresentation.icon ? (
-                            <span style={tagIconStyle}>
-                              {sourceTagPresentation.icon}
-                            </span>
-                          ) : null}
-                          <span style={tagContentStyle}>{sourceTagPresentation.label}</span>
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#111827',
-                        textAlign: 'left'
-                      }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button
-                          type="button"
-                          aria-label={lead.isFavorite ? 'Desfavoritar lead' : 'Favoritar lead'}
-                          onClick={() => {
-                            void handleToggleFavoriteLead(lead)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: lead.isFavorite ? '#facc15' : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Star
-                            size={14}
-                            fill={lead.isFavorite ? '#facc15' : 'none'}
-                            strokeWidth={2}
-                          />
-                        </button>
-
-                        <button
-                          type="button"
-                          aria-label={isArchivedLead ? 'Desarquivar lead' : 'Arquivar lead'}
-                          onClick={() => {
-                            setConfirmingDeleteLeadId(null)
-                            if (isArchivedLead) {
-                              void handleUnarchiveLead(lead.id)
-                              return
+                        </DelayedTooltip>
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {isArchivedLead ? (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: '#6b7280',
+                              whiteSpace: 'nowrap',
+                              background: '#f3f4f6',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '7px 12px',
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            Arquivado
+                          </span>
+                        ) : (
+                          <LeadQualificationQuickSelect
+                            disabled={updatingLeadQualificationId === lead.id}
+                            value={normalizeLeadQualificationValue(
+                              lead.leadQualification,
+                            )}
+                            onChange={(value) =>
+                              void handleLeadQualificationChange(lead, value)
                             }
+                          />
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {isArchivedLead || nextAgendaLabel === '-' ? (
+                          <span style={{ color: '#9ca3af', fontSize: 13 }}>
+                            -
+                          </span>
+                        ) : (
+                          <span
+                            onMouseEnter={() =>
+                              setHoveredNextAgendaValueLeadId(lead.id)
+                            }
+                            onMouseLeave={() =>
+                              setHoveredNextAgendaValueLeadId(null)
+                            }
+                            onClick={(event) => {
+                              event.stopPropagation()
 
-                            setConfirmingArchiveLeadId(lead.id)
-                          }}
+                              if (!lead.nextFollowUpNegotiationId) {
+                                return
+                              }
+
+                              void openLeadNextAgendaFollowUp(lead)
+                            }}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: nextAgendaTagColors.textColor,
+                              whiteSpace: 'nowrap',
+                              background: nextAgendaTagColors.background,
+                              border:
+                                hoveredNextAgendaValueLeadId === lead.id
+                                  ? '1px solid #16a34a'
+                                  : '1px solid transparent',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '7px 12px',
+                              cursor: lead.nextFollowUpNegotiationId
+                                ? 'pointer'
+                                : 'default',
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            <span style={tagContentStyle}>
+                              {nextAgendaLabel}
+                            </span>
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {isArchivedLead ? (
+                          <span style={{ color: '#9ca3af', fontSize: 13 }}>
+                            -
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: shouldShowNewTag
+                                ? '#b45309'
+                                : interactionTagPresentation.textColor,
+                              whiteSpace: 'nowrap',
+                              background: shouldShowNewTag
+                                ? '#fef3c7'
+                                : interactionTagPresentation.background,
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '7px 12px',
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            <span style={tagContentStyle}>
+                              {shouldShowNewTag
+                                ? 'Novo'
+                                : interactionTagPresentation.label}
+                            </span>
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {isArchivedLead ||
+                        sourceTagPresentation.label === '-' ? (
+                          <span style={{ color: '#9ca3af', fontSize: 13 }}>
+                            -
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: sourceTagPresentation.textColor,
+                              whiteSpace: 'nowrap',
+                              background: sourceTagPresentation.backgroundColor,
+                              border: `1px solid ${sourceTagPresentation.borderColor}`,
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '7px 12px',
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            {sourceTagPresentation.icon ? (
+                              <span style={tagIconStyle}>
+                                {sourceTagPresentation.icon}
+                              </span>
+                            ) : null}
+                            <span style={tagContentStyle}>
+                              {sourceTagPresentation.label}
+                            </span>
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'left',
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div
                           style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: isArchivedLead ? '#6b7280' : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
+                            display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            gap: 8,
                           }}
                         >
-                          <Archive size={14} />
-                        </button>
+                          <button
+                            type="button"
+                            aria-label={
+                              lead.isFavorite
+                                ? 'Desfavoritar lead'
+                                : 'Favoritar lead'
+                            }
+                            onClick={() => {
+                              void handleToggleFavoriteLead(lead)
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: 'none',
+                              background: 'transparent',
+                              color: lead.isFavorite ? '#facc15' : '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Star
+                              size={14}
+                              fill={lead.isFavorite ? '#facc15' : 'none'}
+                              strokeWidth={2}
+                            />
+                          </button>
 
-                        <button
-                          type="button"
-                          aria-label="Excluir lead"
-                          onClick={() => {
-                            setConfirmingArchiveLeadId(null)
-                            setConfirmingDeleteLeadId(lead.id)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                          <button
+                            type="button"
+                            aria-label={
+                              isArchivedLead
+                                ? 'Desarquivar lead'
+                                : 'Arquivar lead'
+                            }
+                            onClick={() => {
+                              setConfirmingDeleteLeadId(null)
+                              if (isArchivedLead) {
+                                void handleUnarchiveLead(lead.id)
+                                return
+                              }
+
+                              setConfirmingArchiveLeadId(lead.id)
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: 'none',
+                              background: 'transparent',
+                              color: isArchivedLead ? '#6b7280' : '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Archive size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            aria-label="Excluir lead"
+                            onClick={() => {
+                              setConfirmingArchiveLeadId(null)
+                              setConfirmingDeleteLeadId(lead.id)
+                            }}
+                            style={{
+                              height: 24,
+                              width: 24,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#4b5563',
+                              padding: 0,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               {!isLoading && !error && filteredLeads.length === 0 ? (
                 <tr>
                   <td
-                      colSpan={6}
+                    colSpan={6}
                     style={{ padding: '14px 16px', color: '#6b7280' }}
                   >
                     Nenhum lead encontrado.
@@ -2392,7 +3078,7 @@ export default function LeadsPage() {
               {error ? (
                 <tr>
                   <td
-                      colSpan={6}
+                    colSpan={6}
                     style={{ padding: '14px 16px', color: '#b91c1c' }}
                   >
                     {error}
@@ -2411,7 +3097,7 @@ export default function LeadsPage() {
             marginTop: 10,
             color: '#6b7280',
             fontSize: 13,
-            padding: '0 8px'
+            padding: '0 8px',
           }}
         >
           <TotalCount isLoading={isLoading} total={filteredLeads.length} />
@@ -2433,7 +3119,7 @@ export default function LeadsPage() {
               padding: 0,
               margin: 0,
               background: 'transparent',
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
         ) : null}
@@ -2449,14 +3135,21 @@ export default function LeadsPage() {
               width: isMobile ? '100%' : leadPanelWidth,
               zIndex: 30,
               borderLeft: isMobile ? 'none' : '2px solid #edf1f5',
-              background: '#ffffff',
+              background: '#fcfdff',
               overflow: 'hidden',
-              boxShadow: isMobile ? 'none' : '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isLeadPanelEntering ? 'translateX(0)' : 'translateX(100%)',
-              transition: `transform ${leadPanelTransitionMs}ms ease`
+              boxShadow: isMobile
+                ? 'none'
+                : '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
+              transform: isLeadPanelEntering
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+              transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} onLeadCreated={handleLeadCreated} />
+            <LeadPage
+              onLeadUpdated={handleLeadUpdated}
+              onLeadCreated={handleLeadCreated}
+            />
           </aside>
         ) : null}
       </div>

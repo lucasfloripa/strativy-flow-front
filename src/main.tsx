@@ -11,6 +11,7 @@ import NegociosPage from './pages/NegociosPage'
 import ConversasPage from './pages/ConversasPage'
 import ArquivosPage from './pages/ArquivosPage'
 import FinanceiroPage from './pages/FinanceiroPage'
+import MetricasPage from './pages/MetricasPage'
 import AgendaPage from './pages/AgendaPage'
 import ContatosPage from './pages/ContatosPage'
 import InformacoesPage from './pages/InformacoesPage'
@@ -26,8 +27,12 @@ const setupIosSafariBrowserMode = () => {
 
   const userAgent = navigator.userAgent
   const isIosDevice = /iPhone|iPad|iPod/i.test(userAgent)
-  const isSafariBrowser = /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent)
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  const isSafariBrowser =
+    /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent)
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+      true
 
   if (!isIosDevice || !isSafariBrowser) {
     return
@@ -84,7 +89,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Routes>
       <Route path="/" element={<Navigate to="/inicio" replace />} />
       <Route path="/home" element={<Navigate to="/inicio" replace />} />
-      <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
       <Route path="/forget-password" element={<ForgetPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
@@ -98,7 +110,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/conversas" element={<ConversasPage />} />
         <Route path="/conversas/:leadId" element={<ConversasPage />} />
         <Route path="/arquivos" element={<ArquivosPage />} />
+        <Route path="/arquivos/:leadId" element={<ArquivosPage />} />
         <Route path="/financeiro" element={<FinanceiroPage />} />
+        <Route path="/metricas" element={<MetricasPage />} />
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/agenda/:leadId" element={<AgendaPage />} />
         <Route path="/contatos" element={<ContatosPage />} />
