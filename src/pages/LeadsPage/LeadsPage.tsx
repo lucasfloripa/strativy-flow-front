@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useLocation,
   useNavigate,
@@ -32,6 +32,7 @@ import {
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
 import { LeadsService } from '../../features/leads/services/LeadsService'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
+import type { NegotiationResponse } from '../../features/webhook/types/webhook.types'
 import LeadPage from '../LeadPage'
 
 type LeadsTableRow = {
@@ -131,6 +132,87 @@ const LeadQualificationQuickSelect = ({
   )
 }
 
+type LeadNegotiationsQuickSelectProps = {
+  negotiations: NegotiationResponse[]
+  onChange: (negotiation: NegotiationResponse) => void
+  onCreate: () => void
+  showLabel?: boolean
+}
+
+const LeadNegotiationsQuickSelect = ({
+  negotiations,
+  onChange,
+  onCreate,
+  showLabel = false,
+}: LeadNegotiationsQuickSelectProps) => {
+  return (
+    <span
+      onClick={(event) => event.stopPropagation()}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 28,
+        border: '1px solid #16a34a',
+        borderRadius: 6,
+        padding: '6px 10px',
+        background: '#f0fdf4',
+        color: '#166534',
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1.1,
+        whiteSpace: 'nowrap',
+        boxSizing: 'border-box',
+      }}
+    >
+      <span aria-hidden="true">
+        {showLabel ? `Negócios: ${negotiations.length}` : negotiations.length}
+      </span>
+      <select
+        aria-label={negotiations.length ? 'Abrir negócio' : 'Criar negócio'}
+        value=""
+        onChange={(event) => {
+          if (event.target.value === 'new-business') {
+            onCreate()
+            return
+          }
+
+          const selectedNegotiation = negotiations.find(
+            (negotiation) => negotiation.id === event.target.value,
+          )
+          if (selectedNegotiation) {
+            onChange(selectedNegotiation)
+          }
+        }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          appearance: 'none',
+          opacity: 0,
+        }}
+      >
+        <option value="" disabled>
+          Selecione um negócio
+        </option>
+        {negotiations.length === 0 ? (
+          <option value="new-business">Novo negócio</option>
+        ) : null}
+        {negotiations.map((negotiation) => (
+          <option key={negotiation.id} value={negotiation.id}>
+            {negotiation.title?.trim() || 'Negócio sem nome'}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
 type LeadSortKey =
   | 'createdAt'
   | 'name'
@@ -147,6 +229,8 @@ type SourceSortFocus =
   | 'metaAdsFirst'
   | 'googleAdsFirst'
   | 'indicacaoFirst'
+
+const LEADS_TABLE_ROW_HEIGHT_PX = 60
 
 const normalizePhoneDigits = (value: string): string => value.replace(/\D/g, '')
 
@@ -532,6 +616,7 @@ export default function LeadsPage() {
   const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null)
   const [hoveredNextAgendaValueLeadId, setHoveredNextAgendaValueLeadId] =
     useState<string | null>(null)
+  const [negotiations, setNegotiations] = useState<NegotiationResponse[]>([])
   const [isSearchInputFocused, setIsSearchInputFocused] =
     useState<boolean>(false)
   const [isFiltersButtonHovered, setIsFiltersButtonHovered] =
@@ -594,6 +679,69 @@ export default function LeadsPage() {
     Number(showOnlyWithoutConversation24h) +
     Number(showOnlyQualified) +
     Number(showOnlyNotQualified)
+
+  useEffect(() => {
+    let isActive = true
+
+    void WebhookService.loadNegotiations()
+      .then((loadedNegotiations) => {
+        if (isActive) {
+          setNegotiations(loadedNegotiations)
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setNegotiations([])
+        }
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const negotiationsByLeadId = useMemo(() => {
+    const groupedNegotiations = new Map<string, NegotiationResponse[]>()
+
+    negotiations.forEach((negotiation) => {
+      const leadNegotiations = groupedNegotiations.get(negotiation.leadId)
+      if (leadNegotiations) {
+        leadNegotiations.push(negotiation)
+        return
+      }
+      groupedNegotiations.set(negotiation.leadId, [negotiation])
+    })
+
+    return groupedNegotiations
+  }, [negotiations])
+
+  const openNegotiation = (negotiation: NegotiationResponse) => {
+    navigate(`/leads/${negotiation.leadId}${location.search}`, {
+      state: {
+        initialLeadTab: 'negocios',
+        initialBusinessId: negotiation.id,
+        initialBusinessTab: 'informacoes',
+      },
+    })
+  }
+
+  const openLead = (selectedLeadId: string) => {
+    setIsLeadPanelEntering(false)
+    navigate(`/leads/${selectedLeadId}${location.search}`, { state: null })
+  }
+
+  const closeLead = () => {
+    navigate(`/leads${location.search}`, { state: null })
+  }
+
+  const openNewNegotiation = (leadId: string) => {
+    navigate(`/leads/${leadId}${location.search}`, {
+      state: {
+        initialLeadTab: 'negocios',
+        initialCreateBusiness: true,
+      },
+    })
+  }
 
   const activeFilterTags = [
     showOnlyFavorites
@@ -1681,9 +1829,7 @@ export default function LeadsPage() {
               return (
                 <article
                   key={lead.id}
-                  onClick={() =>
-                    navigate(`/leads/${lead.id}${location.search}`)
-                  }
+                  onClick={() => openLead(lead.id)}
                   onMouseEnter={() => setHoveredLeadId(lead.id)}
                   onMouseLeave={() => {
                     setHoveredLeadId(null)
@@ -1758,6 +1904,14 @@ export default function LeadsPage() {
                           </span>
                         </span>
                       )}
+                      <span style={{ marginTop: 8, marginLeft: 8 }}>
+                        <LeadNegotiationsQuickSelect
+                          negotiations={negotiationsByLeadId.get(lead.id) ?? []}
+                          onChange={openNegotiation}
+                          onCreate={() => openNewNegotiation(lead.id)}
+                          showLabel
+                        />
+                      </span>
                     </div>
 
                     <div
@@ -2014,7 +2168,7 @@ export default function LeadsPage() {
             <button
               type="button"
               aria-label="Fechar criação de lead"
-              onClick={() => navigate(`/leads${location.search}`)}
+              onClick={closeLead}
               style={{
                 position: 'absolute',
                 inset: 0,
@@ -2058,6 +2212,7 @@ export default function LeadsPage() {
             }}
           >
             <LeadPage
+              key={location.key}
               onLeadUpdated={handleLeadUpdated}
               onLeadCreated={handleLeadCreated}
             />
@@ -2362,12 +2517,13 @@ export default function LeadsPage() {
             }}
           >
             <colgroup>
-              <col style={{ width: '24%' }} />
+              <col style={{ width: '21%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '8%' }} />
             </colgroup>
             <thead>
               <tr
@@ -2399,6 +2555,21 @@ export default function LeadsPage() {
                       {getSortIndicator('name')}
                     </span>
                   </button>
+                </th>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
+                  Negócios
                 </th>
                 <th
                   style={{
@@ -2518,6 +2689,7 @@ export default function LeadsPage() {
                 <DesktopTableSkeleton
                   columns={[
                     { width: '72%' },
+                    { width: '52%', align: 'center' },
                     { width: '68%', align: 'center' },
                     { width: '76%', align: 'center' },
                     { width: '70%', align: 'center' },
@@ -2550,6 +2722,7 @@ export default function LeadsPage() {
                       <tr
                         key={lead.id}
                         style={{
+                          height: LEADS_TABLE_ROW_HEIGHT_PX,
                           borderBottom: '1px solid #f3f4f6',
                           background:
                             interactionTheme.clickableCardHoverBackground,
@@ -2558,7 +2731,7 @@ export default function LeadsPage() {
                         onMouseLeave={() => setHoveredLeadId(null)}
                       >
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
@@ -2572,13 +2745,16 @@ export default function LeadsPage() {
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
-                            textAlign: 'left',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
                           }}
                         >
                           <div
                             style={{
                               display: 'flex',
                               alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
                               gap: 4,
                             }}
                           >
@@ -2589,23 +2765,17 @@ export default function LeadsPage() {
                                 event.stopPropagation()
                                 setConfirmingArchiveLeadId(null)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               X
@@ -2617,23 +2787,17 @@ export default function LeadsPage() {
                                 event.stopPropagation()
                                 void handleArchiveLead(lead.id)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               ✓
@@ -2649,6 +2813,7 @@ export default function LeadsPage() {
                       <tr
                         key={lead.id}
                         style={{
+                          height: LEADS_TABLE_ROW_HEIGHT_PX,
                           borderBottom: '1px solid #f3f4f6',
                           background:
                             interactionTheme.clickableCardHoverBackground,
@@ -2657,7 +2822,7 @@ export default function LeadsPage() {
                         onMouseLeave={() => setHoveredLeadId(null)}
                       >
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
@@ -2671,13 +2836,16 @@ export default function LeadsPage() {
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
-                            textAlign: 'left',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
                           }}
                         >
                           <div
                             style={{
                               display: 'flex',
                               alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
                               gap: 4,
                             }}
                           >
@@ -2688,23 +2856,17 @@ export default function LeadsPage() {
                                 event.stopPropagation()
                                 setConfirmingDeleteLeadId(null)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               X
@@ -2716,23 +2878,17 @@ export default function LeadsPage() {
                                 event.stopPropagation()
                                 void handleDeleteLead(lead.id)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               ✓
@@ -2746,10 +2902,9 @@ export default function LeadsPage() {
                   return (
                     <tr
                       key={lead.id}
-                      onClick={() =>
-                        navigate(`/leads/${lead.id}${location.search}`)
-                      }
+                      onClick={() => openLead(lead.id)}
                       style={{
+                        height: LEADS_TABLE_ROW_HEIGHT_PX,
                         borderBottom: '1px solid #f3f4f6',
                         background:
                           hoveredLeadId === lead.id || leadId === lead.id
@@ -2789,6 +2944,20 @@ export default function LeadsPage() {
                             {lead.name}
                           </span>
                         </DelayedTooltip>
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <LeadNegotiationsQuickSelect
+                          negotiations={negotiationsByLeadId.get(lead.id) ?? []}
+                          onChange={openNegotiation}
+                          onCreate={() => openNewNegotiation(lead.id)}
+                        />
                       </td>
                       <td
                         style={{
@@ -3068,7 +3237,7 @@ export default function LeadsPage() {
               {!isLoading && !error && filteredLeads.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     style={{ padding: '14px 16px', color: '#6b7280' }}
                   >
                     Nenhum lead encontrado.
@@ -3078,7 +3247,7 @@ export default function LeadsPage() {
               {error ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     style={{ padding: '14px 16px', color: '#b91c1c' }}
                   >
                     {error}
@@ -3107,7 +3276,7 @@ export default function LeadsPage() {
           <button
             type="button"
             aria-label="Fechar lead aberto"
-            onClick={() => navigate(`/leads${location.search}`)}
+            onClick={closeLead}
             style={{
               position: 'absolute',
               top: 0,
@@ -3147,6 +3316,7 @@ export default function LeadsPage() {
             }}
           >
             <LeadPage
+              key={location.key}
               onLeadUpdated={handleLeadUpdated}
               onLeadCreated={handleLeadCreated}
             />

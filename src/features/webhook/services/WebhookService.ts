@@ -6,12 +6,13 @@ import type {
   CreateLeadPayload,
   CreateNegotiationCostPayload,
   CreateNegotiationFollowUpPayload,
+  CreateFollowUpStepTreePayload,
+  CreateFollowUpStepTreeResponse,
   CreateNegotiationFinancialPayload,
   CreateNegotiationPayload,
   CreateNegotiationPaymentPayload,
   CreateNegotiationPaymentInstallmentsPayload,
   FollowUpDateSortOrder,
-  FollowUpActionPayload,
   FollowUpSortFocus,
   PaginatedResponse,
   LeadFollowUpResponse,
@@ -26,6 +27,7 @@ import type {
   NegotiationFollowUpResponse,
   NegotiationPaymentResponse,
   NegotiationResponse,
+  UpdateNegotiationFollowUpPayload,
   UpdateNegotiationPayload,
   UpdateNegotiationCostPayload,
   UpdateNegotiationFinancialPayload,
@@ -45,6 +47,7 @@ export const WebhookService = {
       )
         ? 'outbound'
         : 'inbound',
+      status: message.status ?? null,
       type:
         message.type === 'image' ||
         message.type === 'audio' ||
@@ -461,8 +464,25 @@ export const WebhookService = {
   async createNegotiationFollowUp(
     payload: CreateNegotiationFollowUpPayload,
   ): Promise<NegotiationFollowUpResponse> {
-    const { data } = await appApiClient.post<NegotiationFollowUpResponse>(
-      '/followups',
+    try {
+      const { data } = await appApiClient.post<NegotiationFollowUpResponse>(
+        '/followups',
+        payload,
+      )
+      return data
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        throw new Error('O negócio selecionado não existe mais.')
+      }
+      throw error
+    }
+  },
+
+  async createFollowUpStepTree(
+    payload: CreateFollowUpStepTreePayload,
+  ): Promise<CreateFollowUpStepTreeResponse> {
+    const { data } = await appApiClient.post<CreateFollowUpStepTreeResponse>(
+      '/followup-steps/tree',
       payload,
     )
     return data
@@ -470,15 +490,7 @@ export const WebhookService = {
 
   async updateNegotiationFollowUp(
     followUpId: string,
-    payload: {
-      title?: string
-      templateId?: string | null
-      templateVariables?: Record<string, unknown>
-      dueAt?: string
-      status?: LeadFollowUpStatus
-      completedAt?: string | null
-      actions?: FollowUpActionPayload[]
-    },
+    payload: UpdateNegotiationFollowUpPayload,
   ): Promise<NegotiationFollowUpResponse> {
     const { data } = await appApiClient.patch<NegotiationFollowUpResponse>(
       `/followups/${followUpId}`,

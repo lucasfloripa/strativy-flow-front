@@ -2,6 +2,7 @@ export type ChatMessageApi = {
   id: string
   content: string | null
   direction: string
+  status?: ChatMessageStatus | null
   type?: 'text' | 'image' | 'audio' | 'video' | 'document' | 'contact' | null
   mediaUrl?: string | null
   mimeType?: string | null
@@ -13,6 +14,8 @@ export type ChatMessageApi = {
 }
 
 export type ChatMessageDirection = 'inbound' | 'outbound'
+
+export type ChatMessageStatus = 'sent' | 'delivered' | 'read' | 'received'
 
 export type ChatMessageType =
   | 'text'
@@ -28,6 +31,7 @@ export type ChatMessage = {
   id: string
   content: string | null
   direction: ChatMessageDirection
+  status?: ChatMessageStatus | null
   type: ChatMessageType
   mediaUrl?: string | null
   mimeType?: string | null
@@ -99,7 +103,13 @@ export type CreateLeadPayload = {
   leadQualification?: 'qualify' | 'not qualify' | null
 }
 
-export type LeadFollowUpStatus = 'pending' | 'done' | 'canceled' | 'skipped'
+export type LeadFollowUpStatus =
+  | 'pending'
+  | 'automating'
+  | 'awaiting_reply'
+  | 'done'
+  | 'canceled'
+  | 'skipped'
 export type FollowUpSortFocus = 'overdue' | 'today' | 'scheduled' | 'completed'
 export type FollowUpDateSortOrder = 'asc' | 'desc'
 
@@ -154,7 +164,7 @@ export type PaginatedResponse<TItem> = {
   totalPages: number
 }
 
-export type NegotiationType = 'service' | 'product'
+export type NegotiationType = 'service' | 'product' | 'rental'
 export type NegotiationTemperature = 'hot' | 'warm' | 'cold'
 
 export type NegotiationNote = {
@@ -297,7 +307,7 @@ export type NegotiationFollowUpResponse = {
   id: string
   negotiationId: string
   title: string
-  actions: FollowUpActionResponse[]
+  steps: FollowUpActionResponse[]
   dueAt: string
   status: LeadFollowUpStatus
   completedAt?: string | null
@@ -306,12 +316,16 @@ export type NegotiationFollowUpResponse = {
 }
 
 export type FollowUpActionType = 'send_message' | 'send_email'
+export type FollowUpStepType = 'action' | 'condition'
 export type FollowUpMessageChannel =
   | 'whatsapp'
   | 'messenger'
   | 'instagram'
   | 'Agenda'
 export type FollowUpActionStatus =
+  | 'pending'
+  | 'waiting'
+  | 'executing'
   | 'scheduled'
   | 'awaiting_reply'
   | 'executed'
@@ -320,15 +334,25 @@ export type FollowUpActionStatus =
   | 'manual_required'
 
 export type FollowUpActionPayload = {
-  type: FollowUpActionType
+  type: FollowUpStepType
+  actionType?: FollowUpActionType
   channel?: FollowUpMessageChannel
   payload: Record<string, unknown>
 }
 
-export type FollowUpActionResponse = FollowUpActionPayload & {
+export type FollowUpActionResponse = {
   id: string
+  followUpId: string
+  parentId: string | null
+  type: FollowUpStepType | FollowUpActionType
+  actionType: FollowUpActionType | null
+  conditionType: 'response_received' | 'no_response' | 'deadline_reached' | null
   channel: FollowUpMessageChannel | null
   status: FollowUpActionStatus
+  waitTime: number | null
+  waitUnit: 'minutes' | 'hours' | 'days' | null
+  payload: Record<string, unknown>
+  result: Record<string, unknown> | null
   executedAt: string | null
   failureReason: string | null
   replyMessageId: string | null
@@ -342,8 +366,59 @@ export type FollowUpActionResponse = FollowUpActionPayload & {
 export type CreateNegotiationFollowUpPayload = {
   negotiationId: string
   title: string
-  actions: FollowUpActionPayload[]
+  steps: FollowUpActionPayload[]
   dueAt: string
+}
+
+export type UpdateNegotiationFollowUpPayload = {
+  title?: string
+  templateId?: string | null
+  templateVariables?: Record<string, unknown>
+  dueAt?: string
+  status?: LeadFollowUpStatus
+  completedAt?: string | null
+  steps?: FollowUpActionPayload[]
+  primaryStep?: FollowUpActionPayload
+  automationSteps?: CreateFollowUpStepTreeItemPayload[]
+}
+
+export type FollowUpStepTreeActionType =
+  | 'create_follow_up'
+  | 'qualify_lead'
+  | 'change_stage'
+  | 'change_status'
+  | 'change_temperature'
+  | 'archive_lead'
+  | 'delete_lead'
+  | 'delete_negotiation'
+
+export type FollowUpStepTreeConditionType =
+  | 'response_received'
+  | 'no_response'
+  | 'deadline_reached'
+
+export type CreateFollowUpStepTreeItemPayload = {
+  clientId: string
+  parentClientId: string | null
+  type: FollowUpStepType
+  actionType?: FollowUpStepTreeActionType
+  conditionType?: FollowUpStepTreeConditionType
+  waitTime?: number
+  waitUnit?: 'minutes' | 'hours' | 'days'
+  payload?: Record<string, unknown>
+}
+
+export type CreateFollowUpStepTreePayload = {
+  followUpId: string
+  steps: CreateFollowUpStepTreeItemPayload[]
+}
+
+export type CreateFollowUpStepTreeResponse = {
+  followUpId: string
+  steps: Array<{
+    clientId: string
+    step: { id: string; parentId: string | null }
+  }>
 }
 
 export type NegotiationAttachmentResponse = {

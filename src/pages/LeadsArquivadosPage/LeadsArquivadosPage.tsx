@@ -56,16 +56,28 @@ export default function LeadsArquivadosPage() {
   const { leadId } = useParams<{ leadId?: string }>()
   const { data, isLoading, error, reload } = useLeadsBootstrap()
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [isSearchInputFocused, setIsSearchInputFocused] = useState<boolean>(false)
+  const [isSearchInputFocused, setIsSearchInputFocused] =
+    useState<boolean>(false)
   const [hoveredLeadId, setHoveredLeadId] = useState<string | null>(null)
-  const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<string | null>(null)
-  const [nameSortDirection, setNameSortDirection] = useState<NameSortDirection>('asc')
-  const [wrappedArchivedLeadNames, setWrappedArchivedLeadNames] = useState<Record<string, boolean>>({})
+  const [confirmingDeleteLeadId, setConfirmingDeleteLeadId] = useState<
+    string | null
+  >(null)
+  const [confirmingUnarchiveLeadId, setConfirmingUnarchiveLeadId] = useState<
+    string | null
+  >(null)
+  const [nameSortDirection, setNameSortDirection] =
+    useState<NameSortDirection>('asc')
+  const [wrappedArchivedLeadNames, setWrappedArchivedLeadNames] = useState<
+    Record<string, boolean>
+  >({})
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
-  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] = useState<boolean>(false)
+  const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] =
+    useState<boolean>(false)
   const isLeadSelected = Boolean(leadId)
   const previousIsLeadSelectedRef = useRef<boolean>(isLeadSelected)
-  const archivedLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
+  const archivedLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>(
+    {},
+  )
 
   const archivedLeads = useMemo<ArchivedLeadRow[]>(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase()
@@ -83,7 +95,7 @@ export default function LeadsArquivadosPage() {
       .map((lead) => ({
         id: lead.id,
         name: (lead.name ?? '').trim() || 'Lead sem nome',
-        state: 'Arquivado'
+        state: 'Arquivado',
       }))
   }, [data.leads, searchTerm])
 
@@ -91,13 +103,20 @@ export default function LeadsArquivadosPage() {
     const directionFactor = nameSortDirection === 'asc' ? 1 : -1
 
     return [...archivedLeads].sort((firstLead, secondLead) => {
-      return firstLead.name.localeCompare(secondLead.name, 'pt-BR', { sensitivity: 'base' }) * directionFactor
+      return (
+        firstLead.name.localeCompare(secondLead.name, 'pt-BR', {
+          sensitivity: 'base',
+        }) * directionFactor
+      )
     })
   }, [archivedLeads, nameSortDirection])
 
   const paginatedLeads = sortedArchivedLeads
 
-  const setArchivedLeadNameRef = (leadIdValue: string, element: HTMLSpanElement | null) => {
+  const setArchivedLeadNameRef = (
+    leadIdValue: string,
+    element: HTMLSpanElement | null,
+  ) => {
     archivedLeadNameRefs.current[leadIdValue] = element
   }
 
@@ -113,13 +132,13 @@ export default function LeadsArquivadosPage() {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 6
+    gap: 6,
   })
 
   const handleUnarchiveLead = async (leadId: string) => {
     try {
       await LeadsService.setLeadArchiveState(leadId, 'active')
-      setConfirmingDeleteLeadId(null)
+      setConfirmingUnarchiveLeadId(null)
       await reload()
     } catch {
       // noop
@@ -192,7 +211,7 @@ export default function LeadsArquivadosPage() {
         }
 
         const lineCount = Math.round(
-          archivedLeadNameElement.getBoundingClientRect().height / lineHeight
+          archivedLeadNameElement.getBoundingClientRect().height / lineHeight,
         )
 
         nextWrappedArchivedLeadNames[lead.id] = lineCount > 1
@@ -207,10 +226,14 @@ export default function LeadsArquivadosPage() {
         }
 
         const hasDifference = nextKeys.some(
-          (key) => currentWrappedArchivedLeadNames[key] !== nextWrappedArchivedLeadNames[key]
+          (key) =>
+            currentWrappedArchivedLeadNames[key] !==
+            nextWrappedArchivedLeadNames[key],
         )
 
-        return hasDifference ? nextWrappedArchivedLeadNames : currentWrappedArchivedLeadNames
+        return hasDifference
+          ? nextWrappedArchivedLeadNames
+          : currentWrappedArchivedLeadNames
       })
     }
 
@@ -234,12 +257,39 @@ export default function LeadsArquivadosPage() {
           background: '#fafbfd',
           boxSizing: 'border-box',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
         }}
       >
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 32, color: '#111827', lineHeight: 1.1, fontWeight: 800 }}>Leads Arquivados</h1>
-          <span style={{ width: 52, flexShrink: 0, color: '#6b7280', fontSize: 13, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              color: '#111827',
+              lineHeight: 1.1,
+              fontWeight: 800,
+            }}
+          >
+            Leads Arquivados
+          </h1>
+          <span
+            style={{
+              width: 52,
+              flexShrink: 0,
+              color: '#6b7280',
+              fontSize: 13,
+              fontWeight: 600,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
             <TotalCount isLoading={isLoading} total={archivedLeads.length} />
           </span>
         </header>
@@ -270,153 +320,312 @@ export default function LeadsArquivadosPage() {
               : 'none',
             outline: 'none',
             fontSize: 16,
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
           }}
         />
 
-        <div style={{ maxHeight: '100%', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, paddingRight: 2 }}>
+        <div
+          style={{
+            maxHeight: '100%',
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            paddingRight: 2,
+          }}
+        >
           {isLoading ? <MobileListSkeleton /> : null}
-          {!isLoading && paginatedLeads.map((lead) => {
-            const isHovered = hoveredLeadId === lead.id
+          {!isLoading &&
+            paginatedLeads.map((lead) => {
+              const isHovered = hoveredLeadId === lead.id
 
-            if (confirmingDeleteLeadId === lead.id) {
+              if (confirmingUnarchiveLeadId === lead.id) {
+                return (
+                  <article
+                    key={lead.id}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Desarquivar lead?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Cancelar desarquivamento de lead"
+                        onClick={() => setConfirmingUnarchiveLeadId(null)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        X
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Confirmar desarquivamento de lead"
+                        onClick={() => void handleUnarchiveLead(lead.id)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
+
+              if (confirmingDeleteLeadId === lead.id) {
+                return (
+                  <article
+                    key={lead.id}
+                    style={{
+                      background: interactionTheme.clickableCardHoverBackground,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 18,
+                      boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                    }}
+                  >
+                    <strong style={{ color: '#111827', fontSize: 15 }}>
+                      Deletar lead arquivado?
+                    </strong>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Cancelar exclusão de lead arquivado"
+                        onClick={() => setConfirmingDeleteLeadId(null)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        X
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Confirmar exclusão de lead arquivado"
+                        onClick={() => void handleDeleteLead(lead.id)}
+                        style={{
+                          height: 32,
+                          width: 32,
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
+
               return (
                 <article
                   key={lead.id}
+                  onClick={() =>
+                    navigate(`/arquivados/${lead.id}${location.search}`)
+                  }
+                  onMouseEnter={() => setHoveredLeadId(lead.id)}
+                  onMouseLeave={() => setHoveredLeadId(null)}
                   style={{
-                    background: interactionTheme.clickableCardHoverBackground,
-                    border: '1px solid #e5e7eb',
+                    background: isHovered
+                      ? interactionTheme.clickableCardHoverBackground
+                      : '#ffffff',
+                    border: '1px solid #f1f5f9',
                     borderRadius: 18,
                     boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
                     padding: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12
+                    display: 'grid',
+                    gap: 4,
+                    cursor: 'pointer',
+                    transition: 'background 120ms ease',
                   }}
                 >
-                  <strong style={{ color: '#111827', fontSize: 15 }}>Deletar lead arquivado?</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      aria-label="Cancelar exclusão de lead arquivado"
-                      onClick={() => setConfirmingDeleteLeadId(null)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'start',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <h2
+                        style={{
+                          margin: 0,
+                          color: '#111827',
+                          fontSize: 20,
+                          lineHeight: 1.2,
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {lead.name}
+                      </h2>
+                    </div>
+
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      X
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Confirmar exclusão de lead arquivado"
-                      onClick={() => void handleDeleteLead(lead.id)}
-                      style={{ height: 32, width: 32, border: '1px solid #e5e7eb', borderRadius: 8, background: '#ffffff', color: '#4b5563', padding: 0, cursor: 'pointer' }}
+                      <button
+                        type="button"
+                        aria-label="Desarquivar lead"
+                        onClick={() => {
+                          setConfirmingDeleteLeadId(null)
+                          setConfirmingUnarchiveLeadId(lead.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          background: '#e5e7eb',
+                          color: '#6b7280',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <ArchiveRestore size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label="Excluir lead"
+                        onClick={() => {
+                          setConfirmingUnarchiveLeadId(null)
+                          setConfirmingDeleteLeadId(lead.id)
+                        }}
+                        style={{
+                          height: 34,
+                          width: 34,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          color: '#4b5563',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#b45309',
+                        whiteSpace: 'nowrap',
+                        background: '#fef3c7',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '7px 12px',
+                        lineHeight: 1.1,
+                      }}
                     >
-                      ✓
-                    </button>
+                      {lead.state}
+                    </span>
                   </div>
                 </article>
               )
-            }
-
-            return (
-              <article
-                key={lead.id}
-                onClick={() => navigate(`/arquivados/${lead.id}${location.search}`)}
-                onMouseEnter={() => setHoveredLeadId(lead.id)}
-                onMouseLeave={() => setHoveredLeadId(null)}
-                style={{
-                  background: isHovered ? interactionTheme.clickableCardHoverBackground : '#ffffff',
-                  border: '1px solid #f1f5f9',
-                  borderRadius: 18,
-                  boxShadow: '0 12px 26px rgba(15, 23, 42, 0.06)',
-                  padding: 16,
-                  display: 'grid',
-                  gap: 4,
-                  cursor: 'pointer',
-                  transition: 'background 120ms ease'
-                }}
-              >
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'start', gap: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <h2 style={{ margin: 0, color: '#111827', fontSize: 20, lineHeight: 1.2, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {lead.name}
-                    </h2>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={(event) => event.stopPropagation()}>
-                    <button
-                      type="button"
-                      aria-label="Desarquivar lead"
-                      onClick={() => void handleUnarchiveLead(lead.id)}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #d1d5db',
-                        borderRadius: 8,
-                        background: '#e5e7eb',
-                        color: '#6b7280',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <ArchiveRestore size={16} />
-                    </button>
-
-                    <button
-                      type="button"
-                      aria-label="Excluir lead"
-                      onClick={() => setConfirmingDeleteLeadId(lead.id)}
-                      style={{
-                        height: 34,
-                        width: 34,
-                        border: '1px solid #e5e7eb',
-                        borderRadius: 8,
-                        background: '#ffffff',
-                        color: '#4b5563',
-                        padding: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#b45309',
-                      whiteSpace: 'nowrap',
-                      background: '#fef3c7',
-                      borderRadius: 6,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '7px 12px',
-                      lineHeight: 1.1
-                    }}
-                  >
-                    {lead.state}
-                  </span>
-                </div>
-              </article>
-            )
-          })}
+            })}
 
           {!isLoading && !error && archivedLeads.length === 0 ? (
-            <div style={{ color: '#6b7280', fontSize: 14, padding: 16, textAlign: 'center' }}>Nenhum lead arquivado encontrado.</div>
+            <div
+              style={{
+                color: '#6b7280',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              Nenhum lead arquivado encontrado.
+            </div>
           ) : null}
 
           {error ? (
-            <div style={{ color: '#b91c1c', fontSize: 14, padding: 16, textAlign: 'center' }}>{error}</div>
+            <div
+              style={{
+                color: '#b91c1c',
+                fontSize: 14,
+                padding: 16,
+                textAlign: 'center',
+              }}
+            >
+              {error}
+            </div>
           ) : null}
         </div>
 
@@ -427,7 +636,7 @@ export default function LeadsArquivadosPage() {
               inset: 0,
               zIndex: 50,
               background: '#ffffff',
-              overflow: 'hidden'
+              overflow: 'hidden',
             }}
           >
             <LeadPage onLeadUpdated={handleLeadUpdated} />
@@ -447,7 +656,7 @@ export default function LeadsArquivadosPage() {
         gap: 16,
         background: '#f3f4f6',
         boxSizing: 'border-box',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
       <header
@@ -456,10 +665,18 @@ export default function LeadsArquivadosPage() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          padding: '4px 2px'
+          padding: '4px 2px',
         }}
       >
-        <h1 style={{ margin: 0, color: '#111827', fontSize: 24, fontWeight: 700, lineHeight: 1.2 }}>
+        <h1
+          style={{
+            margin: 0,
+            color: '#111827',
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}
+        >
           Leads Arquivados
         </h1>
 
@@ -487,7 +704,7 @@ export default function LeadsArquivadosPage() {
             boxShadow: isSearchInputFocused
               ? interactionTheme.inputFocusBoxShadow
               : 'none',
-            outline: 'none'
+            outline: 'none',
           }}
         />
       </header>
@@ -497,7 +714,7 @@ export default function LeadsArquivadosPage() {
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
         }}
       >
         <div
@@ -509,7 +726,7 @@ export default function LeadsArquivadosPage() {
             overflowY: 'auto',
             maxHeight: '100%',
             minHeight: 0,
-            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)'
+            boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
           }}
         >
           <table
@@ -517,7 +734,7 @@ export default function LeadsArquivadosPage() {
               width: '100%',
               borderCollapse: 'collapse',
               background: '#ffffff',
-              tableLayout: 'fixed'
+              tableLayout: 'fixed',
             }}
           >
             <colgroup>
@@ -530,7 +747,7 @@ export default function LeadsArquivadosPage() {
                 style={{
                   textAlign: 'left',
                   borderBottom: '1px solid #ececec',
-                  background: '#f3f4f6'
+                  background: '#f3f4f6',
                 }}
               >
                 <th
@@ -542,17 +759,22 @@ export default function LeadsArquivadosPage() {
                     padding: '10px 12px',
                     color: '#4b5563',
                     fontSize: 13,
-                    fontWeight: 600
+                    fontWeight: 600,
                   }}
                 >
                   <button
                     type="button"
                     onClick={() => {
-                      setNameSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
+                      setNameSortDirection((currentDirection) =>
+                        currentDirection === 'asc' ? 'desc' : 'asc',
+                      )
                     }}
                     style={getHeaderSortButtonStyle()}
                   >
-                    Nome <span style={{ fontSize: 11 }}>{nameSortDirection === 'asc' ? '↑' : '↓'}</span>
+                    Nome{' '}
+                    <span style={{ fontSize: 11 }}>
+                      {nameSortDirection === 'asc' ? '↑' : '↓'}
+                    </span>
                   </button>
                 </th>
                 <th
@@ -565,7 +787,7 @@ export default function LeadsArquivadosPage() {
                     color: '#4b5563',
                     fontSize: 13,
                     fontWeight: 600,
-                    textAlign: 'center'
+                    textAlign: 'center',
                   }}
                 >
                   Status
@@ -580,7 +802,7 @@ export default function LeadsArquivadosPage() {
                     color: '#4b5563',
                     fontSize: 13,
                     fontWeight: 600,
-                    textAlign: 'left'
+                    textAlign: 'center',
                   }}
                 >
                   Ações
@@ -593,204 +815,325 @@ export default function LeadsArquivadosPage() {
                   columns={[
                     { width: '58%' },
                     { width: '34%', align: 'center' },
-                    { width: 72 }
+                    { width: 72 },
                   ]}
                 />
               ) : null}
-              {!isLoading && paginatedLeads.map((lead) => {
-                if (confirmingDeleteLeadId === lead.id) {
+              {!isLoading &&
+                paginatedLeads.map((lead) => {
+                  if (confirmingUnarchiveLeadId === lead.id) {
+                    return (
+                      <tr
+                        key={lead.id}
+                        style={{
+                          height: ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX,
+                          borderBottom: '1px solid #f3f4f6',
+                          background:
+                            interactionTheme.clickableCardHoverBackground,
+                        }}
+                      >
+                        <td
+                          colSpan={2}
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Desarquivar lead?
+                        </td>
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Cancelar desarquivamento de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setConfirmingUnarchiveLeadId(null)
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              X
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Confirmar desarquivamento de lead"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleUnarchiveLead(lead.id)
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  if (confirmingDeleteLeadId === lead.id) {
+                    return (
+                      <tr
+                        key={lead.id}
+                        style={{
+                          height: ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX,
+                          borderBottom: '1px solid #f3f4f6',
+                          background:
+                            interactionTheme.clickableCardHoverBackground,
+                        }}
+                      >
+                        <td
+                          colSpan={2}
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            fontSize: 13,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Deletar lead arquivado?
+                        </td>
+                        <td
+                          style={{
+                            padding: '14px 16px',
+                            color: '#2f2f2f',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
+                              gap: 4,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setConfirmingDeleteLeadId(null)
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              X
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void handleDeleteLead(lead.id)
+                              }}
+                              style={{
+                                height: 24,
+                                width: 24,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#4b5563',
+                                padding: 0,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              ✓
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
                     <tr
                       key={lead.id}
+                      onClick={() =>
+                        navigate(`/arquivados/${lead.id}${location.search}`)
+                      }
                       style={{
+                        height: ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX,
                         borderBottom: '1px solid #f3f4f6',
-                        background: interactionTheme.clickableCardHoverBackground
+                        background:
+                          hoveredLeadId === lead.id || leadId === lead.id
+                            ? interactionTheme.clickableCardHoverBackground
+                            : '#ffffff',
+                        cursor: 'pointer',
                       }}
+                      onMouseEnter={() => setHoveredLeadId(lead.id)}
+                      onMouseLeave={() => setHoveredLeadId(null)}
                     >
                       <td
-                        colSpan={2}
                         style={{
-                          padding: '14px 16px',
-                          color: '#2f2f2f',
-                          fontSize: 13,
-                          fontWeight: 600
+                          padding: wrappedArchivedLeadNames[lead.id]
+                            ? '6px 16px'
+                            : '14px 16px',
+                          color: '#111827',
                         }}
                       >
-                        Deletar lead arquivado?
+                        <span
+                          ref={(element) => {
+                            setArchivedLeadNameRef(lead.id, element)
+                          }}
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'normal',
+                            lineHeight: '18px',
+                          }}
+                        >
+                          {lead.name}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: '#b45309',
+                            whiteSpace: 'nowrap',
+                            background: '#fef3c7',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '7px 12px',
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          {lead.state}
+                        </span>
                       </td>
                       <td
                         style={{
                           padding: '14px 16px',
-                          color: '#2f2f2f',
-                          textAlign: 'left'
+                          color: '#111827',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
                         }}
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            justifyContent: 'center',
+                            width: '100%',
+                          }}
+                        >
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
+                            aria-label="Desarquivar lead"
+                            onClick={() => {
                               setConfirmingDeleteLeadId(null)
+                              setConfirmingUnarchiveLeadId(lead.id)
                             }}
                             style={{
                               height: 24,
                               width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
-                              color: '#4b5563',
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#6b7280',
                               padding: 0,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                             }}
                           >
-                            X
+                            <ArchiveRestore size={14} />
                           </button>
+
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void handleDeleteLead(lead.id)
+                            aria-label="Excluir lead"
+                            onClick={() => {
+                              setConfirmingUnarchiveLeadId(null)
+                              setConfirmingDeleteLeadId(lead.id)
                             }}
                             style={{
                               height: 24,
                               width: 24,
-                              border: '1px solid #e5e7eb',
-                              borderRadius: 4,
-                              background: '#ffffff',
+                              border: 'none',
+                              background: 'transparent',
                               color: '#4b5563',
                               padding: 0,
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                             }}
                           >
-                            ✓
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
                     </tr>
                   )
-                }
-
-                return (
-                  <tr
-                    key={lead.id}
-                    onClick={() => navigate(`/arquivados/${lead.id}${location.search}`)}
-                    style={{
-                      height: ARCHIVED_LEADS_TABLE_ROW_HEIGHT_PX,
-                      borderBottom: '1px solid #f3f4f6',
-                      background:
-                        hoveredLeadId === lead.id || leadId === lead.id
-                          ? interactionTheme.clickableCardHoverBackground
-                          : '#ffffff',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={() => setHoveredLeadId(lead.id)}
-                    onMouseLeave={() => setHoveredLeadId(null)}
-                  >
-                    <td
-                      style={{
-                        padding: wrappedArchivedLeadNames[lead.id]
-                          ? '6px 16px'
-                          : '14px 16px',
-                        color: '#111827'
-                      }}
-                    >
-                      <span
-                        ref={(element) => {
-                          setArchivedLeadNameRef(lead.id, element)
-                        }}
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'normal',
-                          lineHeight: '18px'
-                        }}
-                      >
-                        {lead.name}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: '#b45309',
-                          whiteSpace: 'nowrap',
-                          background: '#fef3c7',
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1
-                        }}
-                      >
-                        {lead.state}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        color: '#111827',
-                        textAlign: 'left'
-                      }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-start' }}>
-                        <button
-                          type="button"
-                          aria-label="Desarquivar lead"
-                          onClick={() => {
-                            void handleUnarchiveLead(lead.id)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#6b7280',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <ArchiveRestore size={14} />
-                        </button>
-
-                        <button
-                          type="button"
-                          aria-label="Excluir lead"
-                          onClick={() => {
-                            setConfirmingDeleteLeadId(lead.id)
-                          }}
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                })}
 
               {!isLoading && !error && archivedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={3} style={{ padding: '14px 16px', color: '#6b7280' }}>
+                  <td
+                    colSpan={3}
+                    style={{ padding: '14px 16px', color: '#6b7280' }}
+                  >
                     Nenhum lead arquivado encontrado.
                   </td>
                 </tr>
@@ -798,7 +1141,10 @@ export default function LeadsArquivadosPage() {
 
               {error ? (
                 <tr>
-                  <td colSpan={3} style={{ padding: '14px 16px', color: '#b91c1c' }}>
+                  <td
+                    colSpan={3}
+                    style={{ padding: '14px 16px', color: '#b91c1c' }}
+                  >
                     {error}
                   </td>
                 </tr>
@@ -814,13 +1160,12 @@ export default function LeadsArquivadosPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 8
+            gap: 8,
           }}
         >
           <span style={{ color: '#6b7280', fontSize: 13, marginLeft: 8 }}>
             <TotalCount isLoading={isLoading} total={archivedLeads.length} />
           </span>
-
         </div>
 
         {isLeadSelected ? (
@@ -839,7 +1184,7 @@ export default function LeadsArquivadosPage() {
               padding: 0,
               margin: 0,
               background: 'transparent',
-              cursor: 'default'
+              cursor: 'default',
             }}
           />
         ) : null}
@@ -857,8 +1202,10 @@ export default function LeadsArquivadosPage() {
               background: '#ffffff',
               overflow: 'hidden',
               boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
-              transform: isLeadPanelEntering ? 'translateX(0)' : 'translateX(100%)',
-              transition: `transform ${leadPanelTransitionMs}ms ease`
+              transform: isLeadPanelEntering
+                ? 'translateX(0)'
+                : 'translateX(100%)',
+              transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
             <LeadPage onLeadUpdated={handleLeadUpdated} />

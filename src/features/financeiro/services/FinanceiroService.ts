@@ -9,6 +9,7 @@ import type {
 type LoadFinanceiroParams = {
   createdAtFrom?: string
   createdAtTo?: string
+  leadId?: string
 }
 
 export const FinanceiroService = {

@@ -1,12 +1,22 @@
 import {
+  Archive,
+  BriefcaseBusiness,
   CalendarClock,
+  Check,
   ChevronDown,
+  ChevronRight,
+  FileText,
+  GitBranch,
   ListFilter,
   Mail,
+  MailX,
   MessageCircle,
+  Pencil,
   Plus,
   Save,
+  Thermometer,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -19,9 +29,9 @@ import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
 import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
 import { TotalCount } from '../../core/components/TotalCount'
-import { FollowUpActionFields } from '../../core/components/FollowUpActionFields'
 import {
   initialFollowUpActionDraft,
   isFollowUpActionDraftValid,
@@ -36,14 +46,90 @@ import {
   parseApiDateToBrowserDate,
 } from '../../core/utils/dateTime'
 import { useLeadsBootstrap } from '../../features/leads/hooks/useLeadsBootstrap'
+import { findPrimaryFollowUpActionStep } from '../../features/followup/utils/followUpAutomationTree'
 import { WebhookService } from '../../features/webhook/services/WebhookService'
 import type {
+  CreateFollowUpStepTreeItemPayload,
+  FollowUpStepTreeActionType,
+  FollowUpStepTreeConditionType,
   NegotiationFollowUpResponse,
   NegotiationResponse,
 } from '../../features/webhook/types/webhook.types'
 import LeadPage from '../LeadPage'
 
 type AgendaFollowUpFilter = 'all' | 'none' | 'scheduled' | 'today' | 'overdue'
+type AgendaFollowUpFormTab = 'information' | 'automation' | 'automationList'
+
+type AgendaAutomationAction =
+  | 'createFollowUp'
+  | 'qualifyLead'
+  | 'changeNegotiationStage'
+  | 'changeNegotiationStatus'
+  | 'changeNegotiationTemperature'
+  | 'archiveLead'
+  | 'deleteNegotiation'
+  | 'deleteLead'
+
+type AgendaAutomationCondition = 'replied' | 'notReplied' | 'deadlineReached'
+type AgendaAutomationExecutionTiming = 'immediately' | 'afterPeriod'
+type AgendaAutomationWaitUnit = 'minutes' | 'hours' | 'days'
+
+const isAgendaReplyCondition = (
+  conditionType: AgendaAutomationCondition,
+): boolean => conditionType === 'replied' || conditionType === 'notReplied'
+
+type AgendaAutomationFollowUpDraft = {
+  title: string
+  action: FollowUpActionDraft
+  dueAt: string
+}
+
+type AgendaAutomationConditionItem = {
+  id: string
+  parentId: string | null
+  type: 'condition'
+  conditionType: AgendaAutomationCondition
+}
+
+type AgendaAutomationActionItem = {
+  id: string
+  parentId: string | null
+  type: 'action'
+  actionType: AgendaAutomationAction
+  value: string
+  waitTime: number
+  waitUnit: AgendaAutomationWaitUnit
+  scheduledAt: string | null
+  followUp: AgendaAutomationFollowUpDraft | null
+}
+
+type AgendaAutomationItem =
+  | AgendaAutomationConditionItem
+  | AgendaAutomationActionItem
+
+type AgendaAutomationTreeIcon =
+  | 'agenda'
+  | 'archive'
+  | 'delete'
+  | 'message'
+  | 'mail'
+  | 'user'
+  | 'stage'
+  | 'status'
+  | 'temperature'
+  | 'viewed'
+  | 'followUp'
+
+type AgendaAutomationTreeNode = {
+  id: string
+  automationId: string
+  displayId: string
+  title: string
+  description?: string
+  detail?: string
+  icon: AgendaAutomationTreeIcon
+  children?: AgendaAutomationTreeNode[]
+}
 
 type AgendaVisualStatus = 'overdue' | 'today' | 'scheduled' | 'completed'
 
@@ -57,10 +143,8 @@ const agendaFollowUpStatusOptions: Array<{
   value: AgendaRow['status']
   label: string
 }> = [
-  { value: 'pending', label: 'Pendente' },
   { value: 'done', label: 'Concluído' },
   { value: 'canceled', label: 'Cancelado' },
-  { value: 'skipped', label: 'Ignorado' },
 ]
 
 const rotateValues = <T,>(values: T[], startValue: T | null): T[] => {
@@ -82,10 +166,11 @@ type AgendaRow = {
   negotiationId: string
   leadName: string
   negotiationTitle: string
+  automationActionCount: number
   title: string
   dueAt: string
   status: 'pending' | 'done' | 'canceled' | 'skipped'
-  actions: NegotiationFollowUpResponse['actions']
+  actions: NegotiationFollowUpResponse['steps']
   leadIsFavorite: boolean
   leadState: 'active' | 'archived'
   leadCreatedAt: string | Date | null
@@ -164,6 +249,145 @@ const initialAgendaFollowUpDraft: AgendaFollowUpDraft = {
   title: '',
   action: initialFollowUpActionDraft,
   dueAt: '',
+}
+
+const initialAgendaAutomationFollowUpDraft: AgendaAutomationFollowUpDraft = {
+  title: '',
+  action: initialFollowUpActionDraft,
+  dueAt: '',
+}
+
+const agendaAutomationActionOptions: Array<{
+  value: AgendaAutomationAction
+  label: string
+}> = [
+  { value: 'createFollowUp', label: 'Criar follow-up' },
+  { value: 'qualifyLead', label: 'Qualificar lead' },
+  { value: 'changeNegotiationStage', label: 'Alterar etapa negócio' },
+  { value: 'changeNegotiationStatus', label: 'Alterar status negócio' },
+  {
+    value: 'changeNegotiationTemperature',
+    label: 'Alterar temperatura negócio',
+  },
+  { value: 'archiveLead', label: 'Arquivar lead' },
+  { value: 'deleteNegotiation', label: 'Deletar negócio' },
+  { value: 'deleteLead', label: 'Deletar lead' },
+]
+
+const agendaAutomationConditionOptions: Array<{
+  value: AgendaAutomationCondition
+  label: string
+}> = [
+  { value: 'replied', label: 'Houve resposta' },
+  { value: 'notReplied', label: 'Não houve resposta' },
+  { value: 'deadlineReached', label: 'Prazo atingido' },
+]
+
+const agendaAutomationWaitUnitOptions: Array<{
+  value: AgendaAutomationWaitUnit
+  label: string
+}> = [
+  { value: 'minutes', label: 'Minuto' },
+  { value: 'hours', label: 'Hora' },
+  { value: 'days', label: 'Dia' },
+]
+
+const agendaAutomationValueOptions: Partial<
+  Record<AgendaAutomationAction, Array<{ value: string; label: string }>>
+> = {
+  qualifyLead: [
+    { value: 'qualify', label: 'Qualificado' },
+    { value: 'not qualify', label: 'Não qualificado' },
+  ],
+  changeNegotiationStage: [
+    { value: 'NEW', label: 'Novo' },
+    { value: 'CONTACTED', label: 'Contatado' },
+    { value: 'QUALIFIED', label: 'Qualificado' },
+    { value: 'PROPOSAL_SENT', label: 'Proposta enviada' },
+    { value: 'NEGOTIATION', label: 'Negociação' },
+  ],
+  changeNegotiationStatus: [
+    { value: 'OPEN', label: 'Em Aberto' },
+    { value: 'WON', label: 'Ganho' },
+    { value: 'LOST', label: 'Perdido' },
+  ],
+  changeNegotiationTemperature: [
+    { value: 'hot', label: 'Quente' },
+    { value: 'warm', label: 'Morno' },
+    { value: 'cold', label: 'Frio' },
+  ],
+}
+
+const agendaAutomationValueLabels: Partial<
+  Record<AgendaAutomationAction, string>
+> = {
+  qualifyLead: 'Qualificação',
+  changeNegotiationStage: 'Etapa',
+  changeNegotiationStatus: 'Status',
+  changeNegotiationTemperature: 'Temperatura',
+}
+
+const agendaAutomationActionTypeMap: Record<
+  AgendaAutomationAction,
+  FollowUpStepTreeActionType
+> = {
+  createFollowUp: 'create_follow_up',
+  qualifyLead: 'qualify_lead',
+  changeNegotiationStage: 'change_stage',
+  changeNegotiationStatus: 'change_status',
+  changeNegotiationTemperature: 'change_temperature',
+  archiveLead: 'archive_lead',
+  deleteNegotiation: 'delete_negotiation',
+  deleteLead: 'delete_lead',
+}
+
+const agendaAutomationConditionTypeMap: Record<
+  AgendaAutomationCondition,
+  FollowUpStepTreeConditionType
+> = {
+  replied: 'response_received',
+  notReplied: 'no_response',
+  deadlineReached: 'deadline_reached',
+}
+
+const toAgendaAutomationStepPayload = (
+  automation: AgendaAutomationItem,
+): CreateFollowUpStepTreeItemPayload => {
+  if (automation.type === 'condition') {
+    return {
+      clientId: automation.id,
+      parentClientId: automation.parentId,
+      type: 'condition',
+      conditionType: agendaAutomationConditionTypeMap[automation.conditionType],
+    }
+  }
+
+  const payload: Record<string, unknown> =
+    automation.actionType === 'createFollowUp' && automation.followUp
+      ? {
+          title: automation.followUp.title,
+          dueAt: automation.followUp.dueAt,
+          action: toFollowUpActionPayload(automation.followUp.action),
+        }
+      : automation.actionType === 'qualifyLead'
+        ? { qualification: automation.value }
+        : automation.actionType === 'changeNegotiationStage'
+          ? { stage: automation.value }
+          : automation.actionType === 'changeNegotiationStatus'
+            ? { status: automation.value }
+            : automation.actionType === 'changeNegotiationTemperature'
+              ? { temperature: automation.value }
+              : {}
+
+  return {
+    clientId: automation.id,
+    parentClientId: automation.parentId,
+    type: 'action',
+    actionType: agendaAutomationActionTypeMap[automation.actionType],
+    waitTime: automation.waitTime,
+    waitUnit: automation.waitUnit,
+    payload,
+  }
 }
 
 type AgendaDateTimeInputProps = {
@@ -466,7 +690,8 @@ const getAgendaDateTagColors = (
 
 const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
   const channel = actions.find(
-    (action) => action.type === 'send_message',
+    (action) =>
+      action.actionType === 'send_message' || action.type === 'send_message',
   )?.channel
 
   if (channel === 'Agenda') {
@@ -483,7 +708,12 @@ const getAgendaChannelTagPresentation = (actions: AgendaRow['actions']) => {
     return getLeadSourceTagPresentation(channel, '')
   }
 
-  if (actions.some((action) => action.type === 'send_email')) {
+  if (
+    actions.some(
+      (action) =>
+        action.actionType === 'send_email' || action.type === 'send_email',
+    )
+  ) {
     return {
       label: 'Email',
       textColor: '#1d4ed8',
@@ -620,6 +850,44 @@ export default function AgendaPage() {
   )
   const [isCreatingAgendaFollowUp, setIsCreatingAgendaFollowUp] =
     useState<boolean>(false)
+  const [activeAgendaFollowUpFormTab, setActiveAgendaFollowUpFormTab] =
+    useState<AgendaFollowUpFormTab>('information')
+  const [agendaAutomationAction, setAgendaAutomationAction] = useState<
+    AgendaAutomationAction | ''
+  >('')
+  const [agendaAutomationParentId, setAgendaAutomationParentId] =
+    useState<string>('')
+  const [agendaAutomationValue, setAgendaAutomationValue] = useState<string>('')
+  const [agendaAutomationExecutionTiming, setAgendaAutomationExecutionTiming] =
+    useState<AgendaAutomationExecutionTiming>('immediately')
+  const [agendaAutomationWaitTime, setAgendaAutomationWaitTime] =
+    useState<string>('')
+  const [agendaAutomationWaitUnit, setAgendaAutomationWaitUnit] =
+    useState<AgendaAutomationWaitUnit>('minutes')
+  const [agendaAutomationFollowUpDraft, setAgendaAutomationFollowUpDraft] =
+    useState<AgendaAutomationFollowUpDraft>(
+      initialAgendaAutomationFollowUpDraft,
+    )
+  const [agendaAutomations, setAgendaAutomations] = useState<
+    AgendaAutomationItem[]
+  >([])
+  const [editingAgendaAutomationId, setEditingAgendaAutomationId] = useState<
+    string | null
+  >(null)
+  const [expandedAgendaAutomationIds, setExpandedAgendaAutomationIds] =
+    useState<string[]>([])
+  const [
+    isAddingRootAgendaAutomationCondition,
+    setIsAddingRootAgendaAutomationCondition,
+  ] = useState<boolean>(false)
+  const [rootAgendaAutomationCondition, setRootAgendaAutomationCondition] =
+    useState<AgendaAutomationCondition | ''>('')
+  const [openFollowUpConditionMenuId, setOpenFollowUpConditionMenuId] =
+    useState<string | null>(null)
+  const [
+    confirmingDeleteAgendaAutomationId,
+    setConfirmingDeleteAgendaAutomationId,
+  ] = useState<string | null>(null)
   const [isAgendaFollowUpPanelEntering, setIsAgendaFollowUpPanelEntering] =
     useState<boolean>(false)
   const [shouldRefreshOnAgendaClose, setShouldRefreshOnAgendaClose] =
@@ -649,12 +917,40 @@ export default function AgendaPage() {
   const [statusSortFocus, setStatusSortFocus] =
     useState<AgendaStatusSortFocus>('overdue')
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
+  const [isLeadFollowUpEditing, setIsLeadFollowUpEditing] =
+    useState<boolean>(false)
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] =
     useState<boolean>(false)
   const [agendaReloadVersion, setAgendaReloadVersion] = useState<number>(0)
   const previousIsAgendaFollowUpPanelOpenRef = useRef<boolean>(false)
   const previousIsLeadSelectedRef = useRef<boolean>(false)
   const agendaLeadNameRefs = useRef<Record<string, HTMLSpanElement | null>>({})
+  const openFollowUpConditionMenuRef = useRef<HTMLDivElement | null>(null)
+  const agendaAutomationListRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!openFollowUpConditionMenuId) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !openFollowUpConditionMenuRef.current?.contains(event.target)
+      ) {
+        setOpenFollowUpConditionMenuId(null)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [openFollowUpConditionMenuId])
+
+  useEffect(() => {
+    if (isAddingRootAgendaAutomationCondition) {
+      agendaAutomationListRef.current?.scrollTo({ top: 0 })
+    }
+  }, [isAddingRootAgendaAutomationCondition])
 
   const activeLeads = useMemo(
     () =>
@@ -718,6 +1014,16 @@ export default function AgendaPage() {
     Boolean(agendaFollowUpDraft.title.trim()) &&
     isFollowUpActionDraftValid(agendaFollowUpDraft.action) &&
     Boolean(agendaFollowUpDraft.dueAt)
+  const rootAgendaAutomationConditionOptions =
+    agendaFollowUpDraft.action.type === 'send_message'
+      ? agendaAutomationConditionOptions
+      : agendaAutomationConditionOptions.filter(
+          (option) => option.value === 'deadlineReached',
+        )
+  const hasValidRootAgendaAutomationCondition =
+    rootAgendaAutomationConditionOptions.some(
+      (option) => option.value === rootAgendaAutomationCondition,
+    )
   const agendaFollowUpFieldLabelStyle = {
     color: '#1f2937',
     fontSize: isMobile ? 17 / 1.3 : 13,
@@ -738,6 +1044,1292 @@ export default function AgendaPage() {
     ...agendaFollowUpInputStyle,
     fontWeight: 600,
   } as const
+  const selectedAgendaAutomationValueOptions = agendaAutomationAction
+    ? agendaAutomationValueOptions[agendaAutomationAction]
+    : undefined
+  const selectedAgendaAutomationValueLabel = agendaAutomationAction
+    ? agendaAutomationValueLabels[agendaAutomationAction]
+    : undefined
+  const agendaAutomationParent = agendaAutomations.find(
+    (automation) => automation.id === agendaAutomationParentId,
+  )
+  const shouldUseAgendaWaitLabel =
+    agendaAutomationParent?.type === 'condition' &&
+    isAgendaReplyCondition(agendaAutomationParent.conditionType)
+  const siblingAgendaAutomationActionTypes = new Set(
+    agendaAutomationParent?.type === 'condition'
+      ? agendaAutomations.flatMap((automation) =>
+          automation.type === 'action' &&
+          automation.parentId === agendaAutomationParentId &&
+          automation.id !== editingAgendaAutomationId &&
+          automation.actionType !== 'createFollowUp'
+            ? [automation.actionType]
+            : [],
+        )
+      : [],
+  )
+  const availableAgendaAutomationActionOptions =
+    agendaAutomationActionOptions.filter(
+      (option) =>
+        option.value === 'createFollowUp' ||
+        !siblingAgendaAutomationActionTypes.has(option.value),
+    )
+  const hasAvailableAgendaAutomationAction =
+    !agendaAutomationAction ||
+    availableAgendaAutomationActionOptions.some(
+      (option) => option.value === agendaAutomationAction,
+    )
+  const parsedAgendaAutomationWaitTime = Number(agendaAutomationWaitTime)
+  const hasValidAgendaAutomationWait =
+    agendaAutomationExecutionTiming === 'immediately' ||
+    (Number.isInteger(parsedAgendaAutomationWaitTime) &&
+      parsedAgendaAutomationWaitTime > 0)
+  const hasValidAgendaAutomationFollowUp =
+    Boolean(agendaAutomationFollowUpDraft.title.trim()) &&
+    isFollowUpActionDraftValid(agendaAutomationFollowUpDraft.action) &&
+    Boolean(agendaAutomationFollowUpDraft.dueAt)
+  const isMessageFollowUpAutomation = (
+    automation: AgendaAutomationItem | undefined,
+  ): automation is AgendaAutomationActionItem =>
+    automation?.type === 'action' &&
+    automation.actionType === 'createFollowUp' &&
+    automation.followUp?.action.type === 'send_message'
+  const canAgendaAutomationHaveChildren = (
+    automation: AgendaAutomationItem | undefined,
+  ) =>
+    automation?.type === 'condition' || isMessageFollowUpAutomation(automation)
+  let agendaAutomationBaseDueAt = agendaFollowUpDraft.dueAt
+  let agendaAutomationAncestorId = agendaAutomationParentId
+
+  while (agendaAutomationAncestorId) {
+    const ancestor = agendaAutomations.find(
+      (automation) => automation.id === agendaAutomationAncestorId,
+    )
+
+    if (
+      ancestor?.type === 'action' &&
+      ancestor.actionType === 'createFollowUp' &&
+      ancestor.followUp?.dueAt
+    ) {
+      agendaAutomationBaseDueAt = ancestor.followUp.dueAt
+      break
+    }
+    agendaAutomationAncestorId = ancestor?.parentId ?? ''
+  }
+  const agendaAutomationBaseDate = parseApiDateToBrowserDate(
+    agendaAutomationBaseDueAt,
+  )
+  const agendaAutomationBaseDateLabel = agendaAutomationBaseDate
+    ? formatDateTime(agendaAutomationBaseDate.toISOString())
+    : '-'
+  const canSaveAgendaAutomation = Boolean(
+    agendaAutomationAction &&
+    hasAvailableAgendaAutomationAction &&
+    agendaAutomationBaseDate &&
+    (!selectedAgendaAutomationValueOptions || agendaAutomationValue) &&
+    hasValidAgendaAutomationWait &&
+    (agendaAutomationAction !== 'createFollowUp' ||
+      hasValidAgendaAutomationFollowUp),
+  )
+  const renderAgendaAutomationWaitTimeFields = () => (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <label style={agendaFollowUpFieldLabelStyle}>Quando executar?</label>
+      <select
+        value={agendaAutomationExecutionTiming}
+        onChange={(event) =>
+          setAgendaAutomationExecutionTiming(
+            event.target.value as AgendaAutomationExecutionTiming,
+          )
+        }
+        style={agendaFollowUpSelectStyle}
+      >
+        <option value="immediately">Imediatamente</option>
+        <option value="afterPeriod">
+          {shouldUseAgendaWaitLabel ? 'Aguardar um período' : 'Após um período'}
+        </option>
+      </select>
+
+      {agendaAutomationExecutionTiming === 'afterPeriod' ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={agendaFollowUpFieldLabelStyle}>Tempo</label>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 8,
+            }}
+          >
+            <select
+              value={agendaAutomationWaitUnit}
+              onChange={(event) =>
+                setAgendaAutomationWaitUnit(
+                  event.target.value as AgendaAutomationWaitUnit,
+                )
+              }
+              style={agendaFollowUpInputStyle}
+            >
+              {agendaAutomationWaitUnitOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              placeholder="1"
+              value={agendaAutomationWaitTime}
+              onChange={(event) =>
+                setAgendaAutomationWaitTime(event.target.value)
+              }
+              style={agendaFollowUpInputStyle}
+            />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: interactionTheme.clickableCardHoverBackground,
+              color: interactionTheme.activeIconColor,
+              fontSize: isMobile ? 12 : 13,
+            }}
+          >
+            <span style={{ fontWeight: 600 }}>Início da contagem</span>
+            <strong style={{ textAlign: 'right' }}>
+              {agendaAutomationBaseDateLabel}
+            </strong>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const renderAgendaAutomationFollowUpFields = () => {
+    if (agendaAutomationAction !== 'createFollowUp') {
+      return null
+    }
+
+    return (
+      <>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={agendaFollowUpFieldLabelStyle}>Nome do Follow-up</label>
+          <input
+            type="text"
+            placeholder="Nome do Follow-up"
+            value={agendaAutomationFollowUpDraft.title}
+            onChange={(event) =>
+              setAgendaAutomationFollowUpDraft((currentDraft) => ({
+                ...currentDraft,
+                title: event.target.value,
+              }))
+            }
+            style={agendaFollowUpInputStyle}
+          />
+        </div>
+
+        <FollowUpActionFields
+          value={agendaAutomationFollowUpDraft.action}
+          onChange={(action) =>
+            setAgendaAutomationFollowUpDraft((currentDraft) => ({
+              ...currentDraft,
+              action,
+            }))
+          }
+          leadSource={selectedAgendaLead?.source}
+          leadEmail={selectedAgendaLead?.email}
+          leadPhone={selectedAgendaLead?.phone}
+          isMobile={isMobile}
+        />
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={agendaFollowUpFieldLabelStyle}>Data/Hora</label>
+          <AgendaDateTimeInput
+            value={agendaAutomationFollowUpDraft.dueAt}
+            onChange={(nextValue) =>
+              setAgendaAutomationFollowUpDraft((currentDraft) => ({
+                ...currentDraft,
+                dueAt: nextValue,
+              }))
+            }
+            isMobile={isMobile}
+          />
+        </div>
+      </>
+    )
+  }
+
+  const handleCancelAgendaAutomation = () => {
+    setAgendaAutomationParentId('')
+    setAgendaAutomationAction('')
+    setAgendaAutomationValue('')
+    setAgendaAutomationExecutionTiming('immediately')
+    setAgendaAutomationWaitTime('')
+    setAgendaAutomationWaitUnit('minutes')
+    setAgendaAutomationFollowUpDraft(initialAgendaAutomationFollowUpDraft)
+    setEditingAgendaAutomationId(null)
+    setActiveAgendaFollowUpFormTab('automationList')
+  }
+
+  const handleSaveAgendaAutomation = () => {
+    if (
+      !canSaveAgendaAutomation ||
+      !agendaAutomationAction ||
+      !hasAvailableAgendaAutomationAction
+    ) {
+      return
+    }
+
+    const actionId = editingAgendaAutomationId ?? crypto.randomUUID()
+    const baseDate = parseApiDateToBrowserDate(agendaAutomationBaseDueAt)
+    const waitTime =
+      agendaAutomationExecutionTiming === 'immediately'
+        ? 0
+        : parsedAgendaAutomationWaitTime
+    const waitMilliseconds =
+      waitTime *
+      (agendaAutomationWaitUnit === 'days'
+        ? 24 * 60 * 60 * 1000
+        : agendaAutomationWaitUnit === 'hours'
+          ? 60 * 60 * 1000
+          : 60 * 1000)
+    const actionStep: AgendaAutomationActionItem = {
+      id: actionId,
+      parentId: agendaAutomationParentId || null,
+      type: 'action',
+      actionType: agendaAutomationAction,
+      value: agendaAutomationValue,
+      waitTime,
+      waitUnit: agendaAutomationWaitUnit,
+      scheduledAt: baseDate
+        ? new Date(baseDate.getTime() + waitMilliseconds).toISOString()
+        : null,
+      followUp:
+        agendaAutomationAction === 'createFollowUp'
+          ? {
+              ...agendaAutomationFollowUpDraft,
+              title: agendaAutomationFollowUpDraft.title.trim(),
+              action: {
+                ...agendaAutomationFollowUpDraft.action,
+                templateVariables: {
+                  ...agendaAutomationFollowUpDraft.action.templateVariables,
+                },
+                templateRequiredVariables: [
+                  ...agendaAutomationFollowUpDraft.action
+                    .templateRequiredVariables,
+                ],
+              },
+            }
+          : null,
+    }
+    setAgendaAutomations((current) =>
+      editingAgendaAutomationId
+        ? current.map((automation) =>
+            automation.id === editingAgendaAutomationId
+              ? actionStep
+              : automation,
+          )
+        : [...current, actionStep],
+    )
+    const parentExpansionIds: string[] = []
+    let ancestorId = agendaAutomationParentId
+
+    while (ancestorId) {
+      parentExpansionIds.push(ancestorId)
+      ancestorId =
+        agendaAutomations.find((automation) => automation.id === ancestorId)
+          ?.parentId ?? ''
+    }
+
+    setExpandedAgendaAutomationIds((currentIds) => [
+      ...new Set([...currentIds, ...parentExpansionIds]),
+    ])
+    handleCancelAgendaAutomation()
+  }
+
+  const renderAgendaAutomationSaveButton = () => (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: 8,
+      }}
+    >
+      <button
+        type="button"
+        onClick={handleCancelAgendaAutomation}
+        style={{
+          height: isMobile ? 46 : 42,
+          border: '1px solid #d7dce4',
+          borderRadius: 8,
+          background: '#ffffff',
+          color: '#475569',
+          fontSize: isMobile ? 14 : 13,
+          fontWeight: 700,
+          cursor: 'pointer',
+        }}
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        onClick={handleSaveAgendaAutomation}
+        disabled={!canSaveAgendaAutomation}
+        style={{
+          height: isMobile ? 46 : 42,
+          border: 'none',
+          borderRadius: 8,
+          background: canSaveAgendaAutomation
+            ? interactionTheme.primaryButtonBackground
+            : '#e5e7eb',
+          color: canSaveAgendaAutomation ? '#ffffff' : '#94a3b8',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          fontSize: isMobile ? 14 : 13,
+          fontWeight: 700,
+          cursor: canSaveAgendaAutomation ? 'pointer' : 'not-allowed',
+        }}
+      >
+        <Save size={16} />
+        {editingAgendaAutomationId ? 'Salvar alterações' : 'Salvar'}
+      </button>
+    </div>
+  )
+
+  const renderAgendaAutomationList = () => {
+    const getOptionLabel = <T extends string>(
+      options: Array<{ value: T; label: string }>,
+      value: T,
+    ) => options.find((option) => option.value === value)?.label ?? value
+    const getWaitDescription = (automation: AgendaAutomationActionItem) => {
+      if (automation.waitTime === 0) {
+        return 'Imediatamente'
+      }
+
+      const unitLabels: Record<
+        AgendaAutomationWaitUnit,
+        [singular: string, plural: string]
+      > = {
+        minutes: ['minuto', 'minutos'],
+        hours: ['hora', 'horas'],
+        days: ['dia', 'dias'],
+      }
+      const [singular, plural] = unitLabels[automation.waitUnit]
+      const parent = agendaAutomations.find(
+        (candidate) => candidate.id === automation.parentId,
+      )
+      const prefix =
+        parent?.type === 'condition' &&
+        isAgendaReplyCondition(parent.conditionType)
+          ? 'Aguardar'
+          : 'Após'
+
+      return `${prefix} ${automation.waitTime} ${automation.waitTime === 1 ? singular : plural}`
+    }
+    const getActionIcon = (
+      automation: AgendaAutomationActionItem,
+    ): AgendaAutomationTreeIcon => {
+      if (automation.actionType === 'createFollowUp') {
+        if (automation.followUp?.action.type === 'send_email') return 'mail'
+        if (automation.followUp?.action.type === 'send_message')
+          return 'message'
+        return 'agenda'
+      }
+      if (automation.actionType === 'qualifyLead') return 'user'
+      if (automation.actionType === 'changeNegotiationStage') return 'stage'
+      if (automation.actionType === 'changeNegotiationStatus') return 'status'
+      if (automation.actionType === 'changeNegotiationTemperature')
+        return 'temperature'
+      if (automation.actionType === 'archiveLead') return 'archive'
+      return 'delete'
+    }
+    const getActionTitle = (automation: AgendaAutomationActionItem) => {
+      if (automation.actionType !== 'createFollowUp') {
+        return getOptionLabel(
+          agendaAutomationActionOptions,
+          automation.actionType,
+        )
+      }
+
+      const followUpTypeLabels: Partial<
+        Record<FollowUpActionDraft['type'], string>
+      > = {
+        agenda: 'Agenda',
+        send_email: 'Email',
+        send_message: 'Mensagem',
+      }
+
+      return `Criar follow-up - ${followUpTypeLabels[automation.followUp?.action.type ?? ''] ?? 'Agenda'}`
+    }
+    const getActionDetail = (automation: AgendaAutomationActionItem) => {
+      if (automation.followUp) {
+        return automation.followUp.title
+      }
+
+      const valueOptions = agendaAutomationValueOptions[automation.actionType]
+      if (!valueOptions || !automation.value) {
+        return undefined
+      }
+
+      return (
+        valueOptions.find((option) => option.value === automation.value)
+          ?.label ?? automation.value
+      )
+    }
+    const getActionDescription = (automation: AgendaAutomationActionItem) => {
+      const waitDescription = getWaitDescription(automation)
+      let baseDueAt = agendaFollowUpDraft.dueAt
+      let ancestorId = automation.parentId
+
+      while (ancestorId) {
+        const ancestor = agendaAutomations.find(
+          (candidate) => candidate.id === ancestorId,
+        )
+
+        if (
+          ancestor?.type === 'action' &&
+          ancestor.actionType === 'createFollowUp' &&
+          ancestor.followUp?.dueAt
+        ) {
+          baseDueAt = ancestor.followUp.dueAt
+          break
+        }
+        ancestorId = ancestor?.parentId ?? null
+      }
+
+      const baseDate = parseApiDateToBrowserDate(baseDueAt)
+      const waitMilliseconds =
+        automation.waitTime *
+        (automation.waitUnit === 'days'
+          ? 24 * 60 * 60 * 1000
+          : automation.waitUnit === 'hours'
+            ? 60 * 60 * 1000
+            : 60 * 1000)
+      const scheduledAtLabel = baseDate
+        ? formatDateTime(
+            new Date(baseDate.getTime() + waitMilliseconds).toISOString(),
+          )
+        : '-'
+
+      return `${waitDescription} - ${scheduledAtLabel}`
+    }
+    const buildAutomationNode = (
+      automation: AgendaAutomationItem,
+      displayId: string,
+    ): AgendaAutomationTreeNode => {
+      const childNodes = agendaAutomations
+        .filter((candidate) => candidate.parentId === automation.id)
+        .map((childAutomation, index) =>
+          buildAutomationNode(childAutomation, `${displayId}.${index + 1}`),
+        )
+
+      if (automation.type === 'action') {
+        return {
+          id: automation.id,
+          automationId: automation.id,
+          displayId,
+          title: getActionTitle(automation),
+          description: getActionDescription(automation),
+          detail: getActionDetail(automation),
+          icon: getActionIcon(automation),
+          children: childNodes.length ? childNodes : undefined,
+        }
+      }
+
+      return {
+        id: automation.id,
+        automationId: automation.id,
+        displayId,
+        title: getOptionLabel(
+          agendaAutomationConditionOptions,
+          automation.conditionType,
+        ),
+        icon:
+          automation.conditionType === 'replied'
+            ? 'mail'
+            : automation.conditionType === 'deadlineReached'
+              ? 'agenda'
+              : 'viewed',
+        children: childNodes.length ? childNodes : undefined,
+      }
+    }
+    const automationTree = agendaAutomations
+      .filter(
+        (automation) =>
+          !automation.parentId ||
+          !agendaAutomations.some(
+            (candidate) => candidate.id === automation.parentId,
+          ),
+      )
+      .map((automation, index) =>
+        buildAutomationNode(automation, `${index + 1}`),
+      )
+    const handleAddChildAutomation = (automationId: string) => {
+      setEditingAgendaAutomationId(null)
+      setAgendaAutomationParentId(automationId)
+      setAgendaAutomationAction('')
+      setAgendaAutomationValue('')
+      setAgendaAutomationExecutionTiming('immediately')
+      setAgendaAutomationWaitTime('')
+      setAgendaAutomationWaitUnit('minutes')
+      setAgendaAutomationFollowUpDraft(initialAgendaAutomationFollowUpDraft)
+      setActiveAgendaFollowUpFormTab('automation')
+    }
+    const handleEditAutomation = (automation: AgendaAutomationActionItem) => {
+      setEditingAgendaAutomationId(automation.id)
+      setAgendaAutomationParentId(automation.parentId ?? '')
+      setAgendaAutomationAction(automation.actionType)
+      setAgendaAutomationValue(automation.value)
+      setAgendaAutomationExecutionTiming(
+        automation.waitTime === 0 ? 'immediately' : 'afterPeriod',
+      )
+      setAgendaAutomationWaitTime(String(automation.waitTime))
+      setAgendaAutomationWaitUnit(automation.waitUnit)
+      setAgendaAutomationFollowUpDraft(
+        automation.followUp
+          ? {
+              ...automation.followUp,
+              action: {
+                ...automation.followUp.action,
+                templateVariables: {
+                  ...automation.followUp.action.templateVariables,
+                },
+                templateRequiredVariables: [
+                  ...automation.followUp.action.templateRequiredVariables,
+                ],
+              },
+            }
+          : initialAgendaAutomationFollowUpDraft,
+      )
+      setActiveAgendaFollowUpFormTab('automation')
+    }
+    const handleAddFollowUpCondition = (
+      automationId: string,
+      conditionType: AgendaAutomationCondition,
+    ) => {
+      const conditionId = crypto.randomUUID()
+
+      setAgendaAutomations((current) => [
+        ...current,
+        {
+          id: conditionId,
+          parentId: automationId,
+          type: 'condition',
+          conditionType,
+        },
+      ])
+      setExpandedAgendaAutomationIds((currentIds) => [
+        ...new Set([...currentIds, automationId]),
+      ])
+      setOpenFollowUpConditionMenuId(null)
+    }
+    const handleDeleteAutomation = (automationId: string) => {
+      const automationIdsToDelete = new Set([automationId])
+      let foundDescendant = true
+
+      while (foundDescendant) {
+        foundDescendant = false
+        agendaAutomations.forEach((automation) => {
+          if (
+            automation.parentId &&
+            automationIdsToDelete.has(automation.parentId) &&
+            !automationIdsToDelete.has(automation.id)
+          ) {
+            automationIdsToDelete.add(automation.id)
+            foundDescendant = true
+          }
+        })
+      }
+
+      setAgendaAutomations((current) =>
+        current.filter(
+          (automation) => !automationIdsToDelete.has(automation.id),
+        ),
+      )
+      setExpandedAgendaAutomationIds((currentIds) =>
+        currentIds.filter((id) => !automationIdsToDelete.has(id)),
+      )
+      if (automationIdsToDelete.has(agendaAutomationParentId)) {
+        setAgendaAutomationParentId('')
+      }
+      setConfirmingDeleteAgendaAutomationId(null)
+      setOpenFollowUpConditionMenuId(null)
+    }
+    const handleSaveRootCondition = () => {
+      if (
+        !rootAgendaAutomationCondition ||
+        !hasValidRootAgendaAutomationCondition
+      ) {
+        return
+      }
+
+      setAgendaAutomations((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          parentId: null,
+          type: 'condition',
+          conditionType: rootAgendaAutomationCondition,
+        },
+      ])
+      setRootAgendaAutomationCondition('')
+      setIsAddingRootAgendaAutomationCondition(false)
+    }
+    const toggleAutomationNode = (id: string) => {
+      setExpandedAgendaAutomationIds((currentIds) =>
+        currentIds.includes(id)
+          ? currentIds.filter((currentId) => currentId !== id)
+          : [...currentIds, id],
+      )
+    }
+    const renderAutomationIcon = (icon: AgendaAutomationTreeIcon) => {
+      const iconProps = { size: isMobile ? 19 : 20, strokeWidth: 2 }
+
+      if (icon === 'mail') return <Mail {...iconProps} />
+      if (icon === 'user') return <UserRound {...iconProps} />
+      if (icon === 'agenda') return <CalendarClock {...iconProps} />
+      if (icon === 'archive') return <Archive {...iconProps} />
+      if (icon === 'delete') return <Trash2 {...iconProps} />
+      if (icon === 'stage') return <GitBranch {...iconProps} />
+      if (icon === 'status') return <BriefcaseBusiness {...iconProps} />
+      if (icon === 'temperature') return <Thermometer {...iconProps} />
+      if (icon === 'viewed') return <MailX {...iconProps} />
+      if (icon === 'followUp') return <FileText {...iconProps} />
+      return <MessageCircle {...iconProps} />
+    }
+    const renderAutomationNode = (node: AgendaAutomationTreeNode) => {
+      const hasChildren = Boolean(node.children?.length)
+      const isExpanded = expandedAgendaAutomationIds.includes(node.id)
+      const sourceAutomation = agendaAutomations.find(
+        (automation) => automation.id === node.automationId,
+      )
+      const isAction = sourceAutomation?.type === 'action'
+      const canHaveChildren = canAgendaAutomationHaveChildren(sourceAutomation)
+      const isConfirmingDelete = confirmingDeleteAgendaAutomationId === node.id
+      const automationTypeLabel = isAction ? 'Ação' : 'Condição'
+
+      return (
+        <div key={node.id}>
+          <article
+            style={{
+              minHeight: isMobile ? 68 : 62,
+              display: 'grid',
+              gridTemplateColumns: `${hasChildren ? `${isMobile ? 22 : 26}px ` : ''}${
+                isMobile ? 40 : 46
+              }px minmax(0, 1fr) ${isAction && canHaveChildren ? (isMobile ? 84 : 98) : isMobile ? 56 : 64}px`,
+              alignItems: 'center',
+              gap: isMobile ? 8 : 12,
+              padding: isMobile ? '8px 10px' : '8px 12px',
+              border: '1px solid #e1e7ef',
+              borderRadius: 8,
+              background: '#f9fbfd',
+              boxSizing: 'border-box',
+            }}
+          >
+            {isConfirmingDelete ? (
+              <>
+                <strong
+                  style={{
+                    gridColumn: '1 / -2',
+                    color: '#111827',
+                    fontSize: isMobile ? 13 : 14,
+                  }}
+                >
+                  Deseja deletar {automationTypeLabel}?
+                </strong>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 8,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label="Cancelar exclusão de automação"
+                    onClick={() => setConfirmingDeleteAgendaAutomationId(null)}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#4b5563',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Confirmar exclusão de automação"
+                    onClick={() => handleDeleteAutomation(node.automationId)}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#16a34a',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Check size={16} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    aria-label={`${isExpanded ? 'Recolher' : 'Expandir'} ${node.title}`}
+                    onClick={() => toggleAutomationNode(node.id)}
+                    style={{
+                      width: isMobile ? 22 : 26,
+                      height: isMobile ? 22 : 26,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#172554',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown size={isMobile ? 18 : 20} />
+                    ) : (
+                      <ChevronRight size={isMobile ? 18 : 20} />
+                    )}
+                  </button>
+                ) : null}
+
+                <span
+                  style={{
+                    width: isMobile ? 40 : 46,
+                    height: isMobile ? 40 : 46,
+                    borderRadius: 8,
+                    color: interactionTheme.activeIconColor,
+                    background: interactionTheme.clickableCardHoverBackground,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {renderAutomationIcon(node.icon)}
+                </span>
+
+                <span style={{ minWidth: 0, display: 'grid', gap: 3 }}>
+                  <strong
+                    style={{
+                      color: '#18233f',
+                      fontSize: isMobile ? 13 : 14,
+                      fontWeight: 750,
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {node.displayId}. {node.title}
+                  </strong>
+                  {node.description ? (
+                    <span
+                      style={{
+                        color: '#64748b',
+                        fontSize: isMobile ? 11 : 12,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {node.description}
+                    </span>
+                  ) : null}
+                  {node.detail ? (
+                    <span
+                      style={{
+                        color: '#475569',
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: 600,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {node.detail}
+                    </span>
+                  ) : null}
+                </span>
+
+                <div
+                  ref={
+                    openFollowUpConditionMenuId === node.id
+                      ? openFollowUpConditionMenuRef
+                      : undefined
+                  }
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Deletar ${node.title}`}
+                    title="Deletar"
+                    onClick={() =>
+                      setConfirmingDeleteAgendaAutomationId(node.id)
+                    }
+                    style={{
+                      width: isMobile ? 26 : 30,
+                      height: isMobile ? 26 : 30,
+                      padding: 0,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: '#b91c1c',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                  {isAction ? (
+                    <button
+                      type="button"
+                      aria-label={`Editar ${node.title}`}
+                      title="Editar"
+                      onClick={() => {
+                        if (sourceAutomation?.type === 'action') {
+                          handleEditAutomation(sourceAutomation)
+                        }
+                      }}
+                      style={{
+                        width: isMobile ? 26 : 30,
+                        height: isMobile ? 26 : 30,
+                        padding: 0,
+                        border: 'none',
+                        borderRadius: 6,
+                        background: 'transparent',
+                        color: '#183153',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Pencil size={17} />
+                    </button>
+                  ) : null}
+                  {canHaveChildren ? (
+                    <button
+                      type="button"
+                      aria-label={`Adicionar ${isMessageFollowUpAutomation(sourceAutomation) ? 'condição' : 'ação'} filha a ${node.title}`}
+                      title={
+                        isMessageFollowUpAutomation(sourceAutomation)
+                          ? 'Adicionar condição'
+                          : 'Adicionar ação'
+                      }
+                      onClick={() => {
+                        if (sourceAutomation?.type === 'condition') {
+                          handleAddChildAutomation(node.automationId)
+                          return
+                        }
+
+                        if (isMessageFollowUpAutomation(sourceAutomation)) {
+                          setOpenFollowUpConditionMenuId((currentId) =>
+                            currentId === node.id ? null : node.id,
+                          )
+                        }
+                      }}
+                      style={{
+                        width: isMobile ? 26 : 30,
+                        height: isMobile ? 26 : 30,
+                        padding: 0,
+                        border: 'none',
+                        borderRadius: 6,
+                        background: 'transparent',
+                        color: '#183153',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={18} />
+                    </button>
+                  ) : null}
+
+                  {openFollowUpConditionMenuId === node.id ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        zIndex: 20,
+                        top: 'calc(100% + 6px)',
+                        right: 0,
+                        width: 210,
+                        padding: 6,
+                        border: '1px solid #e1e7ef',
+                        borderRadius: 8,
+                        background: '#ffffff',
+                        boxShadow: '0 12px 28px rgba(15, 23, 42, 0.14)',
+                        display: 'grid',
+                        gap: 2,
+                      }}
+                    >
+                      {agendaAutomationConditionOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            handleAddFollowUpCondition(
+                              node.automationId,
+                              option.value,
+                            )
+                          }
+                          style={{
+                            border: 'none',
+                            borderRadius: 6,
+                            background: 'transparent',
+                            color: '#263552',
+                            padding: '9px 10px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </article>
+
+          {hasChildren && isExpanded ? (
+            <div
+              style={{
+                display: 'grid',
+                gap: 8,
+                marginLeft: isMobile ? 20 : 24,
+                paddingTop: 8,
+                borderLeft: '1.5px solid #b9c9dc',
+              }}
+            >
+              {node.children?.map((childNode) => (
+                <div
+                  key={childNode.id}
+                  style={{
+                    position: 'relative',
+                    paddingLeft: isMobile ? 18 : 24,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: isMobile ? 33 : 30,
+                      width: isMobile ? 18 : 24,
+                      borderTop: '1.5px solid #b9c9dc',
+                    }}
+                  />
+                  {renderAutomationNode(childNode)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )
+    }
+
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          height: '100%',
+        }}
+      >
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            gap: 14,
+            padding: isMobile ? 12 : 14,
+            border: '1px solid #e1e7ef',
+            borderRadius: 10,
+            background: '#ffffff',
+          }}
+        >
+          <header
+            style={{
+              display: 'flex',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <span style={{ minWidth: 0, display: 'grid', gap: 3 }}>
+              <strong
+                style={{
+                  color: '#18233f',
+                  fontSize: isMobile ? 17 : 18,
+                  lineHeight: 1.2,
+                }}
+              >
+                Árvore de automações
+              </strong>
+              <span
+                style={{
+                  color: '#64748b',
+                  fontSize: isMobile ? 11 : 12,
+                  lineHeight: 1.35,
+                }}
+              >
+                Visualize e gerencie suas automações e suas ramificações.
+              </span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOpenFollowUpConditionMenuId(null)
+                if (!isAddingRootAgendaAutomationCondition) {
+                  setRootAgendaAutomationCondition('')
+                  setIsAddingRootAgendaAutomationCondition(true)
+                }
+              }}
+              style={{
+                width: 'fit-content',
+                flexShrink: 0,
+                height: 42,
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                background: '#ffffff',
+                color: '#555555',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 14px',
+                textAlign: 'left',
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1.2,
+                cursor: 'pointer',
+              }}
+            >
+              + Adicionar condição
+            </button>
+          </header>
+
+          <div
+            ref={agendaAutomationListRef}
+            style={{
+              display: 'grid',
+              alignContent: 'start',
+              gap: 10,
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+          >
+            {automationTree.length ? (
+              automationTree.map(renderAutomationNode)
+            ) : !isAddingRootAgendaAutomationCondition ? (
+              <span
+                style={{
+                  padding: '24px 12px',
+                  color: '#64748b',
+                  fontSize: 13,
+                  textAlign: 'center',
+                }}
+              >
+                Nenhuma automação adicionada.
+              </span>
+            ) : null}
+            {isAddingRootAgendaAutomationCondition ? (
+              <div
+                style={{
+                  order: -1,
+                  minHeight: isMobile ? 68 : 62,
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  alignItems: 'center',
+                  gap: isMobile ? 8 : 12,
+                  padding: isMobile ? '8px 10px' : '8px 12px',
+                  border: '1px solid #e1e7ef',
+                  borderRadius: 8,
+                  background: '#f9fbfd',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <select
+                  aria-label="Condição"
+                  value={rootAgendaAutomationCondition}
+                  onChange={(event) =>
+                    setRootAgendaAutomationCondition(
+                      event.target.value as AgendaAutomationCondition | '',
+                    )
+                  }
+                  style={agendaFollowUpSelectStyle}
+                >
+                  <option value="">Selecione a condição</option>
+                  {rootAgendaAutomationConditionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label="Cancelar adição de condição"
+                    title="Cancelar"
+                    onClick={() => {
+                      setRootAgendaAutomationCondition('')
+                      setIsAddingRootAgendaAutomationCondition(false)
+                    }}
+                    style={{
+                      width: isMobile ? 38 : 42,
+                      height: isMobile ? 38 : 42,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#4b5563',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Salvar condição"
+                    title="Salvar"
+                    disabled={!hasValidRootAgendaAutomationCondition}
+                    onClick={handleSaveRootCondition}
+                    style={{
+                      width: isMobile ? 38 : 42,
+                      height: isMobile ? 38 : 42,
+                      border: 'none',
+                      background: 'transparent',
+                      color: hasValidRootAgendaAutomationCondition
+                        ? '#16a34a'
+                        : '#94a3b8',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: hasValidRootAgendaAutomationCondition
+                        ? 'pointer'
+                        : 'not-allowed',
+                      opacity: hasValidRootAgendaAutomationCondition ? 1 : 0.6,
+                    }}
+                  >
+                    <Check size={18} />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  const renderAgendaFollowUpFormTabs = () => {
+    const tabs: Array<{ key: AgendaFollowUpFormTab; label: string }> = [
+      { key: 'information', label: 'Dados' },
+      { key: 'automationList', label: 'Automações' },
+      { key: 'automation', label: 'Ação' },
+    ]
+
+    return (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+          gap: 4,
+          width: '100%',
+          padding: 4,
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          background: '#f8fafc',
+          boxSizing: 'border-box',
+        }}
+      >
+        {tabs.map((tab) => {
+          const isActive = activeAgendaFollowUpFormTab === tab.key
+          const isActionTab = tab.key === 'automation'
+          const isAutomationListDisabled =
+            tab.key === 'automationList' && !canConfirmAgendaFollowUp
+          const isDisabled = isActionTab || isAutomationListDisabled
+
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => setActiveAgendaFollowUpFormTab(tab.key)}
+              style={{
+                minWidth: 0,
+                height: 36,
+                border: 'none',
+                borderRadius: 6,
+                background: isActive
+                  ? isMobile
+                    ? '#dcfce7'
+                    : interactionTheme.clickableCardHoverBackground
+                  : 'transparent',
+                color: isActive
+                  ? isMobile
+                    ? '#1f7a4d'
+                    : interactionTheme.activeIconColor
+                  : '#6b7280',
+                padding: '0 6px',
+                fontSize: isMobile ? 11 : 13,
+                fontWeight: isActive ? 700 : 600,
+                cursor: isDisabled ? 'default' : 'pointer',
+                opacity: isDisabled && !isActive ? 0.6 : 1,
+              }}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   const leadsById = useMemo(
     () =>
@@ -837,12 +2429,16 @@ export default function AgendaPage() {
   }, [agendaReloadVersion])
 
   useEffect(() => {
+    if (isCreatingAgendaFollowUp || isLeadFollowUpEditing) {
+      return
+    }
+
     const refreshInterval = window.setInterval(() => {
       setAgendaReloadVersion((current) => current + 1)
     }, 60_000)
 
     return () => window.clearInterval(refreshInterval)
-  }, [])
+  }, [isCreatingAgendaFollowUp, isLeadFollowUpEditing])
 
   const handleLeadUpdated = () => {
     setShouldRefreshOnLeadClose(true)
@@ -936,9 +2532,27 @@ export default function AgendaPage() {
       const createdFollowUp = await WebhookService.createNegotiationFollowUp({
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
-        actions: [toFollowUpActionPayload(agendaFollowUpDraft.action)],
+        steps: [toFollowUpActionPayload(agendaFollowUpDraft.action)],
         dueAt: agendaFollowUpDraft.dueAt,
       })
+
+      if (agendaAutomations.length > 0) {
+        try {
+          await WebhookService.createFollowUpStepTree({
+            followUpId: createdFollowUp.id,
+            steps: agendaAutomations.map(toAgendaAutomationStepPayload),
+          })
+        } catch (exception: unknown) {
+          try {
+            await WebhookService.deleteNegotiationFollowUp(createdFollowUp.id)
+          } catch {
+            throw new Error(
+              'O follow-up foi criado, mas não foi possível criar as automações nem desfazer a criação.',
+            )
+          }
+          throw exception
+        }
+      }
 
       setAgendaReloadVersion((current) => current + 1)
       closeAgendaFollowUpPanel()
@@ -962,6 +2576,21 @@ export default function AgendaPage() {
 
   const closeAgendaFollowUpPanel = () => {
     setIsCreatingAgendaFollowUp(false)
+    setActiveAgendaFollowUpFormTab('information')
+    setAgendaAutomationAction('')
+    setAgendaAutomationParentId('')
+    setAgendaAutomationValue('')
+    setAgendaAutomationExecutionTiming('immediately')
+    setAgendaAutomationWaitTime('')
+    setAgendaAutomationWaitUnit('minutes')
+    setAgendaAutomationFollowUpDraft(initialAgendaAutomationFollowUpDraft)
+    setAgendaAutomations([])
+    setExpandedAgendaAutomationIds([])
+    setEditingAgendaAutomationId(null)
+    setIsAddingRootAgendaAutomationCondition(false)
+    setRootAgendaAutomationCondition('')
+    setOpenFollowUpConditionMenuId(null)
+    setConfirmingDeleteAgendaAutomationId(null)
     setAgendaFollowUpDraft(initialAgendaFollowUpDraft)
     setAgendaFollowUpError(null)
   }
@@ -990,16 +2619,22 @@ export default function AgendaPage() {
         return
       }
 
+      const followUpSteps = followUp.steps ?? []
+      const primaryActionId = findPrimaryFollowUpActionStep(followUpSteps)?.id
+
       rows.push({
         followUpId: followUp.id,
         leadId: negocio.leadId,
         negotiationId: negocio.id,
         leadName: leadData.name,
         negotiationTitle: negocio.title?.trim() || 'Negócio sem nome',
+        automationActionCount: followUpSteps.filter(
+          (step) => step.type === 'action' && step.id !== primaryActionId,
+        ).length,
         title: toSafeText(followUp.title),
         dueAt: toSafeText(followUp.dueAt),
         status: toSafeFollowUpStatus(followUp.status),
-        actions: followUp.actions ?? [],
+        actions: followUpSteps,
         leadIsFavorite: leadData.isFavorite,
         leadState: leadData.state,
         leadCreatedAt: leadData.createdAt,
@@ -1723,7 +3358,7 @@ export default function AgendaPage() {
                 maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
-                background: '#ffffff',
+                background: '#fcfdff',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1809,98 +3444,235 @@ export default function AgendaPage() {
                 </div>
               </div>
 
+              <div style={{ padding: '0 18px', flexShrink: 0 }}>
+                {renderAgendaFollowUpFormTabs()}
+              </div>
+
               <div
                 style={{
-                  display: 'grid',
+                  display:
+                    activeAgendaFollowUpFormTab === 'automationList'
+                      ? 'flex'
+                      : 'grid',
+                  flexDirection: 'column',
                   gap: 16,
                   flex: 1,
                   minHeight: 0,
-                  overflowY: 'auto',
+                  overflowY:
+                    activeAgendaFollowUpFormTab === 'automationList'
+                      ? 'hidden'
+                      : 'auto',
                   overflowX: 'hidden',
                   padding: '18px 18px 28px',
                   boxSizing: 'border-box',
                 }}
               >
-                {agendaFollowUpError ? (
-                  <p style={{ margin: 0, color: '#b91c1c' }}>
-                    {agendaFollowUpError}
-                  </p>
-                ) : null}
+                <div
+                  style={{
+                    display:
+                      activeAgendaFollowUpFormTab === 'information'
+                        ? 'contents'
+                        : 'none',
+                  }}
+                >
+                  {agendaFollowUpError ? (
+                    <p style={{ margin: 0, color: '#b91c1c' }}>
+                      {agendaFollowUpError}
+                    </p>
+                  ) : null}
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={agendaFollowUpDraft.leadId}
-                      onChange={(event) => {
-                        setAgendaFollowUpDraft((currentDraft) => ({
-                          ...currentDraft,
-                          leadId: event.target.value,
-                          negotiationId: '',
-                          action: initialFollowUpActionDraft,
-                        }))
-                      }}
-                      style={{
-                        ...agendaFollowUpSelectStyle,
-                        padding: '0 42px 0 14px',
-                        color: agendaFollowUpDraft.leadId
-                          ? '#111827'
-                          : '#6b7280',
-                        appearance: 'none',
-                      }}
-                    >
-                      <option value="">Selecione</option>
-                      {activeLeads.map((lead, index) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.name?.trim() || `Lead ${index + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                    <span
-                      style={{
-                        position: 'absolute',
-                        right: 12,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#6b7280',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <ChevronDown size={18} />
-                    </span>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={agendaFollowUpDraft.leadId}
+                        onChange={(event) => {
+                          setAgendaFollowUpDraft((currentDraft) => ({
+                            ...currentDraft,
+                            leadId: event.target.value,
+                            negotiationId: '',
+                            action: initialFollowUpActionDraft,
+                          }))
+                        }}
+                        style={{
+                          ...agendaFollowUpSelectStyle,
+                          padding: '0 42px 0 14px',
+                          color: agendaFollowUpDraft.leadId
+                            ? '#111827'
+                            : '#6b7280',
+                          appearance: 'none',
+                        }}
+                      >
+                        <option value="">Selecione</option>
+                        {activeLeads.map((lead, index) => (
+                          <option key={lead.id} value={lead.id}>
+                            {lead.name?.trim() || `Lead ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#6b7280',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <ChevronDown size={18} />
+                      </span>
+                    </div>
                   </div>
+
+                  {agendaFollowUpDraft.leadId ? (
+                    <>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={agendaFollowUpFieldLabelStyle}>
+                          Negócio
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <select
+                            value={agendaFollowUpDraft.negotiationId}
+                            onChange={(event) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                negotiationId: event.target.value,
+                              }))
+                            }
+                            style={{
+                              ...agendaFollowUpSelectStyle,
+                              padding: '0 42px 0 14px',
+                              color: agendaFollowUpDraft.negotiationId
+                                ? '#111827'
+                                : '#6b7280',
+                              appearance: 'none',
+                            }}
+                          >
+                            <option value="">Sem condição</option>
+                            {agendaFollowUpBusinesses.map((negocio) => (
+                              <option key={negocio.id} value={negocio.id}>
+                                {negocio.title ?? 'Negócio sem nome'}
+                              </option>
+                            ))}
+                          </select>
+                          <span
+                            style={{
+                              position: 'absolute',
+                              right: 12,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: '#6b7280',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            <ChevronDown size={18} />
+                          </span>
+                        </div>
+                        {agendaFollowUpBusinesses.length === 0 ? (
+                          <p
+                            style={{
+                              margin: 0,
+                              color: '#6b7280',
+                              fontSize: 12,
+                            }}
+                          >
+                            Esse lead ainda não tem negócios.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {agendaFollowUpDraft.negotiationId ? (
+                        <>
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            <label style={agendaFollowUpFieldLabelStyle}>
+                              Nome do Follow-up
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Nome do Follow-up"
+                              value={agendaFollowUpDraft.title}
+                              onChange={(event) =>
+                                setAgendaFollowUpDraft((currentDraft) => ({
+                                  ...currentDraft,
+                                  title: event.target.value,
+                                }))
+                              }
+                              style={agendaFollowUpInputStyle}
+                            />
+                          </div>
+
+                          <FollowUpActionFields
+                            value={agendaFollowUpDraft.action}
+                            onChange={(action) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                action,
+                              }))
+                            }
+                            leadSource={selectedAgendaLead?.source}
+                            leadEmail={selectedAgendaLead?.email}
+                            leadPhone={selectedAgendaLead?.phone}
+                            isMobile
+                          />
+
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            <label style={agendaFollowUpFieldLabelStyle}>
+                              Data/Hora
+                            </label>
+                            <AgendaDateTimeInput
+                              value={agendaFollowUpDraft.dueAt}
+                              onChange={(nextValue) =>
+                                setAgendaFollowUpDraft((currentDraft) => ({
+                                  ...currentDraft,
+                                  dueAt: nextValue,
+                                }))
+                              }
+                              isMobile
+                            />
+                          </div>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
+                      Selecione um lead para continuar.
+                    </p>
+                  )}
                 </div>
 
-                {agendaFollowUpDraft.leadId ? (
-                  <>
+                {activeAgendaFollowUpFormTab === 'automation' ? (
+                  <div style={{ display: 'grid', gap: 16 }}>
+                    {renderAgendaAutomationWaitTimeFields()}
+
                     <div style={{ display: 'grid', gap: 8 }}>
-                      <label style={agendaFollowUpFieldLabelStyle}>
-                        Negócio
-                      </label>
+                      <label style={agendaFollowUpFieldLabelStyle}>Ação</label>
                       <div style={{ position: 'relative' }}>
                         <select
-                          value={agendaFollowUpDraft.negotiationId}
-                          onChange={(event) =>
-                            setAgendaFollowUpDraft((currentDraft) => ({
-                              ...currentDraft,
-                              negotiationId: event.target.value,
-                            }))
-                          }
+                          value={agendaAutomationAction}
+                          onChange={(event) => {
+                            setAgendaAutomationAction(
+                              event.target.value as AgendaAutomationAction | '',
+                            )
+                            setAgendaAutomationValue('')
+                          }}
                           style={{
                             ...agendaFollowUpSelectStyle,
                             padding: '0 42px 0 14px',
-                            color: agendaFollowUpDraft.negotiationId
+                            color: agendaAutomationAction
                               ? '#111827'
                               : '#6b7280',
                             appearance: 'none',
                           }}
                         >
-                          <option value="">Selecione</option>
-                          {agendaFollowUpBusinesses.map((negocio) => (
-                            <option key={negocio.id} value={negocio.id}>
-                              {negocio.title ?? 'Negócio sem nome'}
-                            </option>
-                          ))}
+                          <option value="">Sem condição</option>
+                          {availableAgendaAutomationActionOptions.map(
+                            (option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ),
+                          )}
                         </select>
                         <span
                           style={{
@@ -1915,72 +3687,62 @@ export default function AgendaPage() {
                           <ChevronDown size={18} />
                         </span>
                       </div>
-                      {agendaFollowUpBusinesses.length === 0 ? (
-                        <p
-                          style={{ margin: 0, color: '#6b7280', fontSize: 12 }}
-                        >
-                          Esse lead ainda não tem negócios.
-                        </p>
-                      ) : null}
                     </div>
 
-                    {agendaFollowUpDraft.negotiationId ? (
-                      <>
-                        <div style={{ display: 'grid', gap: 8 }}>
-                          <label style={agendaFollowUpFieldLabelStyle}>
-                            Nome do Follow-up
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Nome do Follow-up"
-                            value={agendaFollowUpDraft.title}
+                    {selectedAgendaAutomationValueOptions &&
+                    selectedAgendaAutomationValueLabel ? (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={agendaFollowUpFieldLabelStyle}>
+                          {selectedAgendaAutomationValueLabel}
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <select
+                            value={agendaAutomationValue}
                             onChange={(event) =>
-                              setAgendaFollowUpDraft((currentDraft) => ({
-                                ...currentDraft,
-                                title: event.target.value,
-                              }))
+                              setAgendaAutomationValue(event.target.value)
                             }
-                            style={agendaFollowUpInputStyle}
-                          />
+                            style={{
+                              ...agendaFollowUpSelectStyle,
+                              padding: '0 42px 0 14px',
+                              color: agendaAutomationValue
+                                ? '#111827'
+                                : '#6b7280',
+                              appearance: 'none',
+                            }}
+                          >
+                            <option value="">Selecione</option>
+                            {selectedAgendaAutomationValueOptions.map(
+                              (option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                          <span
+                            style={{
+                              position: 'absolute',
+                              right: 12,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: '#6b7280',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            <ChevronDown size={18} />
+                          </span>
                         </div>
-
-                        <FollowUpActionFields
-                          value={agendaFollowUpDraft.action}
-                          onChange={(action) =>
-                            setAgendaFollowUpDraft((currentDraft) => ({
-                              ...currentDraft,
-                              action,
-                            }))
-                          }
-                          leadSource={selectedAgendaLead?.source}
-                          leadEmail={selectedAgendaLead?.email}
-                          leadPhone={selectedAgendaLead?.phone}
-                          isMobile
-                        />
-
-                        <div style={{ display: 'grid', gap: 8 }}>
-                          <label style={agendaFollowUpFieldLabelStyle}>
-                            Data/Hora
-                          </label>
-                          <AgendaDateTimeInput
-                            value={agendaFollowUpDraft.dueAt}
-                            onChange={(nextValue) =>
-                              setAgendaFollowUpDraft((currentDraft) => ({
-                                ...currentDraft,
-                                dueAt: nextValue,
-                              }))
-                            }
-                            isMobile
-                          />
-                        </div>
-                      </>
+                      </div>
                     ) : null}
-                  </>
-                ) : (
-                  <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
-                    Selecione um lead para continuar.
-                  </p>
-                )}
+
+                    {renderAgendaAutomationFollowUpFields()}
+                    {renderAgendaAutomationSaveButton()}
+                  </div>
+                ) : null}
+
+                {activeAgendaFollowUpFormTab === 'automationList'
+                  ? renderAgendaAutomationList()
+                  : null}
               </div>
             </aside>
           </>
@@ -1996,7 +3758,10 @@ export default function AgendaPage() {
               overflow: 'hidden',
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} />
+            <LeadPage
+              onLeadUpdated={handleLeadUpdated}
+              onFollowUpEditingChange={setIsLeadFollowUpEditing}
+            />
           </aside>
         ) : null}
 
@@ -2366,6 +4131,39 @@ export default function AgendaPage() {
                         Negócio: {row.negotiationTitle}
                       </span>
                     </span>
+
+                    <button
+                      type="button"
+                      aria-label={`Abrir ${row.automationActionCount} automações do follow-up`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        navigate(`/agenda/${row.leadId}${location.search}`, {
+                          state: {
+                            initialLeadTab: 'negocios',
+                            initialBusinessId: row.negotiationId,
+                            initialBusinessTab: 'followups',
+                            initialBusinessFollowUpId: row.followUpId,
+                            initialBusinessFollowUpTab: 'automationList',
+                          },
+                        })
+                      }}
+                      style={{
+                        minHeight: 28,
+                        border: '1px solid #16a34a',
+                        borderRadius: 6,
+                        padding: '6px 10px',
+                        background: '#f0fdf4',
+                        color: '#166534',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        lineHeight: 1.1,
+                        whiteSpace: 'nowrap',
+                        boxSizing: 'border-box',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Automação: {row.automationActionCount}
+                    </button>
                   </div>
                 </article>
               )
@@ -2642,7 +4440,7 @@ export default function AgendaPage() {
               width: leadPanelWidth,
               zIndex: 40,
               borderLeft: '2px solid #edf1f5',
-              background: '#ffffff',
+              background: '#fcfdff',
               overflow: 'hidden',
               boxShadow: '-10px 0 18px -12px rgba(148, 163, 184, 0.36)',
               transform: isAgendaFollowUpPanelEntering
@@ -2738,12 +4536,19 @@ export default function AgendaPage() {
                 </div>
               </div>
 
+              <div style={{ padding: '0 24px', flexShrink: 0 }}>
+                {renderAgendaFollowUpFormTabs()}
+              </div>
+
               <article
                 style={{
                   flex: 1,
                   minHeight: 0,
-                  overflowY: 'auto',
-                  padding: '0 24px 24px',
+                  overflowY:
+                    activeAgendaFollowUpFormTab === 'automationList'
+                      ? 'hidden'
+                      : 'auto',
+                  padding: '16px 24px 24px',
                   boxSizing: 'border-box',
                   display: 'flex',
                   flexDirection: 'column',
@@ -2751,139 +4556,217 @@ export default function AgendaPage() {
                   maxWidth: 'none',
                 }}
               >
-                {agendaFollowUpError ? (
-                  <p style={{ margin: 0, color: '#b91c1c' }}>
-                    {agendaFollowUpError}
-                  </p>
-                ) : null}
-
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1fr)',
-                    gap: 16,
-                    alignContent: 'start',
+                    display:
+                      activeAgendaFollowUpFormTab === 'information'
+                        ? 'contents'
+                        : 'none',
                   }}
                 >
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
-                    <select
-                      value={agendaFollowUpDraft.leadId}
-                      onChange={(event) => {
-                        setAgendaFollowUpDraft((currentDraft) => ({
-                          ...currentDraft,
-                          leadId: event.target.value,
-                          negotiationId: '',
-                          action: initialFollowUpActionDraft,
-                        }))
-                      }}
-                      style={agendaFollowUpSelectStyle}
-                    >
-                      <option value="">Selecione</option>
-                      {activeLeads.map((lead, index) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.name?.trim() || `Lead ${index + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {agendaFollowUpDraft.leadId ? (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      <label style={agendaFollowUpFieldLabelStyle}>
-                        Negócio
-                      </label>
-                      <div style={{ display: 'grid', gap: 8 }}>
-                        <select
-                          value={agendaFollowUpDraft.negotiationId}
-                          onChange={(event) =>
-                            setAgendaFollowUpDraft((currentDraft) => ({
-                              ...currentDraft,
-                              negotiationId: event.target.value,
-                            }))
-                          }
-                          style={agendaFollowUpSelectStyle}
-                        >
-                          <option value="">Selecione</option>
-                          {agendaFollowUpBusinesses.map((negocio) => (
-                            <option key={negocio.id} value={negocio.id}>
-                              {negocio.title ?? 'Negócio sem nome'}
-                            </option>
-                          ))}
-                        </select>
-                        {agendaFollowUpBusinesses.length === 0 ? (
-                          <p
-                            style={{
-                              margin: 0,
-                              color: '#6b7280',
-                              fontSize: 12,
-                            }}
-                          >
-                            Esse lead ainda não tem negócios.
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
-                      Selecione um lead para continuar.
+                  {agendaFollowUpError ? (
+                    <p style={{ margin: 0, color: '#b91c1c' }}>
+                      {agendaFollowUpError}
                     </p>
-                  )}
+                  ) : null}
 
-                  {agendaFollowUpDraft.negotiationId ? (
-                    <>
-                      <div style={{ display: 'grid', gap: 8 }}>
-                        <label style={agendaFollowUpFieldLabelStyle}>
-                          Nome do Follow-up
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Nome do Follow-up"
-                          value={agendaFollowUpDraft.title}
-                          onChange={(event) =>
-                            setAgendaFollowUpDraft((currentDraft) => ({
-                              ...currentDraft,
-                              title: event.target.value,
-                            }))
-                          }
-                          style={agendaFollowUpInputStyle}
-                        />
-                      </div>
-
-                      <FollowUpActionFields
-                        value={agendaFollowUpDraft.action}
-                        onChange={(action) =>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr)',
+                      gap: 16,
+                      alignContent: 'start',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={agendaFollowUpFieldLabelStyle}>Lead</label>
+                      <select
+                        value={agendaFollowUpDraft.leadId}
+                        onChange={(event) => {
                           setAgendaFollowUpDraft((currentDraft) => ({
                             ...currentDraft,
-                            action,
+                            leadId: event.target.value,
+                            negotiationId: '',
+                            action: initialFollowUpActionDraft,
                           }))
-                        }
-                        leadSource={selectedAgendaLead?.source}
-                        leadEmail={selectedAgendaLead?.email}
-                        leadPhone={selectedAgendaLead?.phone}
-                        isMobile={false}
-                      />
+                        }}
+                        style={agendaFollowUpSelectStyle}
+                      >
+                        <option value="">Selecione</option>
+                        {activeLeads.map((lead, index) => (
+                          <option key={lead.id} value={lead.id}>
+                            {lead.name?.trim() || `Lead ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
+                    {agendaFollowUpDraft.leadId ? (
                       <div style={{ display: 'grid', gap: 8 }}>
                         <label style={agendaFollowUpFieldLabelStyle}>
-                          Data/Hora
+                          Negócio
                         </label>
-                        <div>
-                          <AgendaDateTimeInput
-                            value={agendaFollowUpDraft.dueAt}
-                            onChange={(nextValue) =>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <select
+                            value={agendaFollowUpDraft.negotiationId}
+                            onChange={(event) =>
                               setAgendaFollowUpDraft((currentDraft) => ({
                                 ...currentDraft,
-                                dueAt: nextValue,
+                                negotiationId: event.target.value,
                               }))
                             }
-                            isMobile={false}
-                          />
+                            style={agendaFollowUpSelectStyle}
+                          >
+                            <option value="">Selecione</option>
+                            {agendaFollowUpBusinesses.map((negocio) => (
+                              <option key={negocio.id} value={negocio.id}>
+                                {negocio.title ?? 'Negócio sem nome'}
+                              </option>
+                            ))}
+                          </select>
+                          {agendaFollowUpBusinesses.length === 0 ? (
+                            <p
+                              style={{
+                                margin: 0,
+                                color: '#6b7280',
+                                fontSize: 12,
+                              }}
+                            >
+                              Esse lead ainda não tem negócios.
+                            </p>
+                          ) : null}
                         </div>
                       </div>
-                    </>
-                  ) : null}
+                    ) : (
+                      <p style={{ margin: 0, color: '#6b7280', fontSize: 13 }}>
+                        Selecione um lead para continuar.
+                      </p>
+                    )}
+
+                    {agendaFollowUpDraft.negotiationId ? (
+                      <>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={agendaFollowUpFieldLabelStyle}>
+                            Nome do Follow-up
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Nome do Follow-up"
+                            value={agendaFollowUpDraft.title}
+                            onChange={(event) =>
+                              setAgendaFollowUpDraft((currentDraft) => ({
+                                ...currentDraft,
+                                title: event.target.value,
+                              }))
+                            }
+                            style={agendaFollowUpInputStyle}
+                          />
+                        </div>
+
+                        <FollowUpActionFields
+                          value={agendaFollowUpDraft.action}
+                          onChange={(action) =>
+                            setAgendaFollowUpDraft((currentDraft) => ({
+                              ...currentDraft,
+                              action,
+                            }))
+                          }
+                          leadSource={selectedAgendaLead?.source}
+                          leadEmail={selectedAgendaLead?.email}
+                          leadPhone={selectedAgendaLead?.phone}
+                          isMobile={false}
+                        />
+
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <label style={agendaFollowUpFieldLabelStyle}>
+                            Data/Hora
+                          </label>
+                          <div>
+                            <AgendaDateTimeInput
+                              value={agendaFollowUpDraft.dueAt}
+                              onChange={(nextValue) =>
+                                setAgendaFollowUpDraft((currentDraft) => ({
+                                  ...currentDraft,
+                                  dueAt: nextValue,
+                                }))
+                              }
+                              isMobile={false}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
+
+                {activeAgendaFollowUpFormTab === 'automation' ? (
+                  <div style={{ display: 'grid', gap: 16 }}>
+                    {renderAgendaAutomationWaitTimeFields()}
+
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={agendaFollowUpFieldLabelStyle}>Ação</label>
+                      <select
+                        value={agendaAutomationAction}
+                        onChange={(event) => {
+                          setAgendaAutomationAction(
+                            event.target.value as AgendaAutomationAction | '',
+                          )
+                          setAgendaAutomationValue('')
+                        }}
+                        style={{
+                          ...agendaFollowUpSelectStyle,
+                          color: agendaAutomationAction ? '#111827' : '#6b7280',
+                        }}
+                      >
+                        <option value="">Selecione</option>
+                        {availableAgendaAutomationActionOptions.map(
+                          (option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+
+                    {selectedAgendaAutomationValueOptions &&
+                    selectedAgendaAutomationValueLabel ? (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <label style={agendaFollowUpFieldLabelStyle}>
+                          {selectedAgendaAutomationValueLabel}
+                        </label>
+                        <select
+                          value={agendaAutomationValue}
+                          onChange={(event) =>
+                            setAgendaAutomationValue(event.target.value)
+                          }
+                          style={{
+                            ...agendaFollowUpSelectStyle,
+                            color: agendaAutomationValue
+                              ? '#111827'
+                              : '#6b7280',
+                          }}
+                        >
+                          <option value="">Selecione</option>
+                          {selectedAgendaAutomationValueOptions.map(
+                            (option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </div>
+                    ) : null}
+
+                    {renderAgendaAutomationFollowUpFields()}
+                    {renderAgendaAutomationSaveButton()}
+                  </div>
+                ) : null}
+
+                {activeAgendaFollowUpFormTab === 'automationList'
+                  ? renderAgendaAutomationList()
+                  : null}
               </article>
             </section>
           </aside>
@@ -2972,13 +4855,14 @@ export default function AgendaPage() {
             }}
           >
             <colgroup>
-              <col style={{ width: '21%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '9%' }} />
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
             </colgroup>
             <thead>
               <tr
@@ -3070,6 +4954,21 @@ export default function AgendaPage() {
                     textAlign: 'center',
                   }}
                 >
+                  Automação
+                </th>
+                <th
+                  style={{
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 2,
+                    background: '#f3f4f6',
+                    padding: '10px 12px',
+                    color: '#4b5563',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
                   Canal
                 </th>
                 <th
@@ -3145,6 +5044,7 @@ export default function AgendaPage() {
                     { width: '78%' },
                     { width: '70%' },
                     { width: '72%' },
+                    { width: '54%', align: 'center' },
                     { width: '68%', align: 'center' },
                     { width: '72%', align: 'center' },
                     { width: '68%', align: 'center' },
@@ -3172,6 +5072,7 @@ export default function AgendaPage() {
                       <tr
                         key={row.followUpId}
                         style={{
+                          height: AGENDA_TABLE_ROW_HEIGHT_PX,
                           borderBottom: '1px solid #f3f4f6',
                           background:
                             interactionTheme.clickableCardHoverBackground,
@@ -3182,7 +5083,7 @@ export default function AgendaPage() {
                         onMouseLeave={() => setHoveredFollowUpId(null)}
                       >
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
@@ -3215,23 +5116,17 @@ export default function AgendaPage() {
                                 event.stopPropagation()
                                 setConfirmingDeleteFollowUpId(null)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               X
@@ -3243,23 +5138,17 @@ export default function AgendaPage() {
                                 event.stopPropagation()
                                 void handleDeleteFollowUp(row.followUpId)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               ✓
@@ -3361,6 +5250,49 @@ export default function AgendaPage() {
                             {row.negotiationTitle}
                           </span>
                         </DelayedTooltip>
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          color: '#111827',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`Abrir ${row.automationActionCount} automações do follow-up`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            navigate(
+                              `/agenda/${row.leadId}${location.search}`,
+                              {
+                                state: {
+                                  initialLeadTab: 'negocios',
+                                  initialBusinessId: row.negotiationId,
+                                  initialBusinessTab: 'followups',
+                                  initialBusinessFollowUpId: row.followUpId,
+                                  initialBusinessFollowUpTab: 'automationList',
+                                },
+                              },
+                            )
+                          }}
+                          style={{
+                            minHeight: 28,
+                            border: '1px solid #16a34a',
+                            borderRadius: 6,
+                            padding: '6px 10px',
+                            background: '#f0fdf4',
+                            color: '#166534',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            lineHeight: 1.1,
+                            whiteSpace: 'nowrap',
+                            boxSizing: 'border-box',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {row.automationActionCount}
+                        </button>
                       </td>
                       <td
                         style={{
@@ -3549,7 +5481,7 @@ export default function AgendaPage() {
               {!isLoading && !error && sortedFilteredAgendaRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{ padding: '14px 16px', color: '#6b7280' }}
                   >
                     Nenhum follow-up encontrado.
@@ -3618,7 +5550,10 @@ export default function AgendaPage() {
               transition: `transform ${leadPanelTransitionMs}ms ease`,
             }}
           >
-            <LeadPage onLeadUpdated={handleLeadUpdated} />
+            <LeadPage
+              onLeadUpdated={handleLeadUpdated}
+              onFollowUpEditingChange={setIsLeadFollowUpEditing}
+            />
           </aside>
         ) : null}
       </div>

@@ -1,6 +1,16 @@
 const DEFAULT_LOCALE = 'pt-BR'
 const DEFAULT_TIME_ZONE = 'America/Sao_Paulo'
 
+const dateTimeInputFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DEFAULT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 const toDateInstance = (value?: string | Date | null): Date | null => {
   if (!value) {
     return null
@@ -17,7 +27,7 @@ const toDateInstance = (value?: string | Date | null): Date | null => {
 
 export const formatDate = (date: string | Date) =>
   new Date(date).toLocaleDateString(DEFAULT_LOCALE, {
-    timeZone: DEFAULT_TIME_ZONE
+    timeZone: DEFAULT_TIME_ZONE,
   })
 
 export const formatDateTime = (date: string | Date) =>
@@ -28,15 +38,45 @@ export const formatDateTime = (date: string | Date) =>
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: false,
   })
 
 export const formatTime = (date: string | Date) =>
   new Date(date).toLocaleTimeString(DEFAULT_LOCALE, {
     timeZone: DEFAULT_TIME_ZONE,
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   })
+
+export const formatDateTimeInputValue = (
+  value?: string | Date | null,
+): string => {
+  if (!value) {
+    return ''
+  }
+
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().replace(' ', 'T')
+
+    if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalizedValue)) {
+      return normalizedValue.slice(0, 16)
+    }
+  }
+
+  const parsedDate = toDateInstance(value)
+  if (!parsedDate) {
+    return ''
+  }
+
+  const parts = Object.fromEntries(
+    dateTimeInputFormatter
+      .formatToParts(parsedDate)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  )
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
 
 export const formatChatMessageTimestamp = (date: string | Date): string => {
   const parsedDate = toDateInstance(date)
@@ -51,12 +91,12 @@ export const formatChatMessageTimestamp = (date: string | Date): string => {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: false,
   }).format(parsedDate)
 }
 
 export const formatElapsedHoursAndMinutes = (
-  value?: string | Date | null
+  value?: string | Date | null,
 ): string => {
   const parsedDate = toDateInstance(value)
 
@@ -77,7 +117,7 @@ export const formatElapsedHoursAndMinutes = (
 }
 
 export const parseApiDateToBrowserDate = (
-  value?: string | Date | null
+  value?: string | Date | null,
 ): Date | null => {
   if (!value) {
     return null
@@ -107,7 +147,7 @@ export const parseApiDateToBrowserDate = (
   }
 
   const match = normalizedValue.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?)?/i
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?)?)?/i,
   )
 
   if (match) {
@@ -131,7 +171,7 @@ export const parseApiDateToBrowserDate = (
 }
 
 export const parsePersistedUtcClockToBrowserDate = (
-  value?: string | Date | null
+  value?: string | Date | null,
 ): Date | null => {
   return parseApiDateToBrowserDate(value)
 }

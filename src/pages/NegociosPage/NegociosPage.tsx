@@ -157,7 +157,11 @@ type BusinessSortKey =
   | 'temperature'
   | 'value'
 type BusinessSortDirection = 'asc' | 'desc'
-type BusinessTypeSortFocus = 'serviceFirst' | 'productFirst' | 'noneFirst'
+type BusinessTypeSortFocus =
+  | 'serviceFirst'
+  | 'productFirst'
+  | 'rentalFirst'
+  | 'noneFirst'
 type BusinessStageSortFocus = LeadStage | null
 type BusinessStatusSortFocus = 'open' | 'won' | 'lost' | null
 type BusinessTemperatureSortFocus = 'hot' | 'warm' | 'cold' | 'none' | null
@@ -167,7 +171,7 @@ type BusinessFilterSection =
   | 'status'
   | 'temperature'
   | 'source'
-type BusinessTypeFilterValue = 'service' | 'product' | 'none'
+type BusinessTypeFilterValue = 'service' | 'product' | 'rental' | 'none'
 type BusinessStatusFilterValue = 'open' | 'won' | 'lost'
 type BusinessTemperatureFilterValue = 'hot' | 'warm' | 'cold' | 'none'
 type BusinessSourceFilterValue =
@@ -288,7 +292,7 @@ const getBusinessLifecycleTagPresentation = (
 
 const normalizeNegotiationTypeValue = (
   value?: string | null,
-): 'service' | 'product' | 'none' => {
+): 'service' | 'product' | 'rental' | 'none' => {
   const normalizedValue = (value ?? '').trim().toLowerCase()
 
   if (normalizedValue === 'service') {
@@ -299,12 +303,17 @@ const normalizeNegotiationTypeValue = (
     return 'product'
   }
 
+  if (normalizedValue === 'rental') {
+    return 'rental'
+  }
+
   return 'none'
 }
 
 const getBusinessTypeFilterLabel = (value: BusinessTypeFilterValue): string => {
   if (value === 'service') return 'Serviço'
   if (value === 'product') return 'Produto'
+  if (value === 'rental') return 'Locação'
   return 'Sem tipo'
 }
 
@@ -398,22 +407,31 @@ const getBusinessTypeSortRank = (
 
   const ranksByFocus: Record<
     BusinessTypeSortFocus,
-    Record<'service' | 'product' | 'none', number>
+    Record<'service' | 'product' | 'rental' | 'none', number>
   > = {
     serviceFirst: {
       service: 0,
       product: 1,
-      none: 2,
+      rental: 2,
+      none: 3,
     },
     productFirst: {
       product: 0,
+      rental: 1,
+      service: 2,
+      none: 3,
+    },
+    rentalFirst: {
+      rental: 0,
       service: 1,
-      none: 2,
+      product: 2,
+      none: 3,
     },
     noneFirst: {
       none: 0,
       service: 1,
       product: 2,
+      rental: 3,
     },
   }
 
@@ -1406,7 +1424,8 @@ export default function NegociosPage() {
 
       setTypeSortFocus((currentFocus) => {
         if (currentFocus === 'serviceFirst') return 'productFirst'
-        if (currentFocus === 'productFirst') return 'noneFirst'
+        if (currentFocus === 'productFirst') return 'rentalFirst'
+        if (currentFocus === 'rentalFirst') return 'noneFirst'
         return 'serviceFirst'
       })
       return
@@ -1894,6 +1913,7 @@ export default function NegociosPage() {
                     <option value="">Selecione</option>
                     <option value="service">Serviço</option>
                     <option value="product">Produto</option>
+                    <option value="rental">Locação</option>
                   </select>
                 </div>
 
@@ -2241,6 +2261,10 @@ export default function NegociosPage() {
                                 {
                                   value: 'product' as const,
                                   label: getBusinessTypeFilterLabel('product'),
+                                },
+                                {
+                                  value: 'rental' as const,
+                                  label: getBusinessTypeFilterLabel('rental'),
                                 },
                               ].map((option) => (
                                 <button
@@ -2680,6 +2704,7 @@ export default function NegociosPage() {
                         { value: '', label: 'Sem tipo' },
                         { value: 'service', label: 'Serviço' },
                         { value: 'product', label: 'Produto' },
+                        { value: 'rental', label: 'Locação' },
                       ]}
                       onChange={(value) =>
                         void handleBusinessQuickFieldChange(
@@ -3045,6 +3070,10 @@ export default function NegociosPage() {
                               {
                                 value: 'product' as const,
                                 label: getBusinessTypeFilterLabel('product'),
+                              },
+                              {
+                                value: 'rental' as const,
+                                label: getBusinessTypeFilterLabel('rental'),
                               },
                             ].map((option) => (
                               <button
@@ -3467,6 +3496,7 @@ export default function NegociosPage() {
                       <tr
                         key={negocio.id}
                         style={{
+                          height: NEGOCIOS_TABLE_ROW_HEIGHT_PX,
                           borderBottom: '1px solid #f3f4f6',
                           background:
                             interactionTheme.clickableCardHoverBackground,
@@ -3475,7 +3505,7 @@ export default function NegociosPage() {
                         onMouseLeave={() => setHoveredNegocioId(null)}
                       >
                         <td
-                          colSpan={9}
+                          colSpan={8}
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
@@ -3489,13 +3519,16 @@ export default function NegociosPage() {
                           style={{
                             padding: '14px 16px',
                             color: '#2f2f2f',
-                            textAlign: 'left',
+                            textAlign: 'center',
+                            verticalAlign: 'middle',
                           }}
                         >
                           <div
                             style={{
                               display: 'flex',
                               alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
                               gap: 4,
                             }}
                           >
@@ -3506,23 +3539,17 @@ export default function NegociosPage() {
                                 event.stopPropagation()
                                 setConfirmingDeleteNegocioId(null)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               X
@@ -3534,23 +3561,17 @@ export default function NegociosPage() {
                                 event.stopPropagation()
                                 void handleDeleteNegocio(negocio.id)
                               }}
-                              onMouseEnter={(event) => {
-                                event.currentTarget.style.background =
-                                  interactionTheme.clickableCardHoverBackground
-                              }}
-                              onMouseLeave={(event) => {
-                                event.currentTarget.style.background = '#ffffff'
-                              }}
                               style={{
                                 height: 24,
                                 width: 24,
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 4,
-                                background: '#ffffff',
+                                border: 'none',
+                                background: 'transparent',
                                 color: '#4b5563',
                                 padding: 0,
                                 cursor: 'pointer',
-                                transition: 'background-color 0.2s',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
                             >
                               ✓
@@ -3659,6 +3680,7 @@ export default function NegociosPage() {
                             { value: '', label: 'Sem tipo' },
                             { value: 'service', label: 'Serviço' },
                             { value: 'product', label: 'Produto' },
+                            { value: 'rental', label: 'Locação' },
                           ]}
                           onChange={(value) =>
                             void handleBusinessQuickFieldChange(
@@ -4169,6 +4191,7 @@ export default function NegociosPage() {
                             <option value="">Selecione</option>
                             <option value="service">Serviço</option>
                             <option value="product">Produto</option>
+                            <option value="rental">Locação</option>
                           </select>
                         </div>
 

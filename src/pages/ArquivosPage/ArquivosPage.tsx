@@ -38,6 +38,7 @@ type ArquivoCreateDraft = {
 
 const leadPanelWidth = 'min(48vw, 760px)'
 const leadPanelTransitionMs = 120
+const FILES_TABLE_ROW_HEIGHT_PX = 60
 const attachmentInputAccept =
   '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.webp,.gif,.zip,.rar,.7z'
 
@@ -1422,6 +1423,7 @@ export default function ArquivosPage() {
                       <tr
                         key={arquivo.id}
                         style={{
+                          height: FILES_TABLE_ROW_HEIGHT_PX,
                           borderBottom: '1px solid #f0f0f0',
                           background: rowBackground,
                         }}
@@ -1528,6 +1530,7 @@ export default function ArquivosPage() {
                         handleOpenArquivoLeadBusinessFiles(arquivo)
                       }
                       style={{
+                        height: FILES_TABLE_ROW_HEIGHT_PX,
                         borderBottom: '1px solid #f0f0f0',
                         background: rowBackground,
                         cursor: 'pointer',

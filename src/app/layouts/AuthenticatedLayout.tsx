@@ -66,6 +66,7 @@ type NotificationPreference = {
   description: string
   icon: 'bell' | 'message' | 'clock' | 'list' | 'money'
   channels: Record<NotificationChannelKey, boolean>
+  showChannelToggles?: boolean
 }
 
 type UserInformationsResponse = {
@@ -136,6 +137,7 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     description: 'Quando uma parcela vence no dia seguinte',
     icon: 'money',
     channels: { inApp: false, whatsApp: false, email: false },
+    showChannelToggles: false,
   },
   {
     id: 'installment-overdue',
@@ -143,6 +145,7 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     description: 'Quando uma parcela está vencida',
     icon: 'money',
     channels: { inApp: false, whatsApp: false, email: false },
+    showChannelToggles: false,
   },
 ]
 
@@ -2776,43 +2779,47 @@ export function AuthenticatedLayout() {
                                     ) : null}
                                   </div>
 
-                                  <div
-                                    style={{
-                                      display: 'inline-flex',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    {renderChannelSwitch(
-                                      preference.id,
-                                      'inApp',
-                                      preference.channels.inApp,
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      display: 'inline-flex',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    {renderChannelSwitch(
-                                      preference.id,
-                                      'whatsApp',
-                                      preference.channels.whatsApp,
-                                    )}
-                                  </div>
-                                  <div
-                                    style={{
-                                      display: 'inline-flex',
-                                      justifyContent: 'center',
-                                    }}
-                                  >
-                                    {preference.id !== 'new-message' &&
-                                      renderChannelSwitch(
-                                        preference.id,
-                                        'email',
-                                        preference.channels.email,
-                                      )}
-                                  </div>
+                                  {preference.showChannelToggles !== false ? (
+                                    <>
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          justifyContent: 'center',
+                                        }}
+                                      >
+                                        {renderChannelSwitch(
+                                          preference.id,
+                                          'inApp',
+                                          preference.channels.inApp,
+                                        )}
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          justifyContent: 'center',
+                                        }}
+                                      >
+                                        {renderChannelSwitch(
+                                          preference.id,
+                                          'whatsApp',
+                                          preference.channels.whatsApp,
+                                        )}
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          justifyContent: 'center',
+                                        }}
+                                      >
+                                        {preference.id !== 'new-message' &&
+                                          renderChannelSwitch(
+                                            preference.id,
+                                            'email',
+                                            preference.channels.email,
+                                          )}
+                                      </div>
+                                    </>
+                                  ) : null}
                                 </div>
                               ),
                             )}

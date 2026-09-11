@@ -38,6 +38,25 @@ export const getFollowUpStatusPresentation = (
     }
   }
 
+  if (
+    status === 'automating' ||
+    actions.some((action) => action.status === 'executing')
+  ) {
+    return {
+      label: 'Em execução',
+      textColor: '#0369a1',
+      background: '#e0f2fe',
+    }
+  }
+
+  if (status === 'awaiting_reply') {
+    return {
+      label: 'Aguardando resposta',
+      textColor: '#854d0e',
+      background: '#fef9c3',
+    }
+  }
+
   if (status === 'done') {
     return {
       label: 'Concluído',
