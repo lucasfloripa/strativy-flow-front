@@ -234,6 +234,9 @@ const AgendaStatusTag = ({
         opacity: 0,
       }}
     >
+      {!agendaFollowUpStatusOptions.some(
+        (option) => option.value === status,
+      ) && <option value={status}>{presentation.label}</option>}
       {agendaFollowUpStatusOptions.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}

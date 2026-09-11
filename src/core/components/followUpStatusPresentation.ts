@@ -14,6 +14,22 @@ export const getFollowUpStatusPresentation = (
   actions: FollowUpActionResponse[] = [],
   isOverdue = false,
 ): FollowUpStatusPresentation => {
+  if (status === 'done') {
+    return {
+      label: 'Concluído',
+      textColor: '#166534',
+      background: '#dcfce7',
+    }
+  }
+
+  if (status === 'canceled') {
+    return {
+      label: 'Cancelado',
+      textColor: '#b91c1c',
+      background: '#fee2e2',
+    }
+  }
+
   if (actions.some((action) => action.status === 'manual_required')) {
     return {
       label: 'Ação manual',
@@ -54,22 +70,6 @@ export const getFollowUpStatusPresentation = (
       label: 'Aguardando resposta',
       textColor: '#854d0e',
       background: '#fef9c3',
-    }
-  }
-
-  if (status === 'done') {
-    return {
-      label: 'Concluído',
-      textColor: '#166534',
-      background: '#dcfce7',
-    }
-  }
-
-  if (status === 'canceled') {
-    return {
-      label: 'Cancelado',
-      textColor: '#b91c1c',
-      background: '#fee2e2',
     }
   }
 
