@@ -4809,7 +4809,7 @@ export default function LeadPage({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                maxHeight: '86%',
+                height: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
                 background: '#ffffff',
