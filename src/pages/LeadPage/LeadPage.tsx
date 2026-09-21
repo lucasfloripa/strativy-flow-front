@@ -6999,7 +6999,8 @@ export default function LeadPage({
               {mobileBusinessFollowUpHeader}
               <div
                 style={{
-                  flex: 1,
+                  flex: '1 1 0',
+                  height: 0,
                   minHeight: 0,
                   overflowY: 'hidden',
                   overflowX: 'hidden',
