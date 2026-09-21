@@ -1,4 +1,6 @@
 import {
+  Archive,
+  BadgeDollarSign,
   Bell,
   CalendarCheck,
   CalendarClock,
@@ -34,7 +36,13 @@ import type {
   UserNotification,
 } from '../../features/home/types/home.types'
 
-type NotificationIcon = 'message' | 'lead' | 'followup' | 'expiring' | 'expired'
+type NotificationIcon =
+  | 'message'
+  | 'lead'
+  | 'followup'
+  | 'payment'
+  | 'expiring'
+  | 'expired'
 
 type Notification = {
   id: string
@@ -136,6 +144,25 @@ const ConversationMessageStatusIndicator = ({
   return null
 }
 
+const ArchivedLeadIndicator = () => (
+  <span
+    title="Lead arquivado"
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      background: '#fef3c7',
+      color: '#d97706',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}
+  >
+    <Archive size={14} aria-label="Lead arquivado" />
+  </span>
+)
+
 const getGreetingLabel = (): 'Bom dia' | 'Boa tarde' | 'Boa noite' => {
   const currentHour = new Date().getHours()
 
@@ -174,6 +201,16 @@ const mapApiNotification = (notification: UserNotification): Notification => {
       color: '#f59e0b',
       iconBackground: '#fef3c7',
       icon: 'followup',
+    },
+    PAYMENT_DUE_TOMORROW: {
+      color: '#0f766e',
+      iconBackground: '#ccfbf1',
+      icon: 'payment',
+    },
+    PAYMENT_OVERDUE: {
+      color: '#b45309',
+      iconBackground: '#fef3c7',
+      icon: 'payment',
     },
     CONVERSATION_EXPIRING_1H: {
       color: '#f59e0b',
@@ -285,6 +322,11 @@ const getNotificationNavigation = (
     case 'DAILY_FOLLOWUP_SUMMARY':
       return {
         path: '/agenda?followUp=today',
+      }
+    case 'PAYMENT_DUE_TOMORROW':
+    case 'PAYMENT_OVERDUE':
+      return {
+        path: '/financeiro',
       }
     case 'CONVERSATION_EXPIRING_1H':
       return {
@@ -906,29 +948,42 @@ export default function HomePage() {
                     )}
                     <span
                       style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: sourceTagPresentation.textColor,
-                        whiteSpace: 'nowrap',
-                        background: sourceTagPresentation.backgroundColor,
-                        border: `1px solid ${sourceTagPresentation.borderColor}`,
-                        borderRadius: 6,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '7px 12px',
-                        lineHeight: 1.1,
+                        justifyContent: 'flex-end',
+                        gap: 6,
                         maxWidth: '100%',
                       }}
                     >
-                      {sourceTagPresentation.icon ? (
-                        <span style={tagIconStyle}>
-                          {sourceTagPresentation.icon}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: sourceTagPresentation.textColor,
+                          whiteSpace: 'nowrap',
+                          background: sourceTagPresentation.backgroundColor,
+                          border: `1px solid ${sourceTagPresentation.borderColor}`,
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '7px 12px',
+                          lineHeight: 1.1,
+                          maxWidth: '100%',
+                        }}
+                      >
+                        {sourceTagPresentation.icon ? (
+                          <span style={tagIconStyle}>
+                            {sourceTagPresentation.icon}
+                          </span>
+                        ) : null}
+                        <span style={tagContentStyle}>
+                          {sourceTagPresentation.label}
                         </span>
-                      ) : null}
-                      <span style={tagContentStyle}>
-                        {sourceTagPresentation.label}
                       </span>
+                      {item.leadState === 'archived' ? (
+                        <ArchivedLeadIndicator />
+                      ) : null}
                     </span>
                   </span>
                 </button>
@@ -1268,6 +1323,8 @@ export default function HomePage() {
                       <MessageCircle size={20} color={activity.color} />
                     ) : activity.icon === 'followup' ? (
                       <CalendarClock size={20} color={activity.color} />
+                    ) : activity.icon === 'payment' ? (
+                      <BadgeDollarSign size={20} color={activity.color} />
                     ) : activity.icon === 'expiring' ? (
                       <TimerReset size={20} color={activity.color} />
                     ) : activity.icon === 'expired' ? (

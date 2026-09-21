@@ -29,6 +29,36 @@ export type FinanceiroPaymentsResponse = {
   overdueCount: number
 }
 
+export type FinanceiroPaymentMethod =
+  | 'PIX'
+  | 'CREDIT_CARD'
+  | 'DEBIT_CARD'
+  | 'OTHER'
+
+export type FinanceiroPaymentStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'CANCELED'
+
+export type FinanceiroPaymentListItem = {
+  id: string
+  leadId: string
+  leadName: string
+  negotiationId: string
+  negotiationTitle: string
+  paymentMethod: FinanceiroPaymentMethod
+  installmentNumber: number
+  totalInstallments: number
+  dueDate: string
+  amount: number
+  status: FinanceiroPaymentStatus
+}
+
+export type FinanceiroPaymentListResponse = {
+  items: FinanceiroPaymentListItem[]
+}
+
 export type FinanceiroTemplateCostType = 'MARKETING' | 'UTILITY' | 'UNKNOWN'
 
 export type FinanceiroTemplateCostsResponse = {

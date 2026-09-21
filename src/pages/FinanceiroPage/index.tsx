@@ -3,9 +3,10 @@ import {
   Banknote,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
+  ListFilter,
   Tag,
-  TrendingUp,
   TriangleAlert,
   WalletCards,
   type LucideIcon,
@@ -18,11 +19,18 @@ import { useNavigate } from 'react-router-dom'
 import 'react-day-picker/style.css'
 
 import { interactionTheme } from '../../app/theme/brandTheme'
+import { DesktopTableSkeleton } from '../../core/components/DesktopTableSkeleton'
+import { MobileListSkeleton } from '../../core/components/MobileListSkeleton'
+import { TotalCount } from '../../core/components/TotalCount'
+import { formatDate } from '../../core/utils/dateTime'
 import { FinanceiroService } from '../../features/financeiro/services/FinanceiroService'
 import type {
   FinanceiroBusinessSummaryResponse,
   FinanceiroDistributionKpisResponse,
+  FinanceiroPaymentListItem,
+  FinanceiroPaymentMethod,
   FinanceiroPaymentsResponse,
+  FinanceiroPaymentStatus,
   FinanceiroRevenueResponse,
   FinanceiroStageKey,
   FinanceiroTemplateCostsResponse,
@@ -97,6 +105,158 @@ const defaultPayments: FinanceiroPaymentsResponse = {
   overdueCount: 0,
 }
 
+const paymentMethodLabels: Record<FinanceiroPaymentMethod, string> = {
+  PIX: 'Pix',
+  CREDIT_CARD: 'Crédito',
+  DEBIT_CARD: 'Débito',
+  OTHER: 'Outro',
+}
+
+const paymentStatusPresentation: Record<
+  FinanceiroPaymentStatus,
+  { label: string; color: string; background: string }
+> = {
+  PENDING: { label: 'Pendente', color: '#b45309', background: '#fef3c7' },
+  PAID: { label: 'Pago', color: '#166534', background: '#dcfce7' },
+  OVERDUE: { label: 'Atrasado', color: '#b91c1c', background: '#fee2e2' },
+  CANCELED: { label: 'Cancelado', color: '#475569', background: '#e2e8f0' },
+}
+
+type PaymentSortKey =
+  | 'leadName'
+  | 'negotiationTitle'
+  | 'paymentMethod'
+  | 'dueDate'
+  | 'amount'
+  | 'status'
+type PaymentSortDirection = 'asc' | 'desc'
+type PaymentFilterSection = 'status' | 'paymentMethod'
+
+const paymentMethodSortOrder: FinanceiroPaymentMethod[] = [
+  'PIX',
+  'DEBIT_CARD',
+  'CREDIT_CARD',
+  'OTHER',
+]
+
+const paymentStatusSortOrder: FinanceiroPaymentStatus[] = [
+  'PENDING',
+  'PAID',
+  'OVERDUE',
+  'CANCELED',
+]
+
+const paymentTableColumns: Array<{
+  label: string
+  width: string
+  sortKey?: PaymentSortKey
+  align?: 'left' | 'right'
+}> = [
+  { label: 'Lead', width: '19%', sortKey: 'leadName' },
+  { label: 'Negócio', width: '21%', sortKey: 'negotiationTitle' },
+  { label: 'Tipo', width: '15%', sortKey: 'paymentMethod' },
+  { label: 'Parcela', width: '10%' },
+  { label: 'Vencimento', width: '13%', sortKey: 'dueDate' },
+  { label: 'Valor', width: '12%', sortKey: 'amount', align: 'right' },
+  { label: 'Status', width: '10%', sortKey: 'status', align: 'right' },
+]
+
+const getPaymentFilterOptionStyle = (isSelected: boolean) => ({
+  width: '100%',
+  border: '1px solid transparent',
+  background: isSelected ? '#f3f4f6' : 'transparent',
+  color: '#111827',
+  fontSize: 13,
+  fontWeight: 700,
+  lineHeight: 1.05,
+  padding: '7px 10px',
+  borderRadius: 8,
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  outline: 'none',
+  WebkitTapHighlightColor: 'transparent',
+})
+
+const getPaymentFilterGroupButtonStyle = (isSelected: boolean) => ({
+  ...getPaymentFilterOptionStyle(isSelected),
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+})
+
+type EditablePaymentStatus = Extract<
+  FinanceiroPaymentStatus,
+  'PAID' | 'CANCELED'
+>
+
+const PaymentStatusTag = ({
+  disabled,
+  onChange,
+  status,
+}: {
+  disabled: boolean
+  onChange: (status: EditablePaymentStatus) => void
+  status: FinanceiroPaymentStatus
+}) => {
+  const presentation = paymentStatusPresentation[status]
+  const availableStatuses: FinanceiroPaymentStatus[] = [
+    status,
+    ...(['PAID', 'CANCELED'] as const).filter(
+      (availableStatus) => availableStatus !== status,
+    ),
+  ]
+
+  return (
+    <span
+      style={{
+        position: 'relative',
+        minWidth: 78,
+        padding: '7px 12px',
+        border: `1px solid ${presentation.color}`,
+        borderRadius: 6,
+        background: presentation.background,
+        color: presentation.color,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1,
+        boxSizing: 'border-box',
+        opacity: disabled ? 0.65 : 1,
+      }}
+    >
+      <span aria-hidden="true">{presentation.label}</span>
+      <select
+        aria-label="Alterar status do pagamento"
+        value={status}
+        disabled={disabled}
+        onChange={(event) =>
+          onChange(event.target.value as EditablePaymentStatus)
+        }
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          padding: 0,
+          cursor: disabled ? 'wait' : 'pointer',
+          appearance: 'none',
+          opacity: 0,
+        }}
+      >
+        {availableStatuses.map((availableStatus) => (
+          <option key={availableStatus} value={availableStatus}>
+            {paymentStatusPresentation[availableStatus].label}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -110,6 +270,16 @@ const formatCount = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {
     maximumFractionDigits: 0,
   }).format(value)
+}
+
+const formatPaymentCount = (
+  count: number,
+  singularStatus: string,
+  pluralStatus: string,
+): string => {
+  return count === 1
+    ? `${formatCount(count)} pagamento ${singularStatus}`
+    : `${formatCount(count)} pagamentos ${pluralStatus}`
 }
 
 const formatPercent = (value: number): string => {
@@ -395,11 +565,40 @@ export default function FinanceiroPage() {
     useState<FinanceiroRevenueResponse>(defaultRevenue)
   const [payments, setPayments] =
     useState<FinanceiroPaymentsResponse>(defaultPayments)
+  const [paymentItems, setPaymentItems] = useState<FinanceiroPaymentListItem[]>(
+    [],
+  )
+  const [paymentSortKey, setPaymentSortKey] =
+    useState<PaymentSortKey>('dueDate')
+  const [paymentSortDirection, setPaymentSortDirection] =
+    useState<PaymentSortDirection>('asc')
+  const [paymentMethodSortFocus, setPaymentMethodSortFocus] =
+    useState<FinanceiroPaymentMethod>('PIX')
+  const [paymentStatusSortFocus, setPaymentStatusSortFocus] =
+    useState<FinanceiroPaymentStatus>('PENDING')
+  const [selectedPaymentStatusFilters, setSelectedPaymentStatusFilters] =
+    useState<FinanceiroPaymentStatus[]>([])
+  const [selectedPaymentMethodFilters, setSelectedPaymentMethodFilters] =
+    useState<FinanceiroPaymentMethod[]>([])
+  const [isPaymentFiltersPanelOpen, setIsPaymentFiltersPanelOpen] =
+    useState(false)
+  const [expandedPaymentFilterSection, setExpandedPaymentFilterSection] =
+    useState<PaymentFilterSection | null>(null)
+  const [hoveredPaymentFilterOption, setHoveredPaymentFilterOption] =
+    useState<PaymentFilterSection | null>(null)
+  const [isPaymentListLoading, setIsPaymentListLoading] = useState(false)
+  const [updatingPaymentStatusId, setUpdatingPaymentStatusId] = useState<
+    string | null
+  >(null)
+  const [paymentStatusUpdateError, setPaymentStatusUpdateError] = useState<
+    string | null
+  >(null)
+  const [paymentListError, setPaymentListError] = useState<string | null>(null)
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] =
     useState<boolean>(false)
   const [activeDesktopView, setActiveDesktopView] = useState<
-    'businesses' | 'costs'
-  >('costs')
+    'general' | 'businesses' | 'costs' | 'payments'
+  >('general')
   const [visibleSummaryTooltip, setVisibleSummaryTooltip] = useState<
     string | null
   >(null)
@@ -418,6 +617,7 @@ export default function FinanceiroPage() {
     null,
   )
   const dateRangePickerRef = useRef<HTMLDivElement | null>(null)
+  const paymentFiltersRef = useRef<HTMLDivElement | null>(null)
   const createdAtFrom = dateRangeFilter?.from
     ? formatDateToApi(dateRangeFilter.from)
     : undefined
@@ -426,7 +626,7 @@ export default function FinanceiroPage() {
     : undefined
 
   useEffect(() => {
-    if (isMobile || activeDesktopView !== 'businesses') {
+    if (isMobile || activeDesktopView !== 'general') {
       return
     }
 
@@ -470,7 +670,35 @@ export default function FinanceiroPage() {
   }, [])
 
   useEffect(() => {
-    if (isMobile || activeDesktopView !== 'costs') {
+    if (!isPaymentFiltersPanelOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (paymentFiltersRef.current?.contains(event.target as Node)) return
+
+      setIsPaymentFiltersPanelOpen(false)
+      setExpandedPaymentFilterSection(null)
+      setHoveredPaymentFilterOption(null)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [isPaymentFiltersPanelOpen])
+
+  useEffect(() => {
+    if (activeDesktopView === 'payments') return
+
+    setIsPaymentFiltersPanelOpen(false)
+    setExpandedPaymentFilterSection(null)
+  }, [activeDesktopView])
+
+  useEffect(() => {
+    if (
+      isMobile ||
+      (activeDesktopView !== 'general' && activeDesktopView !== 'costs')
+    ) {
       return
     }
 
@@ -492,9 +720,44 @@ export default function FinanceiroPage() {
     }
   }, [activeDesktopView, createdAtFrom, createdAtTo, isMobile])
 
+  useEffect(() => {
+    if (activeDesktopView !== 'payments') {
+      return
+    }
+
+    let isMounted = true
+    setIsPaymentListLoading(true)
+    setPaymentListError(null)
+
+    void FinanceiroService.loadPaymentList({
+      dueDateFrom: createdAtFrom,
+      dueDateTo: createdAtTo,
+    })
+      .then((response) => {
+        if (isMounted) {
+          setPaymentItems(response.items)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setPaymentItems([])
+          setPaymentListError('Não foi possível carregar os pagamentos.')
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsPaymentListLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeDesktopView, createdAtFrom, createdAtTo])
+
   const businessSummaryMetrics: FinanceBusinessMetric[] = [
     {
-      label: 'Receita Líquida',
+      label: 'Vendido',
       value: formatCurrency(businessSummary.netRevenue),
       description: 'Valor final das vendas',
       color: '#159447',
@@ -502,20 +765,28 @@ export default function FinanceiroPage() {
       icon: Banknote,
     },
     {
-      label: 'Custos Totais',
-      value: formatCurrency(businessSummary.totalCosts),
-      description: 'Total de custos cadastrados',
-      color: '#f26a16',
-      iconBackground: '#fff1e7',
-      icon: WalletCards,
-    },
-    {
-      label: 'Resultado Líquido',
-      value: formatCurrency(businessSummary.netResult),
-      description: `Lucro sobre receita líquida: ${formatPercent(businessSummary.profitMargin)}`,
+      label: 'Recebido',
+      value: formatCurrency(payments.receivedAmount),
+      description: formatPaymentCount(
+        payments.receivedCount,
+        'recebido',
+        'recebidos',
+      ),
       color: '#159447',
       iconBackground: '#e8f6ed',
-      icon: TrendingUp,
+      icon: CheckCircle2,
+    },
+    {
+      label: 'A Receber',
+      value: formatCurrency(payments.pendingAmount),
+      description: formatPaymentCount(
+        payments.pendingCount,
+        'pendente',
+        'pendentes',
+      ),
+      color: '#1783f2',
+      iconBackground: '#eaf3ff',
+      icon: Clock3,
     },
   ]
 
@@ -564,7 +835,11 @@ export default function FinanceiroPage() {
         {
           label: 'Recebidos',
           value: formatCurrency(payments.receivedAmount),
-          description: `${formatCount(payments.receivedCount)} pagamentos recebidos`,
+          description: formatPaymentCount(
+            payments.receivedCount,
+            'recebido',
+            'recebidos',
+          ),
           color: '#159447',
           iconBackground: '#e8f6ed',
           icon: CheckCircle2,
@@ -572,7 +847,11 @@ export default function FinanceiroPage() {
         {
           label: 'Pendentes',
           value: formatCurrency(payments.pendingAmount),
-          description: `${formatCount(payments.pendingCount)} pagamentos pendentes`,
+          description: formatPaymentCount(
+            payments.pendingCount,
+            'pendente',
+            'pendentes',
+          ),
           color: '#1783f2',
           iconBackground: '#eaf3ff',
           icon: Clock3,
@@ -580,10 +859,40 @@ export default function FinanceiroPage() {
         {
           label: 'Atrasados',
           value: formatCurrency(payments.overdueAmount),
-          description: `${formatCount(payments.overdueCount)} pagamentos atrasados`,
+          description: formatPaymentCount(
+            payments.overdueCount,
+            'atrasado',
+            'atrasados',
+          ),
           color: '#ef3434',
           iconBackground: '#fff0f0',
           icon: TriangleAlert,
+        },
+      ],
+    },
+    {
+      title: 'Custos',
+      color: '#ef3434',
+      icon: WalletCards,
+      metrics: [
+        {
+          label: 'Custos dos negócios',
+          value: formatCurrency(businessSummary.totalCosts),
+          description: 'Custos cadastrados em todos os negócios',
+          color: '#ef3434',
+          iconBackground: '#fff0f0',
+          icon: WalletCards,
+        },
+        {
+          label: 'Custos do app',
+          value: formatCurrency(templateCosts.totalCost),
+          description:
+            templateCosts.totalTemplates === 1
+              ? '1 mensagem enviada'
+              : `${formatCount(templateCosts.totalTemplates)} mensagens enviadas`,
+          color: '#ef3434',
+          iconBackground: '#fff0f0',
+          icon: BadgeDollarSign,
         },
       ],
     },
@@ -634,6 +943,200 @@ export default function FinanceiroPage() {
     )
   }
 
+  const filteredPaymentItems = paymentItems.filter((payment) => {
+    const matchesStatus =
+      selectedPaymentStatusFilters.length === 0 ||
+      selectedPaymentStatusFilters.includes(payment.status)
+    const matchesMethod =
+      selectedPaymentMethodFilters.length === 0 ||
+      selectedPaymentMethodFilters.includes(payment.paymentMethod)
+
+    return matchesStatus && matchesMethod
+  })
+
+  const sortedPaymentItems = [...filteredPaymentItems].sort(
+    (firstPayment, secondPayment) => {
+      let comparison = 0
+
+      if (paymentSortKey === 'amount') {
+        comparison = firstPayment.amount - secondPayment.amount
+      } else if (paymentSortKey === 'dueDate') {
+        comparison =
+          new Date(firstPayment.dueDate).getTime() -
+          new Date(secondPayment.dueDate).getTime()
+      } else if (paymentSortKey === 'paymentMethod') {
+        const focusedMethodIndex = paymentMethodSortOrder.indexOf(
+          paymentMethodSortFocus,
+        )
+        const firstMethodRank =
+          (paymentMethodSortOrder.indexOf(firstPayment.paymentMethod) -
+            focusedMethodIndex +
+            paymentMethodSortOrder.length) %
+          paymentMethodSortOrder.length
+        const secondMethodRank =
+          (paymentMethodSortOrder.indexOf(secondPayment.paymentMethod) -
+            focusedMethodIndex +
+            paymentMethodSortOrder.length) %
+          paymentMethodSortOrder.length
+
+        comparison = firstMethodRank - secondMethodRank
+      } else if (paymentSortKey === 'status') {
+        const focusedStatusIndex = paymentStatusSortOrder.indexOf(
+          paymentStatusSortFocus,
+        )
+        const firstStatusRank =
+          (paymentStatusSortOrder.indexOf(firstPayment.status) -
+            focusedStatusIndex +
+            paymentStatusSortOrder.length) %
+          paymentStatusSortOrder.length
+        const secondStatusRank =
+          (paymentStatusSortOrder.indexOf(secondPayment.status) -
+            focusedStatusIndex +
+            paymentStatusSortOrder.length) %
+          paymentStatusSortOrder.length
+
+        comparison = firstStatusRank - secondStatusRank
+      } else {
+        comparison = firstPayment[paymentSortKey].localeCompare(
+          secondPayment[paymentSortKey],
+          'pt-BR',
+          { sensitivity: 'base' },
+        )
+      }
+
+      return paymentSortDirection === 'asc' ? comparison : -comparison
+    },
+  )
+
+  const handlePaymentSortToggle = (nextSortKey: PaymentSortKey) => {
+    if (nextSortKey === 'paymentMethod') {
+      if (paymentSortKey !== 'paymentMethod') {
+        setPaymentSortKey('paymentMethod')
+        setPaymentMethodSortFocus('PIX')
+        return
+      }
+
+      setPaymentMethodSortFocus((currentMethod) => {
+        const currentIndex = paymentMethodSortOrder.indexOf(currentMethod)
+        return paymentMethodSortOrder[
+          (currentIndex + 1) % paymentMethodSortOrder.length
+        ]
+      })
+      return
+    }
+
+    if (nextSortKey === 'status') {
+      if (paymentSortKey !== 'status') {
+        setPaymentSortKey('status')
+        setPaymentStatusSortFocus('PENDING')
+        return
+      }
+
+      setPaymentStatusSortFocus((currentStatus) => {
+        const currentIndex = paymentStatusSortOrder.indexOf(currentStatus)
+        return paymentStatusSortOrder[
+          (currentIndex + 1) % paymentStatusSortOrder.length
+        ]
+      })
+      return
+    }
+
+    if (paymentSortKey === nextSortKey) {
+      setPaymentSortDirection((currentDirection) =>
+        currentDirection === 'asc' ? 'desc' : 'asc',
+      )
+      return
+    }
+
+    setPaymentSortKey(nextSortKey)
+    setPaymentSortDirection('asc')
+  }
+
+  const getPaymentSortIndicator = (targetSortKey: PaymentSortKey): string => {
+    if (paymentSortKey !== targetSortKey) {
+      return '↕'
+    }
+
+    if (targetSortKey === 'paymentMethod') {
+      return paymentMethodLabels[paymentMethodSortFocus]
+    }
+
+    if (targetSortKey === 'status') {
+      return paymentStatusPresentation[paymentStatusSortFocus].label
+    }
+
+    return paymentSortDirection === 'asc' ? '↑' : '↓'
+  }
+
+  const handlePaymentStatusChange = async (
+    payment: FinanceiroPaymentListItem,
+    status: EditablePaymentStatus,
+  ) => {
+    if (payment.status === status) return
+
+    setUpdatingPaymentStatusId(payment.id)
+    setPaymentStatusUpdateError(null)
+
+    try {
+      await FinanceiroService.updatePaymentStatus(
+        payment.negotiationId,
+        payment.id,
+        status,
+      )
+      setPaymentItems((currentPayments) =>
+        currentPayments.map((currentPayment) =>
+          currentPayment.id === payment.id
+            ? { ...currentPayment, status }
+            : currentPayment,
+        ),
+      )
+    } catch {
+      setPaymentStatusUpdateError(
+        'Não foi possível atualizar o status do pagamento.',
+      )
+    } finally {
+      setUpdatingPaymentStatusId(null)
+    }
+  }
+
+  const togglePaymentFilter = <Value extends string>(
+    value: Value,
+    setValues: React.Dispatch<React.SetStateAction<Value[]>>,
+  ) => {
+    setValues((currentValues) =>
+      currentValues.includes(value)
+        ? currentValues.filter((currentValue) => currentValue !== value)
+        : [...currentValues, value],
+    )
+  }
+
+  const activePaymentFiltersCount =
+    Number(selectedPaymentStatusFilters.length > 0) +
+    Number(selectedPaymentMethodFilters.length > 0)
+
+  const activePaymentFilterTags = [
+    ...selectedPaymentStatusFilters.map((status) => ({
+      key: `status-${status}`,
+      label: paymentStatusPresentation[status].label,
+      color: paymentStatusPresentation[status].color,
+      background: paymentStatusPresentation[status].background,
+      onRemove: () =>
+        setSelectedPaymentStatusFilters((currentStatuses) =>
+          currentStatuses.filter((currentStatus) => currentStatus !== status),
+        ),
+    })),
+    ...selectedPaymentMethodFilters.map((method) => ({
+      key: `method-${method}`,
+      label: `Tipo: ${paymentMethodLabels[method]}`,
+      color: '#475569',
+      background: '#e2e8f0',
+      onRemove: () =>
+        setSelectedPaymentMethodFilters((currentMethods) =>
+          currentMethods.filter((currentMethod) => currentMethod !== method),
+        ),
+    })),
+  ]
+
   return (
     <section
       style={{
@@ -680,6 +1183,160 @@ export default function FinanceiroPage() {
               gap: 8,
             }}
           >
+            {activeDesktopView === 'payments' ? (
+              <div
+                ref={paymentFiltersRef}
+                style={{ position: 'relative', order: 1 }}
+              >
+                <button
+                  type="button"
+                  aria-label="Abrir filtros de pagamentos"
+                  onClick={() =>
+                    setIsPaymentFiltersPanelOpen((current) => !current)
+                  }
+                  style={{
+                    width: 40,
+                    height: 40,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    background:
+                      isPaymentFiltersPanelOpen || activePaymentFiltersCount > 0
+                        ? interactionTheme.clickableCardHoverBackground
+                        : '#ffffff',
+                    padding: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#111827',
+                    outline: 'none',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <ListFilter size={16} color="#111827" />
+                </button>
+
+                {isPaymentFiltersPanelOpen ? (
+                  <section
+                    style={{
+                      position: 'absolute',
+                      top: 48,
+                      right: 0,
+                      width: 250,
+                      background: '#fcfdff',
+                      border: `1px solid ${interactionTheme.sidebarItemActiveBackground}`,
+                      borderRadius: 18,
+                      zIndex: 36,
+                      padding: '14px 16px 12px',
+                      boxSizing: 'border-box',
+                      boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {[
+                        { key: 'status' as const, label: 'Status' },
+                        { key: 'paymentMethod' as const, label: 'Tipo' },
+                      ].map((section) => {
+                        const selectedValues =
+                          section.key === 'status'
+                            ? selectedPaymentStatusFilters
+                            : selectedPaymentMethodFilters
+                        const isExpanded =
+                          expandedPaymentFilterSection === section.key
+
+                        return (
+                          <div
+                            key={section.key}
+                            style={{ display: 'grid', gap: 6 }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedPaymentFilterSection((current) =>
+                                  current === section.key ? null : section.key,
+                                )
+                              }
+                              onMouseEnter={() =>
+                                setHoveredPaymentFilterOption(section.key)
+                              }
+                              onMouseLeave={() =>
+                                setHoveredPaymentFilterOption(null)
+                              }
+                              style={getPaymentFilterGroupButtonStyle(
+                                selectedValues.length > 0 ||
+                                  isExpanded ||
+                                  hoveredPaymentFilterOption === section.key,
+                              )}
+                            >
+                              <span>{section.label}</span>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <ChevronDown size={14} />
+                              </span>
+                            </button>
+
+                            {isExpanded ? (
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gap: 4,
+                                  paddingLeft: 8,
+                                }}
+                              >
+                                {(section.key === 'status'
+                                  ? paymentStatusSortOrder.map((status) => ({
+                                      value: status,
+                                      label:
+                                        paymentStatusPresentation[status].label,
+                                    }))
+                                  : paymentMethodSortOrder.map((method) => ({
+                                      value: method,
+                                      label: paymentMethodLabels[method],
+                                    }))
+                                ).map((option) => {
+                                  const isSelected = selectedValues.includes(
+                                    option.value as never,
+                                  )
+
+                                  return (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      onClick={() => {
+                                        if (section.key === 'status') {
+                                          togglePaymentFilter(
+                                            option.value as FinanceiroPaymentStatus,
+                                            setSelectedPaymentStatusFilters,
+                                          )
+                                        } else {
+                                          togglePaymentFilter(
+                                            option.value as FinanceiroPaymentMethod,
+                                            setSelectedPaymentMethodFilters,
+                                          )
+                                        }
+                                      }}
+                                      style={getPaymentFilterOptionStyle(
+                                        isSelected,
+                                      )}
+                                    >
+                                      {option.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
             <div
               ref={dateRangePickerRef}
               style={{
@@ -781,8 +1438,10 @@ export default function FinanceiroPage() {
 
             {(
               [
+                { key: 'general', label: 'Geral' },
                 { key: 'businesses', label: 'Negócios' },
                 { key: 'costs', label: 'App' },
+                { key: 'payments', label: 'Pagamentos' },
               ] as const
             ).map((view) => {
               const isSelected = activeDesktopView === view.key
@@ -1760,7 +2419,7 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {!isMobile && activeDesktopView === 'businesses' ? (
+      {!isMobile && activeDesktopView === 'general' ? (
         <div
           className="financeiro-scroll-body"
           style={{
@@ -1773,93 +2432,109 @@ export default function FinanceiroPage() {
             overflowY: 'auto',
           }}
         >
-          <div
+          <section
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: 12,
+              border: '1px solid #edf0f3',
+              borderRadius: 8,
+              background: '#ffffff',
+              boxShadow: '0 5px 16px rgba(15, 23, 42, 0.035)',
+              overflow: 'hidden',
             }}
           >
-            {businessSummaryMetrics.map((metric) => {
-              const MetricIcon = metric.icon
+            <div
+              style={{
+                minHeight: 46,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 14px',
+                borderBottom: '1px solid #edf0f3',
+                color: '#172033',
+                fontSize: 14,
+                fontWeight: 800,
+              }}
+            >
+              <BadgeDollarSign size={16} color="#16834b" />
+              Valores
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                padding: '14px 0',
+              }}
+            >
+              {businessSummaryMetrics.map((metric, index) => {
+                const MetricIcon = metric.icon
 
-              return (
-                <article
-                  key={metric.label}
-                  style={{
-                    minHeight: 116,
-                    display: 'grid',
-                    gridTemplateColumns: '42px minmax(0, 1fr)',
-                    alignItems: 'center',
-                    gap: 16,
-                    padding: '18px 20px',
-                    border: '1px solid #edf0f3',
-                    borderRadius: 8,
-                    background: '#ffffff',
-                    boxShadow: '0 5px 16px rgba(15, 23, 42, 0.035)',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <span
+                return (
+                  <div
+                    key={metric.label}
                     style={{
-                      width: 42,
-                      height: 42,
-                      display: 'inline-flex',
+                      minHeight: 84,
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) 42px',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: 8,
-                      color: metric.color,
-                      background: metric.iconBackground,
+                      gap: 16,
+                      padding: '4px 22px',
+                      borderLeft: index === 0 ? 'none' : '1px solid #e5e7eb',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    <MetricIcon size={22} strokeWidth={2} />
-                  </span>
-                  <div style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        color: '#334155',
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {metric.label}
-                    </span>
-                    <strong
-                      style={{
-                        display: 'block',
-                        marginTop: 8,
-                        color: metric.color,
-                        fontSize: 20,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {metric.value}
-                    </strong>
-                    {metric.description ? (
-                      <div
+                    <div style={{ minWidth: 0 }}>
+                      <span
                         style={{
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          gap: '3px 12px',
-                          marginTop: 10,
-                          color: '#64748b',
-                          fontSize: 11,
-                          fontWeight: 600,
+                          color: '#334155',
+                          fontSize: 12,
+                          fontWeight: 700,
                         }}
                       >
-                        {metric.description.split('  |  ').map((detail) => (
-                          <span key={detail}>{detail}</span>
-                        ))}
-                      </div>
-                    ) : null}
+                        {metric.label}
+                      </span>
+                      <strong
+                        style={{
+                          display: 'block',
+                          marginTop: 7,
+                          color: metric.color,
+                          fontSize: 20,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {metric.value}
+                      </strong>
+                      {metric.description ? (
+                        <span
+                          style={{
+                            display: 'block',
+                            marginTop: 8,
+                            color: '#64748b',
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {metric.description}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span
+                      style={{
+                        width: 42,
+                        height: 42,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 8,
+                        color: metric.color,
+                        background: metric.iconBackground,
+                      }}
+                    >
+                      <MetricIcon size={22} strokeWidth={2} />
+                    </span>
                   </div>
-                </article>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </section>
 
           {businessSections.map((section) => {
             const SectionIcon = section.icon
@@ -1868,6 +2543,10 @@ export default function FinanceiroPage() {
               <section
                 key={section.title}
                 style={{
+                  width:
+                    section.metrics.length === 2
+                      ? 'calc(66.666667% - 4px)'
+                      : '100%',
                   border: '1px solid #edf0f3',
                   borderRadius: 8,
                   background: '#ffffff',
@@ -1973,20 +2652,445 @@ export default function FinanceiroPage() {
               </section>
             )
           })}
+        </div>
+      ) : null}
 
-          <span
+      {!isMobile && activeDesktopView === 'businesses' ? (
+        <div
+          style={{
+            minHeight: 0,
+            flex: 1,
+          }}
+        />
+      ) : null}
+
+      {activeDesktopView === 'payments' ? (
+        <div
+          className="financeiro-scroll-body"
+          style={{
+            minHeight: 0,
+            flex: 1,
+            overflowY: isMobile ? 'auto' : 'hidden',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {activePaymentFilterTags.length > 0 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 10,
+                padding: '0 2px',
+              }}
+            >
+              {activePaymentFilterTags.map((tag) => (
+                <span
+                  key={tag.key}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    background: tag.background,
+                    color: tag.color,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                  }}
+                >
+                  <span>{tag.label}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remover filtro ${tag.label}`}
+                    onClick={tag.onRemove}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: tag.color,
+                      padding: 0,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    X
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {isMobile ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              {isPaymentListLoading ? <MobileListSkeleton /> : null}
+              {!isPaymentListLoading && paymentListError ? (
+                <div
+                  style={{
+                    padding: 16,
+                    color: '#b91c1c',
+                    fontSize: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  {paymentListError}
+                </div>
+              ) : null}
+              {!isPaymentListLoading &&
+                !paymentListError &&
+                sortedPaymentItems.map((payment) => (
+                  <article
+                    key={payment.id}
+                    style={{
+                      padding: 16,
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 8,
+                      background: '#ffffff',
+                      display: 'grid',
+                      gap: 14,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <strong
+                          style={{
+                            display: 'block',
+                            color: '#111827',
+                            fontSize: 16,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {payment.leadName}
+                        </strong>
+                        <span
+                          style={{
+                            display: 'block',
+                            marginTop: 4,
+                            color: '#64748b',
+                            fontSize: 13,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {payment.negotiationTitle}
+                        </span>
+                      </div>
+                      <PaymentStatusTag
+                        status={payment.status}
+                        disabled={updatingPaymentStatusId === payment.id}
+                        onChange={(status) =>
+                          void handlePaymentStatusChange(payment, status)
+                        }
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 12,
+                      }}
+                    >
+                      {[
+                        {
+                          label: 'Tipo',
+                          value: paymentMethodLabels[payment.paymentMethod],
+                        },
+                        {
+                          label: 'Parcela',
+                          value: `${payment.installmentNumber}/${payment.totalInstallments}`,
+                        },
+                        {
+                          label: 'Vencimento',
+                          value: formatDate(payment.dueDate),
+                        },
+                        {
+                          label: 'Valor',
+                          value: formatCurrency(payment.amount),
+                        },
+                      ].map((detail) => (
+                        <div key={detail.label} style={{ minWidth: 0 }}>
+                          <span
+                            style={{
+                              display: 'block',
+                              color: '#64748b',
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {detail.label}
+                          </span>
+                          <strong
+                            style={{
+                              display: 'block',
+                              marginTop: 4,
+                              color: '#334155',
+                              fontSize: 13,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {detail.value}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                minHeight: 0,
+                maxHeight: '100%',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                background: '#ffffff',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+              }}
+            >
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  tableLayout: 'fixed',
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      height: 44,
+                      background: '#f8fafc',
+                      borderBottom: '1px solid #e5e7eb',
+                    }}
+                  >
+                    {paymentTableColumns.map((column) => (
+                      <th
+                        key={column.label}
+                        style={{
+                          width: column.width,
+                          padding: '0 12px',
+                          color: '#64748b',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textAlign: column.align ?? 'left',
+                        }}
+                      >
+                        {column.sortKey ? (
+                          <button
+                            type="button"
+                            aria-label={`Ordenar por ${column.label}`}
+                            onClick={() =>
+                              handlePaymentSortToggle(column.sortKey!)
+                            }
+                            style={{
+                              width: '100%',
+                              border: 'none',
+                              background: 'transparent',
+                              padding: 0,
+                              color: '#64748b',
+                              fontSize: 12,
+                              fontWeight:
+                                paymentSortKey === column.sortKey ? 700 : 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent:
+                                column.align === 'right'
+                                  ? 'flex-end'
+                                  : 'flex-start',
+                              gap: 6,
+                            }}
+                          >
+                            {column.label}
+                            <span style={{ fontSize: 11 }}>
+                              {getPaymentSortIndicator(column.sortKey)}
+                            </span>
+                          </button>
+                        ) : (
+                          column.label
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {isPaymentListLoading ? (
+                    <DesktopTableSkeleton
+                      columns={[
+                        { width: '72%' },
+                        { width: '78%' },
+                        { width: '68%' },
+                        { width: '48%' },
+                        { width: '66%' },
+                        { width: '68%', align: 'right' },
+                        { width: '72%', align: 'right' },
+                      ]}
+                    />
+                  ) : null}
+                  {!isPaymentListLoading &&
+                    !paymentListError &&
+                    sortedPaymentItems.map((payment) => (
+                      <tr
+                        key={payment.id}
+                        style={{
+                          height: 60,
+                          borderBottom: '1px solid #f3f4f6',
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#111827',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {payment.leadName}
+                        </td>
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#475569',
+                            fontSize: 14,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {payment.negotiationTitle}
+                        </td>
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#475569',
+                            fontSize: 14,
+                          }}
+                        >
+                          {paymentMethodLabels[payment.paymentMethod]}
+                        </td>
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#475569',
+                            fontSize: 14,
+                          }}
+                        >
+                          {payment.installmentNumber}/
+                          {payment.totalInstallments}
+                        </td>
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#475569',
+                            fontSize: 14,
+                          }}
+                        >
+                          {formatDate(payment.dueDate)}
+                        </td>
+                        <td
+                          style={{
+                            padding: '0 12px',
+                            color: '#111827',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            textAlign: 'right',
+                          }}
+                        >
+                          {formatCurrency(payment.amount)}
+                        </td>
+                        <td style={{ padding: '0 12px', textAlign: 'right' }}>
+                          <PaymentStatusTag
+                            status={payment.status}
+                            disabled={updatingPaymentStatusId === payment.id}
+                            onChange={(status) =>
+                              void handlePaymentStatusChange(payment, status)
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {!isPaymentListLoading && paymentListError ? (
+                <div
+                  style={{
+                    padding: 20,
+                    color: '#b91c1c',
+                    fontSize: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  {paymentListError}
+                </div>
+              ) : null}
+              {!isPaymentListLoading &&
+              !paymentListError &&
+              sortedPaymentItems.length === 0 ? (
+                <div
+                  style={{
+                    padding: 24,
+                    color: '#64748b',
+                    fontSize: 14,
+                    textAlign: 'center',
+                  }}
+                >
+                  Nenhum pagamento encontrado no período selecionado.
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <div
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              color: '#718096',
-              fontSize: 11,
-              fontWeight: 600,
-              paddingBottom: 4,
+              marginTop: 10,
+              color: '#6b7280',
+              fontSize: 13,
+              padding: '0 8px',
             }}
           >
-            Os valores apresentados consideram o período selecionado.
-          </span>
+            <TotalCount
+              isLoading={isPaymentListLoading}
+              total={sortedPaymentItems.length}
+            />
+          </div>
+          {paymentStatusUpdateError ? (
+            <span
+              role="alert"
+              style={{
+                padding: '0 8px',
+                color: '#b91c1c',
+                fontSize: 12,
+              }}
+            >
+              {paymentStatusUpdateError}
+            </span>
+          ) : null}
         </div>
       ) : null}
 

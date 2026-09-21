@@ -1,4 +1,4 @@
-import { ChevronDown, ListFilter } from 'lucide-react'
+import { Archive, ChevronDown, ListFilter } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -174,6 +174,25 @@ const SourceTag = ({ source }: { source?: string | null }) => {
     </span>
   )
 }
+
+const ArchivedLeadIndicator = () => (
+  <span
+    title="Lead arquivado"
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      background: '#fef3c7',
+      color: '#d97706',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}
+  >
+    <Archive size={14} aria-label="Lead arquivado" />
+  </span>
+)
 
 const StatusTag = ({
   status,
@@ -1087,12 +1106,24 @@ export default function ConversasPage() {
                         fontSize: 20,
                         lineHeight: 1.2,
                         fontWeight: 800,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        minWidth: 0,
                       }}
                     >
-                      {conversation.leadName}
+                      {conversation.leadState === 'archived' ? (
+                        <ArchivedLeadIndicator />
+                      ) : null}
+                      <span
+                        style={{
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {conversation.leadName}
+                      </span>
                     </h2>
                     <StatusTag status={conversation.status} />
                   </div>
@@ -1432,18 +1463,30 @@ export default function ConversasPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      <DelayedTooltip content={conversation.leadName}>
-                        <span
-                          style={{
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {conversation.leadName}
-                        </span>
-                      </DelayedTooltip>
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          minWidth: 0,
+                        }}
+                      >
+                        {conversation.leadState === 'archived' ? (
+                          <ArchivedLeadIndicator />
+                        ) : null}
+                        <DelayedTooltip content={conversation.leadName}>
+                          <span
+                            style={{
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {conversation.leadName}
+                          </span>
+                        </DelayedTooltip>
+                      </span>
                     </td>
                     <td
                       style={{

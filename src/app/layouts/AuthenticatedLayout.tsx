@@ -133,11 +133,10 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
   },
   {
     id: 'installment-due-tomorrow',
-    title: 'Listas Pagamentos vencendo amanhã',
+    title: 'Lista pagamentos vencendo amanhã',
     description: 'Quando uma parcela vence no dia seguinte',
     icon: 'money',
     channels: { inApp: false, whatsApp: false, email: false },
-    showChannelToggles: false,
   },
   {
     id: 'installment-overdue',
@@ -145,7 +144,6 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     description: 'Quando uma parcela está vencida',
     icon: 'money',
     channels: { inApp: false, whatsApp: false, email: false },
-    showChannelToggles: false,
   },
 ]
 

@@ -24,6 +24,7 @@ export type DashboardConversationStatus =
 export type DashboardConversation = {
   leadId: string
   leadName: string
+  leadState: 'active' | 'archived'
   source: string | null
   leadCreatedAt: string | Date
   lastMessageAt: string | Date
@@ -52,11 +53,13 @@ export type UserNotification = {
     | 'MESSAGE_RECEIVED'
     | 'FOLLOW_UP_REMINDER_1H'
     | 'DAILY_FOLLOWUP_SUMMARY'
+    | 'PAYMENT_DUE_TOMORROW'
+    | 'PAYMENT_OVERDUE'
     | 'CONVERSATION_EXPIRING_1H'
     | 'CONVERSATION_EXPIRED'
   title: string
   description: string
-  referenceType: 'LEAD' | 'MESSAGE' | 'FOLLOW_UP'
+  referenceType: 'LEAD' | 'MESSAGE' | 'FOLLOW_UP' | 'PAYMENT'
   referenceId: string
   isRead: boolean
   readAt: string | Date | null

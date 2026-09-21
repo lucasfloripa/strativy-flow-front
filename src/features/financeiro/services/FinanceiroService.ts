@@ -1,6 +1,8 @@
 import { appApiClient } from '../../../core/api/appApiClient'
 import type {
   FinanceiroBusinessSummaryResponse,
+  FinanceiroPaymentListResponse,
+  FinanceiroPaymentStatus,
   FinanceiroPaymentsResponse,
   FinanceiroRevenueResponse,
   FinanceiroTemplateCostsResponse,
@@ -10,6 +12,11 @@ type LoadFinanceiroParams = {
   createdAtFrom?: string
   createdAtTo?: string
   leadId?: string
+}
+
+type LoadFinanceiroPaymentsParams = {
+  dueDateFrom?: string
+  dueDateTo?: string
 }
 
 export const FinanceiroService = {
@@ -44,6 +51,31 @@ export const FinanceiroService = {
     )
 
     return data
+  },
+
+  async loadPaymentList(
+    params?: LoadFinanceiroPaymentsParams,
+  ): Promise<FinanceiroPaymentListResponse> {
+    const { data } = await appApiClient.get<FinanceiroPaymentListResponse>(
+      '/financeiro/pagamentos',
+      { params },
+    )
+
+    return data
+  },
+
+  async updatePaymentStatus(
+    negotiationId: string,
+    paymentId: string,
+    status: Extract<FinanceiroPaymentStatus, 'PAID' | 'CANCELED'>,
+  ): Promise<void> {
+    await appApiClient.patch(
+      `/negotiations/${negotiationId}/financial/payments/${paymentId}`,
+      {
+        status,
+        paidAt: status === 'PAID' ? new Date().toISOString() : null,
+      },
+    )
   },
 
   async loadTemplateCosts(

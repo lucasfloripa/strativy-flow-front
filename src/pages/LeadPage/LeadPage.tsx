@@ -28,6 +28,7 @@ import {
   Save,
   Link2,
   Instagram,
+  ListFilter,
   Star,
   Snowflake,
   Sun,
@@ -1223,6 +1224,16 @@ export default function LeadPage({
   const [financialPayments, setFinancialPayments] = useAtom(
     openedBusinessPaymentsAtom,
   )
+  const [financialPaymentStatusFilter, setFinancialPaymentStatusFilter] =
+    useState<NegotiationPaymentStatus | null>(null)
+  const [
+    isFinancialPaymentStatusFilterOpen,
+    setIsFinancialPaymentStatusFilterOpen,
+  ] = useState<boolean>(false)
+  const [
+    financialPaymentStatusFilterPosition,
+    setFinancialPaymentStatusFilterPosition,
+  ] = useState({ top: 0, right: 0 })
   const [isFinancialPaymentsLoading, setIsFinancialPaymentsLoading] =
     useState<boolean>(false)
   const [isCreatingFinancialPayment, setIsCreatingFinancialPayment] =
@@ -1294,6 +1305,8 @@ export default function LeadPage({
   const businessAttachmentInputRef = useRef<HTMLInputElement | null>(null)
   const paymentProofInputRef = useRef<HTMLInputElement | null>(null)
   const paymentProofTargetIdRef = useRef<string | null>(null)
+  const financialPaymentStatusFilterRef = useRef<HTMLDivElement | null>(null)
+  const financialPaymentStatusMenuRef = useRef<HTMLDivElement | null>(null)
   const openedBusinessLoadSequenceRef = useRef<number>(0)
   const hydratedBusinessIdRef = useRef<string | null>(null)
   const [uploadingPaymentProofId, setUploadingPaymentProofId] = useState<
@@ -2869,7 +2882,39 @@ export default function LeadPage({
     setEditingFinancialPaymentId(null)
     setConfirmingDeleteFinancialPaymentId(null)
     setFinancialPaymentDraft(emptyFinancialPaymentDraft)
+    setFinancialPaymentStatusFilter(null)
+    setIsFinancialPaymentStatusFilterOpen(false)
   }, [activeBusinessTab, selectedBusinessId])
+
+  useEffect(() => {
+    if (!isFinancialPaymentStatusFilterOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        financialPaymentStatusFilterRef.current?.contains(
+          event.target as Node,
+        ) ||
+        financialPaymentStatusMenuRef.current?.contains(event.target as Node)
+      ) {
+        return
+      }
+
+      setIsFinancialPaymentStatusFilterOpen(false)
+    }
+    const handleViewportChange = () => {
+      setIsFinancialPaymentStatusFilterOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [isFinancialPaymentStatusFilterOpen])
 
   useEffect(() => {
     if (!shouldLockMobileFormBackground) {
@@ -6178,8 +6223,9 @@ export default function LeadPage({
                           getFollowUpChannelTagPresentation(followUp.steps)
                         const isHovered =
                           hoveredBusinessFollowUpId === followUp.id
-                        const primaryActionId =
-                          findPrimaryFollowUpActionStep(followUp.steps)?.id
+                        const primaryActionId = findPrimaryFollowUpActionStep(
+                          followUp.steps,
+                        )?.id
                         const automationActionCount = followUp.steps.filter(
                           (step) =>
                             step.type === 'action' &&
@@ -8529,9 +8575,7 @@ export default function LeadPage({
       )
       const financialTotalReceivable = financialPayments.reduce(
         (total, payment) =>
-          payment.status === 'PENDING' || payment.status === 'OVERDUE'
-            ? total + Number(payment.amount)
-            : total,
+          payment.status === 'PENDING' ? total + Number(payment.amount) : total,
         0,
       )
       const financialTotalOverdue = financialPayments.reduce(
@@ -8539,6 +8583,16 @@ export default function LeadPage({
           payment.status === 'OVERDUE' ? total + Number(payment.amount) : total,
         0,
       )
+      const availableFinancialPaymentStatuses = (
+        Object.keys(financialPaymentStatusLabels) as NegotiationPaymentStatus[]
+      ).filter((status) =>
+        financialPayments.some((payment) => payment.status === status),
+      )
+      const visibleFinancialPayments = financialPaymentStatusFilter
+        ? financialPayments.filter(
+            (payment) => payment.status === financialPaymentStatusFilter,
+          )
+        : financialPayments
       const financialReceiptProgress =
         financialNetSale > 0
           ? (financialTotalReceived / financialNetSale) * 100
@@ -9801,11 +9855,17 @@ export default function LeadPage({
                         activeFinancialSection === 'costs' ? 'grid' : 'none',
                       gap: 8,
                       width: '100%',
+                      height: '100%',
                       minWidth: 0,
+                      minHeight: 0,
+                      gridTemplateRows: isCreatingFinancialCost
+                        ? 'auto auto minmax(0, 1fr)'
+                        : 'auto minmax(0, 1fr)',
                       padding: isMobile ? '16px' : '18px',
                       border: '1px solid #e5e7eb',
                       borderRadius: 8,
                       background: '#ffffff',
+                      overflow: 'hidden',
                       boxSizing: 'border-box',
                     }}
                   >
@@ -10008,7 +10068,14 @@ export default function LeadPage({
                       </div>
                     ) : null}
 
-                    <div style={{ borderTop: '1px solid #e5e7eb' }}>
+                    <div
+                      style={{
+                        minHeight: 0,
+                        borderTop: '1px solid #e5e7eb',
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                      }}
+                    >
                       {isFinancialCostsLoading ? (
                         <div
                           style={{
@@ -10452,11 +10519,15 @@ export default function LeadPage({
                         activeFinancialSection === 'payment' ? 'grid' : 'none',
                       gap: 8,
                       width: '100%',
+                      height: '100%',
                       minWidth: 0,
+                      minHeight: 0,
+                      gridTemplateRows: 'auto minmax(0, 1fr)',
                       padding: isMobile ? 16 : 18,
                       border: '1px solid #e5e7eb',
                       borderRadius: 8,
                       background: '#ffffff',
+                      overflow: 'hidden',
                       boxSizing: 'border-box',
                     }}
                   >
@@ -10582,37 +10653,185 @@ export default function LeadPage({
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          aria-label="Adicionar pagamento"
-                          title="Adicionar pagamento"
-                          disabled={isBusinessClosed}
-                          onClick={() => {
-                            if (isBusinessClosed) return
-
-                            setFinancialPaymentDraft(emptyFinancialPaymentDraft)
-                            setEditingFinancialPaymentId(null)
-                            setConfirmingDeleteFinancialPaymentId(null)
-                            setIsCreatingFinancialPayment(true)
-                          }}
+                        <div
+                          ref={financialPaymentStatusFilterRef}
                           style={{
-                            width: 28,
-                            height: 28,
-                            border: 'none',
-                            borderRadius: 6,
-                            background: 'transparent',
-                            color: isBusinessClosed ? '#cbd5e1' : '#6b7280',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: 0,
-                            cursor: isBusinessClosed
-                              ? 'not-allowed'
-                              : 'pointer',
+                            gap: 2,
+                            position: 'relative',
                           }}
                         >
-                          <Plus size={17} />
-                        </button>
+                          <button
+                            type="button"
+                            aria-label="Filtrar pagamentos por status"
+                            title="Filtrar pagamentos"
+                            aria-pressed={financialPaymentStatusFilter !== null}
+                            onClick={(event) => {
+                              if (isFinancialPaymentStatusFilterOpen) {
+                                setIsFinancialPaymentStatusFilterOpen(false)
+                                return
+                              }
+
+                              const buttonBounds =
+                                event.currentTarget.getBoundingClientRect()
+                              setFinancialPaymentStatusFilterPosition({
+                                top: buttonBounds.bottom + 6,
+                                right: Math.max(
+                                  8,
+                                  window.innerWidth - buttonBounds.right,
+                                ),
+                              })
+                              setIsFinancialPaymentStatusFilterOpen(true)
+                            }}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              border: 'none',
+                              borderRadius: 6,
+                              background:
+                                isFinancialPaymentStatusFilterOpen ||
+                                financialPaymentStatusFilter
+                                  ? interactionTheme.clickableCardHoverBackground
+                                  : 'transparent',
+                              color: '#6b7280',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <ListFilter size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Adicionar pagamento"
+                            title="Adicionar pagamento"
+                            disabled={isBusinessClosed}
+                            onClick={() => {
+                              if (isBusinessClosed) return
+
+                              setFinancialPaymentDraft(
+                                emptyFinancialPaymentDraft,
+                              )
+                              setEditingFinancialPaymentId(null)
+                              setConfirmingDeleteFinancialPaymentId(null)
+                              setIsCreatingFinancialPayment(true)
+                              setIsFinancialPaymentStatusFilterOpen(false)
+                            }}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              border: 'none',
+                              borderRadius: 6,
+                              background: 'transparent',
+                              color: isBusinessClosed ? '#cbd5e1' : '#6b7280',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                              cursor: isBusinessClosed
+                                ? 'not-allowed'
+                                : 'pointer',
+                            }}
+                          >
+                            <Plus size={17} />
+                          </button>
+
+                          {isFinancialPaymentStatusFilterOpen
+                            ? createPortal(
+                                <div
+                                  ref={financialPaymentStatusMenuRef}
+                                  role="menu"
+                                  aria-label="Status dos pagamentos"
+                                  style={{
+                                    position: 'fixed',
+                                    top: financialPaymentStatusFilterPosition.top,
+                                    right:
+                                      financialPaymentStatusFilterPosition.right,
+                                    zIndex: 2147483647,
+                                    minWidth: 150,
+                                    padding: 6,
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: 8,
+                                    background: '#ffffff',
+                                    boxShadow:
+                                      '0 10px 24px rgba(15, 23, 42, 0.12)',
+                                    display: 'grid',
+                                    gap: 2,
+                                  }}
+                                >
+                                  {availableFinancialPaymentStatuses.length >
+                                  0 ? (
+                                    availableFinancialPaymentStatuses.map(
+                                      (status) => {
+                                        const isSelected =
+                                          financialPaymentStatusFilter ===
+                                          status
+                                        const colors =
+                                          financialPaymentStatusColors[status]
+
+                                        return (
+                                          <button
+                                            key={status}
+                                            type="button"
+                                            role="menuitemcheckbox"
+                                            aria-checked={isSelected}
+                                            onClick={() => {
+                                              setFinancialPaymentStatusFilter(
+                                                isSelected ? null : status,
+                                              )
+                                              setIsFinancialPaymentStatusFilterOpen(
+                                                false,
+                                              )
+                                            }}
+                                            style={{
+                                              width: '100%',
+                                              minHeight: 32,
+                                              border: 'none',
+                                              borderRadius: 6,
+                                              padding: '7px 10px',
+                                              background: isSelected
+                                                ? colors.background
+                                                : 'transparent',
+                                              color: isSelected
+                                                ? colors.textColor
+                                                : '#334155',
+                                              fontSize: 13,
+                                              fontWeight: isSelected
+                                                ? 700
+                                                : 600,
+                                              textAlign: 'left',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            {
+                                              financialPaymentStatusLabels[
+                                                status
+                                              ]
+                                            }
+                                          </button>
+                                        )
+                                      },
+                                    )
+                                  ) : (
+                                    <span
+                                      style={{
+                                        padding: '7px 10px',
+                                        color: '#64748b',
+                                        fontSize: 12,
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      Nenhum status disponível
+                                    </span>
+                                  )}
+                                </div>,
+                                document.body,
+                              )
+                            : null}
+                        </div>
                       )}
                     </div>
 
@@ -10622,8 +10841,11 @@ export default function LeadPage({
                           display: 'grid',
                           gridTemplateColumns: 'minmax(0, 1fr)',
                           gap: 10,
+                          minHeight: 0,
                           padding: '16px 0 4px',
                           borderTop: '1px solid #e5e7eb',
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
                         }}
                       >
                         <span style={businessEditFieldLabelStyle}>
@@ -10861,8 +11083,11 @@ export default function LeadPage({
                         style={{
                           display: isMobile ? 'grid' : 'block',
                           gap: isMobile ? 14 : 0,
+                          minHeight: 0,
                           paddingTop: isMobile ? 14 : 0,
                           borderTop: '1px solid #e5e7eb',
+                          overflowY: 'auto',
+                          overflowX: 'hidden',
                         }}
                       >
                         {isFinancialPaymentsLoading ? (
@@ -10890,6 +11115,20 @@ export default function LeadPage({
                             Nenhum pagamento cadastrado.
                           </div>
                         ) : null}
+                        {!isFinancialPaymentsLoading &&
+                        financialPayments.length > 0 &&
+                        visibleFinancialPayments.length === 0 ? (
+                          <div
+                            style={{
+                              padding: '18px 2px',
+                              color: '#64748b',
+                              fontSize: 13,
+                              textAlign: 'center',
+                            }}
+                          >
+                            Nenhum pagamento com o status selecionado.
+                          </div>
+                        ) : null}
                         <input
                           ref={paymentProofInputRef}
                           type="file"
@@ -10912,7 +11151,7 @@ export default function LeadPage({
                             event.target.value = ''
                           }}
                         />
-                        {financialPayments.map((payment) => {
+                        {visibleFinancialPayments.map((payment) => {
                           if (
                             !isBusinessClosed &&
                             !isMobile &&
@@ -13083,7 +13322,9 @@ export default function LeadPage({
                                       selectedBusinessId,
                                       payload,
                                     )
-                                    await refreshLeadAndNegotiations(leadId ?? '')
+                                    await refreshLeadAndNegotiations(
+                                      leadId ?? '',
+                                    )
                                     onLeadUpdated?.()
                                     setViewingBusinessNoteIndex(null)
                                     setEditingBusinessNoteIndex(null)
