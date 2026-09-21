@@ -1853,6 +1853,7 @@ export function BusinessFollowUpAutomationComposer({
           borderRadius: 8,
           background: '#f8fafc',
           boxSizing: 'border-box',
+          flexShrink: 0,
         }}
       >
         {tabs.map((tab) => {
@@ -1904,8 +1905,8 @@ export function BusinessFollowUpAutomationComposer({
         display: 'flex',
         flexDirection: 'column',
         gap: 16,
-        height: isMobile ? 'auto' : '100%',
-        minHeight: isMobile ? '100%' : 0,
+        height: '100%',
+        minHeight: 0,
         overflow: 'hidden',
         boxSizing: 'border-box',
         padding: isMobile ? '0 18px 28px' : 0,
@@ -1920,11 +1921,13 @@ export function BusinessFollowUpAutomationComposer({
           display: 'grid',
           alignContent: 'start',
           gap: 16,
-          flex: isMobile ? 'none' : 1,
+          flex: 1,
           minHeight: 0,
-          overflowY: isMobile ? 'visible' : 'auto',
-          overflowX: isMobile ? 'visible' : 'hidden',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           paddingRight: isMobile ? 2 : 6,
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {activeTab === 'information' ? (

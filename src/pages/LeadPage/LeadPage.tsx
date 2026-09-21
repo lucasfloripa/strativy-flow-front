@@ -6048,13 +6048,14 @@ export default function LeadPage({
     const businessFollowUpViewContent = viewedBusinessFollowUp ? (
       <section
         style={{
-          display: 'grid',
+          display: isMobile ? 'flex' : 'grid',
+          flexDirection: isMobile ? 'column' : undefined,
           alignContent: 'start',
           gap: 16,
-          height: isMobile ? 'auto' : '100%',
-          minHeight: isMobile ? '100%' : 0,
-          overflowY: isMobile ? 'visible' : 'auto',
-          overflowX: isMobile ? 'visible' : 'hidden',
+          height: '100%',
+          minHeight: 0,
+          overflowY: isMobile ? 'hidden' : 'auto',
+          overflowX: 'hidden',
           paddingRight: isMobile ? 2 : 6,
           boxSizing: 'border-box',
           padding: isMobile ? '0 18px 28px' : 0,
@@ -6985,6 +6986,7 @@ export default function LeadPage({
                 left: 0,
                 right: 0,
                 bottom: 0,
+                height: '86dvh',
                 maxHeight: '86%',
                 zIndex: 45,
                 borderRadius: '22px 22px 0 0',
@@ -6998,9 +7000,9 @@ export default function LeadPage({
               {mobileBusinessFollowUpHeader}
               <div
                 style={{
-                  flex: 1,
+                  flex: '1 1 auto',
                   minHeight: 0,
-                  overflowY: 'auto',
+                  overflow: 'hidden',
                   overflowX: 'hidden',
                   overscrollBehavior: 'contain',
                   WebkitOverflowScrolling: 'touch',
