@@ -1918,12 +1918,15 @@ export function BusinessFollowUpAutomationComposer({
 
       <div
         style={{
-          display: 'grid',
+          display: isMobile && activeTab === 'automationList' ? 'flex' : 'grid',
+          flexDirection:
+            isMobile && activeTab === 'automationList' ? 'column' : undefined,
           alignContent: 'start',
           gap: 16,
           flex: 1,
           minHeight: 0,
-          overflowY: 'auto',
+          overflowY:
+            isMobile && activeTab === 'automationList' ? 'hidden' : 'auto',
           overflowX: 'hidden',
           paddingRight: isMobile ? 2 : 6,
           overscrollBehavior: 'contain',
