@@ -21,7 +21,13 @@ export const HomeService = {
       { params: { filter } }
     )
 
-    return data
+    return {
+      ...data,
+      items: data.items.map((item) => ({
+        ...item,
+        leadName: item.leadName?.trim() || 'Lead sem nome'
+      }))
+    }
   },
 
   async getHighlightedLeads(): Promise<HomeHighlightedLead[]> {
