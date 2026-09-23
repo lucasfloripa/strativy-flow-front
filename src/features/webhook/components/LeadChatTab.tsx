@@ -858,6 +858,11 @@ export function LeadChatTab({
       channel: outboundMessageChannel,
     })
     void processTextMessageQueue()
+
+    messageInputRef.current?.focus({ preventScroll: true })
+    requestAnimationFrame(() => {
+      messageInputRef.current?.focus({ preventScroll: true })
+    })
   }
 
   const handleDocumentSelected = async (selectedFile: File) => {
