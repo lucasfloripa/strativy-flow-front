@@ -48,6 +48,12 @@ type LeadChatTabProps = {
   onToggleRuntimeMode?: () => void
 }
 
+type QueuedTextMessage = {
+  leadId: string
+  content: string
+  channel?: 'messenger' | 'instagram'
+}
+
 const MessageStatusIndicator = ({
   status,
 }: {
@@ -225,10 +231,24 @@ export function LeadChatTab({
   const messageElementRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const lastFocusedMessageIdRef = useRef<string | null>(null)
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null)
+  const textMessageQueueRef = useRef<QueuedTextMessage[]>([])
+  const isProcessingTextQueueRef = useRef<boolean>(false)
+  const activeLeadIdRef = useRef<string>(leadId)
+  const isMountedRef = useRef<boolean>(true)
   const [highlightedMessageId, setHighlightedMessageId] = useState<
     string | null
   >(null)
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null)
+
+  activeLeadIdRef.current = leadId
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!isAttachmentMenuOpen) {
@@ -277,6 +297,8 @@ export function LeadChatTab({
   const isAnyUploadActive = mediaUploader.isUploading
   const isComposerActionDisabled =
     isSending || isAnyUploadActive || runtimeMode === 'AUTOMATION'
+  const isTextComposerDisabled =
+    isAnyUploadActive || runtimeMode === 'AUTOMATION'
 
   const inboundMessages = messages.filter((msg) => msg.direction === 'inbound')
   const inboundMessageTimes = inboundMessages
@@ -775,7 +797,49 @@ export function LeadChatTab({
     }))
   }
 
-  const handleSendSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const processTextMessageQueue = async () => {
+    if (isProcessingTextQueueRef.current) {
+      return
+    }
+
+    isProcessingTextQueueRef.current = true
+    if (isMountedRef.current) {
+      setIsSending(true)
+    }
+
+    while (textMessageQueueRef.current.length > 0) {
+      const queuedMessage = textMessageQueueRef.current[0]
+
+      try {
+        await WebhookService.sendMessage(
+          queuedMessage.leadId,
+          queuedMessage.content,
+          undefined,
+          queuedMessage.channel,
+        )
+      } catch (exception: unknown) {
+        if (
+          isMountedRef.current &&
+          activeLeadIdRef.current === queuedMessage.leadId
+        ) {
+          const messageText =
+            exception instanceof Error
+              ? exception.message
+              : 'Falha ao enviar mensagem.'
+          setError(messageText)
+        }
+      } finally {
+        textMessageQueueRef.current.shift()
+      }
+    }
+
+    isProcessingTextQueueRef.current = false
+    if (isMountedRef.current) {
+      setIsSending(false)
+    }
+  }
+
+  const handleSendSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const content = message.trim()
@@ -784,28 +848,16 @@ export function LeadChatTab({
       return
     }
 
-    try {
-      setIsSending(true)
-      setError(null)
-      await WebhookService.sendMessage(
-        leadId,
-        content,
-        undefined,
-        outboundMessageChannel,
-      )
-      setMessage('')
-    } catch (exception: unknown) {
-      const messageText =
-        exception instanceof Error
-          ? exception.message
-          : 'Falha ao enviar mensagem.'
-      setError(messageText)
-    } finally {
-      setIsSending(false)
-      requestAnimationFrame(() => {
-        messageInputRef.current?.focus()
-      })
-    }
+    setMessage('')
+    setShortcutDropdownVisible(false)
+    setShortcutFilter('')
+    setError(null)
+    textMessageQueueRef.current.push({
+      leadId,
+      content,
+      channel: outboundMessageChannel,
+    })
+    void processTextMessageQueue()
   }
 
   const handleDocumentSelected = async (selectedFile: File) => {
@@ -1894,7 +1946,7 @@ export function LeadChatTab({
                         placeholder={
                           runtimeMode === 'AUTOMATION' ? 'Automação ativa' : ''
                         }
-                        disabled={isComposerActionDisabled}
+                        disabled={isTextComposerDisabled}
                         rows={1}
                         style={{
                           flex: isCompactScreen ? '1 1 auto' : 1,
@@ -2250,7 +2302,7 @@ export function LeadChatTab({
                       <button
                         type="submit"
                         aria-label="Enviar mensagem"
-                        disabled={isComposerActionDisabled}
+                        disabled={isTextComposerDisabled}
                         onMouseEnter={() => setIsSendButtonHovered(true)}
                         onMouseLeave={() => setIsSendButtonHovered(false)}
                         style={{
@@ -2266,23 +2318,23 @@ export function LeadChatTab({
                           border: 'none',
                           borderRadius: 8,
                           background:
-                            isSendButtonHovered && !isComposerActionDisabled
+                            isSendButtonHovered && !isTextComposerDisabled
                               ? (chatTheme?.buttonHoverBackground ??
                                 interactionTheme.primaryButtonHoverBackground)
                               : (chatTheme?.buttonBackground ??
                                 interactionTheme.primaryButtonBackground),
                           color: '#ffffff',
                           padding: 0,
-                          cursor: isComposerActionDisabled
+                          cursor: isTextComposerDisabled
                             ? 'not-allowed'
                             : 'pointer',
-                          opacity: isComposerActionDisabled ? 0.7 : 1,
+                          opacity: isTextComposerDisabled ? 0.7 : 1,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}
                       >
-                        {isSending ? '...' : <SendHorizontal size={18} />}
+                        <SendHorizontal size={18} />
                       </button>
                     </>
                   </form>
