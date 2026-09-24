@@ -13,6 +13,7 @@ import {
   Mic,
   Contact as ContactIcon,
   Ellipsis,
+  Smile,
 } from 'lucide-react'
 import Skeleton from 'react-loading-skeleton'
 import 'react-loading-skeleton/dist/skeleton.css'
@@ -79,6 +80,7 @@ const MessageStatusIndicator = ({
 const conversationWindowDurationInMs = 24 * 60 * 60 * 1000
 const messageInputMinHeight = 40
 const messageInputMaxHeight = 80
+const quickEmojis = ['😊', '👍', '❤️', '🙏', '😂']
 const greenBorderLeadSources = new Set([
   'whatsapp',
   'googleads',
@@ -207,6 +209,9 @@ export function LeadChatTab({
     'media' | 'document' | 'contact' | null
   >(null)
   const [isSendButtonHovered, setIsSendButtonHovered] = useState<boolean>(false)
+  const [isEmojiMenuOpen, setIsEmojiMenuOpen] = useState<boolean>(false)
+  const [isEmojiButtonHovered, setIsEmojiButtonHovered] =
+    useState<boolean>(false)
   const [isReopeningConversation, setIsReopeningConversation] =
     useState<boolean>(false)
   const [isSelectingContact, setIsSelectingContact] = useState<boolean>(false)
@@ -239,6 +244,7 @@ export function LeadChatTab({
     string | null
   >(null)
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null)
+  const emojiMenuRef = useRef<HTMLDivElement | null>(null)
 
   activeLeadIdRef.current = leadId
 
@@ -274,6 +280,31 @@ export function LeadChatTab({
       window.removeEventListener('keydown', handleEscape)
     }
   }, [isAttachmentMenuOpen])
+
+  useEffect(() => {
+    if (!isEmojiMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!emojiMenuRef.current?.contains(event.target as Node)) {
+        setIsEmojiMenuOpen(false)
+      }
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsEmojiMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleEscape)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [isEmojiMenuOpen])
 
   useLayoutEffect(() => {
     const messageInput = messageInputRef.current
@@ -594,6 +625,24 @@ export function LeadChatTab({
     setShortcutDropdownVisible(false)
     setShortcutFilter('')
     messageInputRef.current?.focus()
+  }
+
+  const handleSelectEmoji = (emoji: string) => {
+    const input = messageInputRef.current
+    const selectionStart = input?.selectionStart ?? message.length
+    const selectionEnd = input?.selectionEnd ?? selectionStart
+    const nextMessage = `${message.slice(0, selectionStart)}${emoji}${message.slice(selectionEnd)}`
+    const nextCursorPosition = selectionStart + emoji.length
+
+    setMessage(nextMessage)
+    setIsEmojiMenuOpen(false)
+    requestAnimationFrame(() => {
+      messageInputRef.current?.focus({ preventScroll: true })
+      messageInputRef.current?.setSelectionRange(
+        nextCursorPosition,
+        nextCursorPosition,
+      )
+    })
   }
 
   const handleInputKeyDown = (
@@ -2303,6 +2352,111 @@ export function LeadChatTab({
                             </button>
                           )}
                         </MediaPicker>
+                      </div>
+                      <div
+                        ref={emojiMenuRef}
+                        style={{ position: 'relative', flexShrink: 0 }}
+                      >
+                        <div
+                          id="chat-emoji-menu"
+                          role="menu"
+                          aria-hidden={!isEmojiMenuOpen}
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            bottom: 'calc(100% + 8px)',
+                            display: 'flex',
+                            gap: 2,
+                            padding: 6,
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 8,
+                            background: '#ffffff',
+                            boxShadow: '0 -8px 24px rgba(15, 23, 42, 0.16)',
+                            opacity: isEmojiMenuOpen ? 1 : 0,
+                            visibility: isEmojiMenuOpen ? 'visible' : 'hidden',
+                            pointerEvents: isEmojiMenuOpen ? 'auto' : 'none',
+                            transform: isEmojiMenuOpen
+                              ? 'translateY(0)'
+                              : 'translateY(4px)',
+                            transition:
+                              'opacity 120ms ease, transform 120ms ease, visibility 120ms ease',
+                            zIndex: 20,
+                          }}
+                        >
+                          {quickEmojis.map((emoji, index) => (
+                            <button
+                              key={`${emoji}-${index}`}
+                              type="button"
+                              role="menuitem"
+                              tabIndex={isEmojiMenuOpen ? 0 : -1}
+                              aria-label={`Adicionar emoji ${emoji}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => handleSelectEmoji(emoji)}
+                              style={{
+                                width: 36,
+                                height: 36,
+                                border: 'none',
+                                borderRadius: 6,
+                                background: 'transparent',
+                                fontSize: 22,
+                                lineHeight: 1,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Adicionar emoji"
+                          title="Adicionar emoji"
+                          aria-haspopup="menu"
+                          aria-controls="chat-emoji-menu"
+                          aria-expanded={isEmojiMenuOpen}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setIsAttachmentMenuOpen(false)
+                            setShortcutDropdownVisible(false)
+                            setIsEmojiMenuOpen((isOpen) => !isOpen)
+                          }}
+                          onMouseEnter={() => setIsEmojiButtonHovered(true)}
+                          onMouseLeave={() => setIsEmojiButtonHovered(false)}
+                          disabled={isTextComposerDisabled}
+                          style={{
+                            height: isCompactScreen
+                              ? compactComposerControlSize
+                              : 40,
+                            width: isCompactScreen
+                              ? compactComposerControlSize
+                              : 40,
+                            minWidth: isCompactScreen
+                              ? compactComposerControlSize
+                              : 40,
+                            border: 'none',
+                            borderRadius: 8,
+                            background:
+                              isEmojiButtonHovered || isEmojiMenuOpen
+                                ? (chatTheme?.buttonHoverBackground ??
+                                  interactionTheme.primaryButtonHoverBackground)
+                                : (chatTheme?.buttonBackground ??
+                                  interactionTheme.primaryButtonBackground),
+                            color: '#ffffff',
+                            padding: 0,
+                            cursor: isTextComposerDisabled
+                              ? 'not-allowed'
+                              : 'pointer',
+                            opacity: isTextComposerDisabled ? 0.7 : 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Smile size={18} />
+                        </button>
                       </div>
                       <button
                         type="submit"

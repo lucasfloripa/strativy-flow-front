@@ -175,11 +175,73 @@ const agendaFollowUpStatusOptions: Array<{
   value: LeadFollowUpResponse['status']
   label: string
 }> = [
-  { value: 'pending', label: 'Pendente' },
   { value: 'done', label: 'Concluído' },
   { value: 'canceled', label: 'Cancelado' },
-  { value: 'skipped', label: 'Ignorado' },
 ]
+
+type InlineFollowUpStatusTagProps = {
+  disabled: boolean
+  presentation: ReturnType<typeof getFollowUpStatusPresentation>
+  status: LeadFollowUpResponse['status']
+  onChange: (status: LeadFollowUpResponse['status']) => void
+}
+
+const InlineFollowUpStatusTag = ({
+  disabled,
+  presentation,
+  status,
+  onChange,
+}: InlineFollowUpStatusTagProps) => (
+  <span
+    style={{
+      position: 'relative',
+      fontSize: 12,
+      fontWeight: 700,
+      color: presentation.textColor,
+      whiteSpace: 'nowrap',
+      background: presentation.background,
+      border: `1px solid ${presentation.textColor}`,
+      borderRadius: 6,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '7px 12px',
+      lineHeight: 1.1,
+      opacity: disabled ? 0.65 : 1,
+    }}
+    onClick={(event) => event.stopPropagation()}
+  >
+    {presentation.label}
+    <select
+      aria-label="Alterar status do follow-up"
+      value={status}
+      disabled={disabled}
+      onChange={(event) =>
+        onChange(event.target.value as LeadFollowUpResponse['status'])
+      }
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        border: 'none',
+        padding: 0,
+        cursor: disabled ? 'wait' : 'pointer',
+        appearance: 'none',
+        opacity: 0,
+      }}
+    >
+      {!agendaFollowUpStatusOptions.some(
+        (option) => option.value === status,
+      ) && <option value={status}>{presentation.label}</option>}
+      {agendaFollowUpStatusOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </span>
+)
 
 const createLeadSourceOptions = leadSourceOptions.filter(
   ({ value }) => value !== 'messenger' && value !== 'direct',
@@ -1550,38 +1612,6 @@ export default function LeadPage({
         exception instanceof Error
           ? exception.message
           : 'Falha ao excluir follow-up.'
-      setBusinessesError(message)
-    }
-  }
-
-  const handleToggleNegotiationFollowUpStatus = async (
-    followUpId: string,
-    currentStatus: LeadFollowUpResponse['status'],
-  ) => {
-    if (!leadId) return
-
-    try {
-      setBusinessesError(null)
-
-      if (currentStatus === 'done') {
-        await WebhookService.updateNegotiationFollowUp(followUpId, {
-          status: 'pending',
-          completedAt: null,
-        })
-      } else {
-        await WebhookService.updateNegotiationFollowUp(followUpId, {
-          status: 'done',
-          completedAt: new Date().toISOString(),
-        })
-      }
-
-      await refreshLeadAndNegotiations(leadId)
-      onLeadUpdated?.()
-    } catch (exception: unknown) {
-      const message =
-        exception instanceof Error
-          ? exception.message
-          : 'Falha ao atualizar status do follow-up.'
       setBusinessesError(message)
     }
   }
@@ -5161,6 +5191,14 @@ export default function LeadPage({
                                         opacity: 0,
                                       }}
                                     >
+                                      {!agendaFollowUpStatusOptions.some(
+                                        (option) =>
+                                          option.value === followUp.status,
+                                      ) && (
+                                        <option value={followUp.status}>
+                                          {statusPresentation.label}
+                                        </option>
+                                      )}
                                       {agendaFollowUpStatusOptions.map(
                                         (option) => (
                                           <option
@@ -6384,25 +6422,19 @@ export default function LeadPage({
                                 minWidth: 0,
                               }}
                             >
-                              <span
-                                style={{
-                                  width: 'auto',
-                                  padding: isMobile ? '7px 12px' : '5px 8px',
-                                  borderRadius: isMobile ? 6 : 5,
-                                  background: statusPresentation.background,
-                                  color: statusPresentation.textColor,
-                                  fontSize: isMobile ? 12 : 11,
-                                  fontWeight: 700,
-                                  lineHeight: 1,
-                                  textAlign: 'center',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  boxSizing: 'border-box',
-                                }}
-                              >
-                                {statusPresentation.label}
-                              </span>
+                              <InlineFollowUpStatusTag
+                                disabled={
+                                  updatingAgendaFollowUpStatusId === followUp.id
+                                }
+                                presentation={statusPresentation}
+                                status={followUp.status}
+                                onChange={(status) =>
+                                  void handleAgendaFollowUpStatusChange(
+                                    followUp.id,
+                                    status,
+                                  )
+                                }
+                              />
                             </span>
 
                             <span
@@ -6606,45 +6638,6 @@ export default function LeadPage({
                                     }}
                                   >
                                     <Trash2 size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    aria-label={
-                                      followUp.status === 'done'
-                                        ? 'Desfazer conclusão do follow-up'
-                                        : 'Concluir follow-up'
-                                    }
-                                    title={
-                                      followUp.status === 'done'
-                                        ? 'Desfazer conclusão'
-                                        : 'Concluir follow-up'
-                                    }
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void handleToggleNegotiationFollowUpStatus(
-                                        followUp.id,
-                                        followUp.status,
-                                      )
-                                    }}
-                                    style={{
-                                      width: isMobile ? 34 : 24,
-                                      height: isMobile ? 34 : 24,
-                                      border: isMobile
-                                        ? '1px solid #e5e7eb'
-                                        : 'none',
-                                      borderRadius: isMobile ? 8 : 0,
-                                      background: isMobile
-                                        ? '#ffffff'
-                                        : 'transparent',
-                                      color:
-                                        followUp.status === 'done'
-                                          ? '#16a34a'
-                                          : '#4b5563',
-                                      padding: 0,
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    ✓
                                   </button>
                                 </>
                               )}
@@ -7208,43 +7201,6 @@ export default function LeadPage({
                         >
                           <Trash2 size={16} />
                         </button>
-
-                        <button
-                          type="button"
-                          aria-label={
-                            followUp.status === 'done'
-                              ? 'Desfazer conclusão do follow-up'
-                              : 'Concluir follow-up'
-                          }
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleToggleNegotiationFollowUpStatus(
-                              followUp.id,
-                              followUp.status,
-                            )
-                          }}
-                          style={{
-                            height: 34,
-                            width: 34,
-                            border:
-                              followUp.status === 'done'
-                                ? '1px solid #86efac'
-                                : '1px solid #e5e7eb',
-                            borderRadius: 8,
-                            background:
-                              followUp.status === 'done'
-                                ? '#ecfdf3'
-                                : '#ffffff',
-                            color:
-                              followUp.status === 'done'
-                                ? '#16a34a'
-                                : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ✓
-                        </button>
                       </div>
                     </div>
 
@@ -7315,31 +7271,19 @@ export default function LeadPage({
                         </span>
                       ) : null}
 
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: lifecycleStatusTag.textColor,
-                          whiteSpace: 'nowrap',
-                          background: lifecycleStatusTag.background,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1,
-                        }}
-                      >
-                        <span
-                          style={{
-                            minWidth: 0,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {lifecycleStatusTag.label}
-                        </span>
-                      </span>
+                      <InlineFollowUpStatusTag
+                        disabled={
+                          updatingAgendaFollowUpStatusId === followUp.id
+                        }
+                        presentation={lifecycleStatusTag}
+                        status={followUp.status}
+                        onChange={(status) =>
+                          void handleAgendaFollowUpStatusChange(
+                            followUp.id,
+                            status,
+                          )
+                        }
+                      />
                     </div>
                   </article>
                 )
@@ -7661,24 +7605,19 @@ export default function LeadPage({
                         ) : null}
                       </div>
 
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: lifecycleStatusTag.textColor,
-                          whiteSpace: 'nowrap',
-                          background: lifecycleStatusTag.background,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '7px 12px',
-                          lineHeight: 1.1,
-                          justifySelf: 'start',
-                        }}
-                      >
-                        {lifecycleStatusTag.label}
-                      </span>
+                      <InlineFollowUpStatusTag
+                        disabled={
+                          updatingAgendaFollowUpStatusId === followUp.id
+                        }
+                        presentation={lifecycleStatusTag}
+                        status={followUp.status}
+                        onChange={(status) =>
+                          void handleAgendaFollowUpStatusChange(
+                            followUp.id,
+                            status,
+                          )
+                        }
+                      />
 
                       <span
                         style={{
@@ -7730,35 +7669,6 @@ export default function LeadPage({
                           }}
                         >
                           <Trash2 size={14} />
-                        </button>
-
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handleToggleNegotiationFollowUpStatus(
-                              followUp.id,
-                              followUp.status,
-                            )
-                          }}
-                          aria-label={
-                            followUp.status === 'done'
-                              ? 'Desfazer conclusão do follow-up'
-                              : 'Concluir follow-up'
-                          }
-                          style={{
-                            height: 24,
-                            width: 24,
-                            border: 'none',
-                            background: 'transparent',
-                            color:
-                              followUp.status === 'done'
-                                ? '#16a34a'
-                                : '#4b5563',
-                            padding: 0,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ✓
                         </button>
                       </div>
                     </div>
