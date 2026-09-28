@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DayPicker } from 'react-day-picker'
 
 import { interactionTheme } from '../../../app/theme/brandTheme'
@@ -308,7 +309,9 @@ function ComposerDateTimeInput({
 }: DateTimeInputProps) {
   const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false)
   const [draftTime, setDraftTime] = useState<string>('09:00')
+  const [pickerPosition, setPickerPosition] = useState({ left: 0, top: 8 })
   const pickerContainerRef = useRef<HTMLDivElement | null>(null)
+  const pickerPopoverRef = useRef<HTMLDivElement | null>(null)
   const parsedValue = parseDateTimeLocalValue(value)
   const fieldHeight = isMobile ? 46 : 42
 
@@ -324,7 +327,10 @@ function ComposerDateTimeInput({
         return
       }
 
-      if (pickerContainerRef.current.contains(event.target as Node)) {
+      if (
+        pickerContainerRef.current.contains(event.target as Node) ||
+        pickerPopoverRef.current?.contains(event.target as Node)
+      ) {
         return
       }
 
@@ -337,6 +343,52 @@ function ComposerDateTimeInput({
       document.removeEventListener('mousedown', handleOutsideClick)
     }
   }, [])
+
+  useEffect(() => {
+    if (!isPickerOpen || readOnly) {
+      return
+    }
+
+    const container = pickerContainerRef.current
+    const popover = pickerPopoverRef.current
+    if (!container || !popover) {
+      return
+    }
+
+    if (typeof popover.showPopover === 'function') {
+      popover.showPopover()
+    }
+
+    const updatePosition = () => {
+      const containerRect = container.getBoundingClientRect()
+      const popoverWidth = popover.offsetWidth
+      const popoverHeight = popover.offsetHeight
+      const topAbove = containerRect.top - popoverHeight - 8
+      const topBelow = containerRect.bottom + 8
+      const fitsBelow = topBelow + popoverHeight <= window.innerHeight - 8
+
+      setPickerPosition({
+        left: Math.min(
+          Math.max(8, containerRect.left),
+          window.innerWidth - popoverWidth - 8,
+        ),
+        top: topAbove >= 8 || !fitsBelow ? Math.max(8, topAbove) : topBelow,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+
+      if (popover.matches(':popover-open')) {
+        popover.hidePopover()
+      }
+    }
+  }, [isPickerOpen, readOnly])
 
   return (
     <div
@@ -418,37 +470,43 @@ function ComposerDateTimeInput({
         aria-label="Selecionar horário do follow-up"
       />
 
-      {isPickerOpen && !readOnly ? (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 8px)',
-            left: 0,
-            border: '1px solid #e2e8f0',
-            borderRadius: 12,
-            background: '#ffffff',
-            boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
-            padding: 12,
-            zIndex: 60,
-          }}
-        >
-          <DayPicker
-            mode="single"
-            selected={parsedValue.date ?? undefined}
-            onSelect={(selectedDate) => {
-              if (!selectedDate) {
-                return
-              }
+      {isPickerOpen && !readOnly
+        ? createPortal(
+            <div
+              ref={pickerPopoverRef}
+              popover="manual"
+              style={{
+                position: 'fixed',
+                left: pickerPosition.left,
+                top: pickerPosition.top,
+                margin: 0,
+                border: '1px solid #e2e8f0',
+                borderRadius: 12,
+                background: '#ffffff',
+                boxShadow: '0 14px 30px rgba(15, 23, 42, 0.14)',
+                padding: 12,
+                zIndex: 2147483647,
+              }}
+            >
+              <DayPicker
+                mode="single"
+                selected={parsedValue.date ?? undefined}
+                onSelect={(selectedDate) => {
+                  if (!selectedDate) {
+                    return
+                  }
 
-              const nextTime = parsedValue.time || draftTime || '09:00'
-              onChange(buildDateTimeLocalValue(selectedDate, nextTime))
-              setIsPickerOpen(false)
-            }}
-            weekStartsOn={1}
-            showOutsideDays
-          />
-        </div>
-      ) : null}
+                  const nextTime = parsedValue.time || draftTime || '09:00'
+                  onChange(buildDateTimeLocalValue(selectedDate, nextTime))
+                  setIsPickerOpen(false)
+                }}
+                weekStartsOn={1}
+                showOutsideDays
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
