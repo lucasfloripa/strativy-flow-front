@@ -8,6 +8,8 @@ import {
   Check,
   CheckCircle2,
   ChevronLeft,
+  ChevronsDown,
+  ChevronsUp,
   CircleDollarSign,
   CircleHelp,
   Contact,
@@ -29,7 +31,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Navigate,
   NavLink,
@@ -351,6 +353,60 @@ export function AuthenticatedLayout() {
   const navigate = useNavigate()
   const realtime = useRealtime()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false)
+  const sidebarNavRef = useRef<HTMLElement | null>(null)
+  const [canScrollSidebarUp, setCanScrollSidebarUp] = useState<boolean>(false)
+  const [canScrollSidebarDown, setCanScrollSidebarDown] =
+    useState<boolean>(false)
+
+  useEffect(() => {
+    const nav = sidebarNavRef.current
+    if (!nav) {
+      return
+    }
+
+    const updateScrollState = () => {
+      setCanScrollSidebarUp(nav.scrollTop > 0)
+      setCanScrollSidebarDown(
+        Math.ceil(nav.scrollTop + nav.clientHeight) < nav.scrollHeight,
+      )
+    }
+
+    updateScrollState()
+    nav.addEventListener('scroll', updateScrollState)
+    const resizeObserver = new ResizeObserver(updateScrollState)
+    resizeObserver.observe(nav)
+
+    return () => {
+      nav.removeEventListener('scroll', updateScrollState)
+      resizeObserver.disconnect()
+    }
+  }, [isMobile, isSidebarCollapsed])
+
+  const scrollSidebarNav = (direction: 1 | -1) => {
+    const nav = sidebarNavRef.current
+    if (!nav) {
+      return
+    }
+
+    nav.scrollBy({
+      top: direction * Math.max(80, nav.clientHeight * 0.6),
+      behavior: 'smooth',
+    })
+  }
+
+  const sidebarScrollButtonStyle = {
+    width: '100%',
+    height: 24,
+    border: 'none',
+    background: 'transparent',
+    color: interactionTheme.sidebarItemDefaultColor,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    cursor: 'pointer',
+    flexShrink: 0,
+  } as const
   const [hoveredNavKey, setHoveredNavKey] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false)
   const [isMobileHomeNotificationsOpen, setIsMobileHomeNotificationsOpen] =
@@ -1377,6 +1433,9 @@ export function AuthenticatedLayout() {
           display: isMobile ? 'none' : 'flex',
           width: isSidebarCollapsed ? 76 : 280,
           height: '100vh',
+          boxSizing: 'border-box',
+          flexShrink: 0,
+          overflow: 'hidden',
           borderRight: sidebarBorder,
           boxShadow: '10px 0 18px -12px rgba(148, 163, 184, 0.36)',
           background: '#fcfdff',
@@ -1392,6 +1451,7 @@ export function AuthenticatedLayout() {
             alignItems: 'center',
             justifyContent: isSidebarCollapsed ? 'center' : 'space-between',
             gap: 10,
+            flexShrink: 0,
           }}
         >
           {!isSidebarCollapsed ? (
@@ -1442,9 +1502,30 @@ export function AuthenticatedLayout() {
           </button>
         </header>
 
+        {canScrollSidebarUp ? (
+          <button
+            type="button"
+            aria-label="Rolar navegação para cima"
+            onClick={() => scrollSidebarNav(-1)}
+            style={{ ...sidebarScrollButtonStyle, marginTop: 8 }}
+          >
+            <ChevronsUp size={16} />
+          </button>
+        ) : null}
+
         <nav
+          ref={sidebarNavRef}
           aria-label="Navegação principal"
-          style={{ marginTop: 14, flex: 1, alignContent: 'start' }}
+          className="scrollbar-hidden"
+          style={{
+            marginTop: canScrollSidebarUp ? 4 : 14,
+            marginBottom: canScrollSidebarDown ? 4 : 12,
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            alignContent: 'start',
+          }}
         >
           <ul
             style={{
@@ -1714,6 +1795,17 @@ export function AuthenticatedLayout() {
           </ul>
         </nav>
 
+        {canScrollSidebarDown ? (
+          <button
+            type="button"
+            aria-label="Rolar navegação para baixo"
+            onClick={() => scrollSidebarNav(1)}
+            style={{ ...sidebarScrollButtonStyle, marginBottom: 8 }}
+          >
+            <ChevronsDown size={16} />
+          </button>
+        ) : null}
+
         <footer
           style={{
             display: 'flex',
@@ -1724,6 +1816,7 @@ export function AuthenticatedLayout() {
             marginRight: isSidebarCollapsed ? -10 : -16,
             borderTop: sidebarBorder,
             padding: isSidebarCollapsed ? '14px 10px 4px' : '14px 12px 4px',
+            flexShrink: 0,
           }}
         >
           {!isSidebarCollapsed ? (
