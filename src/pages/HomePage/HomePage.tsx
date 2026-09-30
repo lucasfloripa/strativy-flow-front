@@ -9,7 +9,6 @@ import {
   Clock,
   MessageCircle,
   Reply,
-  TimerReset,
   TriangleAlert,
   UserPlus,
   X,
@@ -23,6 +22,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import type { AuthenticatedLayoutOutletContext } from '../../app/layouts/AuthenticatedLayout'
 import { interactionTheme } from '../../app/theme/brandTheme'
 import { useViewportBreakpoint } from '../../app/theme/useViewportBreakpoint'
+import { DelayedTooltip } from '../../core/components/DelayedTooltip'
 import { getLeadSourceTagPresentation } from '../../core/components/leadSourceTagPresentation'
 import {
   formatChatMessageTimestamp,
@@ -41,8 +41,6 @@ type NotificationIcon =
   | 'lead'
   | 'followup'
   | 'payment'
-  | 'expiring'
-  | 'expired'
 
 type Notification = {
   id: string
@@ -91,6 +89,9 @@ const homeGreetingMessages = [
 const tagContentStyle = {
   display: 'inline-flex',
   alignItems: 'center',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   lineHeight: 1,
   verticalAlign: 'middle' as const,
 }
@@ -163,6 +164,48 @@ const ArchivedLeadIndicator = () => (
   </span>
 )
 
+const getMinutesUntilReplyWindowCloses = (
+  lastInboundAt: string | Date | null,
+): number | null => {
+  if (!lastInboundAt) {
+    return null
+  }
+
+  const closesAt = new Date(lastInboundAt).getTime() + 24 * 60 * 60 * 1000
+  const remainingMinutes = Math.ceil((closesAt - Date.now()) / (60 * 1000))
+
+  return remainingMinutes > 0 && remainingMinutes <= 60
+    ? remainingMinutes
+    : null
+}
+
+const ReplyWindowClosingIndicator = ({
+  minutesRemaining,
+}: {
+  minutesRemaining: number
+}) => (
+  <DelayedTooltip
+    content={`${minutesRemaining} ${minutesRemaining === 1 ? 'minuto' : 'minutos'} para fechar a janela de 24h`}
+  >
+    <span
+      aria-label={`${minutesRemaining} minutos para fechar a janela de 24h`}
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        background: '#fef2f2',
+        color: '#dc2626',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <Clock size={14} aria-hidden="true" />
+    </span>
+  </DelayedTooltip>
+)
+
 const getGreetingLabel = (): 'Bom dia' | 'Boa tarde' | 'Boa noite' => {
   const currentHour = new Date().getHours()
 
@@ -211,16 +254,6 @@ const mapApiNotification = (notification: UserNotification): Notification => {
       color: '#b45309',
       iconBackground: '#fef3c7',
       icon: 'payment',
-    },
-    CONVERSATION_EXPIRING_1H: {
-      color: '#f59e0b',
-      iconBackground: '#fef3c7',
-      icon: 'expiring',
-    },
-    CONVERSATION_EXPIRED: {
-      color: '#ef4444',
-      iconBackground: '#fee2e2',
-      icon: 'expired',
     },
   }
   const presentation = presentationByType[notification.type]
@@ -327,13 +360,6 @@ const getNotificationNavigation = (
     case 'PAYMENT_OVERDUE':
       return {
         path: '/financeiro',
-      }
-    case 'CONVERSATION_EXPIRING_1H':
-      return {
-        path: `/leads/${notification.referenceId}`,
-        state: {
-          initialLeadTab: 'chat',
-        },
       }
     default:
       return {
@@ -641,8 +667,8 @@ export default function HomePage() {
           }}
         >
           {[
-            { key: 'today', label: 'Para Hoje' },
             { key: 'new', label: 'Novos' },
+            { key: 'today', label: 'Para Hoje' },
             { key: 'noResponse24h', label: 'Sem resposta 24h+' },
           ].map((filterOption) => {
             const filterKey = filterOption.key as ConversationFilter
@@ -732,8 +758,8 @@ export default function HomePage() {
                   style={{
                     display: 'grid',
                     gridTemplateColumns: isMobile
-                      ? 'minmax(0, 1fr) 132px'
-                      : 'minmax(0, 1fr) 76px 168px',
+                      ? 'minmax(0, 1fr) 180px'
+                      : 'minmax(0, 1fr) 256px',
                     gap: 12,
                     alignItems: 'center',
                     padding: '10px 8px',
@@ -745,18 +771,12 @@ export default function HomePage() {
                     <Skeleton width="78%" height={11} />
                   </span>
 
-                  {!isMobile ? (
-                    <span style={{ justifySelf: 'end', width: 48 }}>
-                      <Skeleton height={24} borderRadius={6} />
-                    </span>
-                  ) : null}
-
                   <span
                     style={{
                       display: 'grid',
                       gap: 7,
                       justifySelf: 'end',
-                      width: isMobile ? 104 : 126,
+                      width: '100%',
                     }}
                   >
                     <Skeleton
@@ -771,6 +791,10 @@ export default function HomePage() {
             </div>
           ) : (
             conversations.map((item, index) => {
+              const minutesUntilReplyWindowCloses =
+                selectedConversationFilter === 'today'
+                  ? getMinutesUntilReplyWindowCloses(item.lastInboundAt)
+                  : null
               const sourceTagPresentation = getLeadSourceTagPresentation(
                 item.source,
                 'Não informada',
@@ -801,8 +825,8 @@ export default function HomePage() {
                   style={{
                     display: 'grid',
                     gridTemplateColumns: isMobile
-                      ? 'minmax(0, 1fr) 132px'
-                      : 'minmax(0, 1fr) 76px 168px',
+                      ? 'minmax(0, 1fr) 180px'
+                      : 'minmax(0, 1fr) 256px',
                     gap: 12,
                     alignItems: 'center',
                     padding: '10px 8px',
@@ -868,41 +892,6 @@ export default function HomePage() {
                     </span>
                   </span>
 
-                  {!isMobile ? (
-                    <span
-                      style={{
-                        justifySelf: 'end',
-                        alignSelf: 'end',
-                        minHeight: 1,
-                        width: '100%',
-                        display: 'inline-flex',
-                        justifyContent: 'flex-end',
-                        alignItems: 'flex-end',
-                        transform: 'translateX(40px)',
-                      }}
-                    >
-                      {item.isNew ? (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: '#eab308',
-                            whiteSpace: 'nowrap',
-                            background: '#fef3c7',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '7px 12px',
-                            lineHeight: 1,
-                          }}
-                        >
-                          Novo
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
-
                   <span
                     style={{
                       justifySelf: 'end',
@@ -914,7 +903,30 @@ export default function HomePage() {
                       gap: 6,
                     }}
                   >
-                    {isMobile && item.isNew ? (
+                    <span
+                      style={{
+                        color: '#475569',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        lineHeight: 1.1,
+                        whiteSpace: 'nowrap',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {lastContactLabel}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: 6,
+                        width: '100%',
+                        minWidth: 0,
+                        maxWidth: '100%',
+                      }}
+                    >
+                      {item.isNew ? (
                       <span
                         style={{
                           fontSize: 12,
@@ -928,33 +940,12 @@ export default function HomePage() {
                           justifyContent: 'center',
                           padding: '7px 12px',
                           lineHeight: 1,
+                          flexShrink: 0,
                         }}
                       >
                         Novo
                       </span>
-                    ) : (
-                      <span
-                        style={{
-                          color: '#475569',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          lineHeight: 1.1,
-                          whiteSpace: 'nowrap',
-                          textAlign: 'right',
-                        }}
-                      >
-                        {lastContactLabel}
-                      </span>
-                    )}
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        gap: 6,
-                        maxWidth: '100%',
-                      }}
-                    >
+                      ) : null}
                       <span
                         style={{
                           fontSize: 12,
@@ -969,7 +960,10 @@ export default function HomePage() {
                           justifyContent: 'center',
                           padding: '7px 12px',
                           lineHeight: 1.1,
+                          minWidth: 0,
                           maxWidth: '100%',
+                          flex: '0 1 auto',
+                          overflow: 'hidden',
                         }}
                       >
                         {sourceTagPresentation.icon ? (
@@ -982,7 +976,16 @@ export default function HomePage() {
                         </span>
                       </span>
                       {item.leadState === 'archived' ? (
-                        <ArchivedLeadIndicator />
+                        <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                          <ArchivedLeadIndicator />
+                        </span>
+                      ) : null}
+                      {minutesUntilReplyWindowCloses !== null ? (
+                        <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                          <ReplyWindowClosingIndicator
+                            minutesRemaining={minutesUntilReplyWindowCloses}
+                          />
+                        </span>
                       ) : null}
                     </span>
                   </span>
@@ -1325,10 +1328,6 @@ export default function HomePage() {
                       <CalendarClock size={20} color={activity.color} />
                     ) : activity.icon === 'payment' ? (
                       <BadgeDollarSign size={20} color={activity.color} />
-                    ) : activity.icon === 'expiring' ? (
-                      <TimerReset size={20} color={activity.color} />
-                    ) : activity.icon === 'expired' ? (
-                      <TriangleAlert size={20} color={activity.color} />
                     ) : (
                       <UserPlus size={20} color={activity.color} />
                     )}

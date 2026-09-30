@@ -104,22 +104,6 @@ const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreference[] = [
     channels: { inApp: true, whatsApp: true, email: false },
   },
   {
-    id: 'conversation-expiring-1h',
-    title: 'Conversa a 1 hora de expirar',
-    description:
-      'Quando uma conversa está a 1 hora de expirar (24h sem resposta do lead)',
-    icon: 'message',
-    channels: { inApp: true, whatsApp: false, email: false },
-  },
-  {
-    id: 'conversation-expired',
-    title: 'Conversa expirada',
-    description:
-      'Quando uma conversa expirou (passaram 24h sem resposta do lead)',
-    icon: 'message',
-    channels: { inApp: true, whatsApp: true, email: true },
-  },
-  {
     id: 'followup-1h',
     title: 'Follow-up a 1 hora do vencimento',
     description: 'Quando falta 1 hora para um follow-up vencer',
@@ -170,8 +154,6 @@ const buildNotificationPreferences = (
     MESSAGE_RECEIVED: 'new-message',
     FOLLOWUP_ONE_HOUR: 'followup-1h',
     DAILY_FOLLOWUP_SUMMARY: 'followup-list',
-    CONVERSATION_EXPIRING_1H: 'conversation-expiring-1h',
-    CONVERSATION_EXPIRED: 'conversation-expired',
     INSTALLMENT_DUE_TOMORROW: 'installment-due-tomorrow',
     INSTALLMENT_OVERDUE: 'installment-overdue',
   }
@@ -484,7 +466,7 @@ export function AuthenticatedLayout() {
     useState<boolean>(false)
   const [notificationPreferences, setNotificationPreferences] = useState<
     NotificationPreference[]
-  >([])
+  >(() => buildNotificationPreferences())
   const greetingLabel = getGreetingLabel()
   const userFirstName =
     getFirstName(headerUserName) ||
@@ -916,8 +898,6 @@ export function AuthenticatedLayout() {
       'new-message': 'MESSAGE_RECEIVED',
       'followup-1h': 'FOLLOWUP_ONE_HOUR',
       'followup-list': 'DAILY_FOLLOWUP_SUMMARY',
-      'conversation-expiring-1h': 'CONVERSATION_EXPIRING_1H',
-      'conversation-expired': 'CONVERSATION_EXPIRED',
       'installment-due-tomorrow': 'INSTALLMENT_DUE_TOMORROW',
       'installment-overdue': 'INSTALLMENT_OVERDUE',
     }

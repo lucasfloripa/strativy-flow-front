@@ -55,8 +55,6 @@ export type UserNotification = {
     | 'DAILY_FOLLOWUP_SUMMARY'
     | 'PAYMENT_DUE_TOMORROW'
     | 'PAYMENT_OVERDUE'
-    | 'CONVERSATION_EXPIRING_1H'
-    | 'CONVERSATION_EXPIRED'
   title: string
   description: string
   referenceType: 'LEAD' | 'MESSAGE' | 'FOLLOW_UP' | 'PAYMENT'
