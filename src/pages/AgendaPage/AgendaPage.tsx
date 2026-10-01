@@ -3070,7 +3070,7 @@ export default function AgendaPage() {
               fontWeight: 800,
             }}
           >
-            Agenda
+            FollowUps
           </h1>
           <span
             style={{
@@ -4233,7 +4233,7 @@ export default function AgendaPage() {
             lineHeight: 1.2,
           }}
         >
-          Agenda
+          FollowUps
         </h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

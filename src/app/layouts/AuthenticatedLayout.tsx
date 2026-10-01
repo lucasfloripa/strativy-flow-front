@@ -15,6 +15,7 @@ import {
   Contact,
   Edit,
   FileText,
+  Footprints,
   Home,
   Lock,
   LogOut,
@@ -1621,9 +1622,9 @@ export function AuthenticatedLayout() {
                 onMouseEnter={() => setHoveredNavKey('agenda')}
                 onMouseLeave={() => setHoveredNavKey(null)}
               >
-                <CalendarClock size={16} />
+                <Footprints size={16} />
                 {!isSidebarCollapsed ? (
-                  <span style={{ marginLeft: 8 }}>Agenda</span>
+                  <span style={{ marginLeft: 8 }}>FollowUps</span>
                 ) : null}
               </NavLink>
             </li>
@@ -4179,8 +4180,8 @@ export function AuthenticatedLayout() {
                   onMouseEnter={() => setHoveredNavKey('agenda-mobile-menu')}
                   onMouseLeave={() => setHoveredNavKey(null)}
                 >
-                  <CalendarClock size={18} />
-                  <span style={{ marginLeft: 10 }}>Agenda</span>
+                  <Footprints size={18} />
+                  <span style={{ marginLeft: 10 }}>FollowUps</span>
                 </NavLink>
 
                 <NavLink

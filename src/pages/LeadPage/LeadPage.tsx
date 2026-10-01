@@ -4944,13 +4944,6 @@ export default function LeadPage({
                               hoveredAgendaFollowUpId === followUp.id
                             const isConfirmingDelete =
                               confirmingDeleteBusinessFollowUpId === followUp.id
-                            const primaryActionId =
-                              findPrimaryFollowUpActionStep(followUp.steps)?.id
-                            const automationActionCount = followUp.steps.filter(
-                              (step) =>
-                                step.type === 'action' &&
-                                step.id !== primaryActionId,
-                            ).length
 
                             return (
                               <article
@@ -5000,7 +4993,7 @@ export default function LeadPage({
                                   display: 'grid',
                                   gridTemplateColumns: isMobile
                                     ? 'auto auto minmax(0, 1fr) auto'
-                                    : 'minmax(0, 1fr) 72px 112px 112px max-content 84px',
+                                    : 'minmax(0, 1fr) 72px 112px 112px 84px',
                                   alignItems: 'center',
                                   columnGap: isMobile ? 8 : 10,
                                   rowGap: isMobile ? 18 : 8,
@@ -5260,35 +5253,8 @@ export default function LeadPage({
                                 </span>
 
                                 <span
-                                  aria-label={`${automationActionCount} automações do follow-up`}
                                   style={{
-                                    gridColumn: isMobile ? '4' : undefined,
-                                    gridRow: isMobile ? '2' : undefined,
-                                    display: isConfirmingDelete
-                                      ? 'none'
-                                      : 'inline-flex',
-                                    width: 'fit-content',
-                                    justifySelf: 'center',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minHeight: 28,
-                                    borderRadius: 6,
-                                    padding: '6px 10px',
-                                    background: '#f0fdf4',
-                                    color: '#166534',
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    lineHeight: 1.1,
-                                    whiteSpace: 'nowrap',
-                                    boxSizing: 'border-box',
-                                  }}
-                                >
-                                  {automationActionCount}
-                                </span>
-
-                                <span
-                                  style={{
-                                    gridColumn: isMobile ? '4' : '6',
+                                    gridColumn: isMobile ? '4' : '5',
                                     gridRow: isMobile ? '1' : undefined,
                                     alignSelf: isMobile ? 'start' : undefined,
                                     display: 'flex',
@@ -6262,14 +6228,6 @@ export default function LeadPage({
                           getFollowUpChannelTagPresentation(followUp.steps)
                         const isHovered =
                           hoveredBusinessFollowUpId === followUp.id
-                        const primaryActionId = findPrimaryFollowUpActionStep(
-                          followUp.steps,
-                        )?.id
-                        const automationActionCount = followUp.steps.filter(
-                          (step) =>
-                            step.type === 'action' &&
-                            step.id !== primaryActionId,
-                        ).length
                         const isConfirmingDelete =
                           confirmingDeleteBusinessFollowUpId === followUp.id
 
@@ -6324,7 +6282,7 @@ export default function LeadPage({
                               display: 'grid',
                               gridTemplateColumns: isMobile
                                 ? 'auto auto minmax(0, 1fr) auto'
-                                : 'minmax(0, 1fr) 72px 112px 112px max-content 84px',
+                                : 'minmax(0, 1fr) 72px 112px 112px 84px',
                               alignItems: 'center',
                               columnGap: isMobile ? 8 : 10,
                               rowGap: isMobile ? 18 : 8,
@@ -6478,35 +6436,8 @@ export default function LeadPage({
                             </span>
 
                             <span
-                              aria-label={`${automationActionCount} automações do follow-up`}
                               style={{
-                                gridColumn: isMobile ? '4' : undefined,
-                                gridRow: isMobile ? '2' : undefined,
-                                display: isConfirmingDelete
-                                  ? 'none'
-                                  : 'inline-flex',
-                                width: 'fit-content',
-                                justifySelf: 'center',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minHeight: 28,
-                                borderRadius: 6,
-                                padding: '6px 10px',
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                lineHeight: 1.1,
-                                whiteSpace: 'nowrap',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {automationActionCount}
-                            </span>
-
-                            <span
-                              style={{
-                                gridColumn: isMobile ? '4' : '6',
+                                gridColumn: isMobile ? '4' : '5',
                                 gridRow: isMobile ? '1' : undefined,
                                 alignSelf: isMobile ? 'start' : undefined,
                                 display: 'flex',
