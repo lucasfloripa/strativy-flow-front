@@ -4844,6 +4844,7 @@ export default function AgendaPage() {
             border: '1px solid #e5e7eb',
             borderRadius: 12,
             overflowY: 'auto',
+            overscrollBehaviorY: 'none',
             maxHeight: '100%',
             minHeight: 0,
             boxShadow: '0 1px 2px rgba(16, 24, 40, 0.04)',
