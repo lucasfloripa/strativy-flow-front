@@ -920,8 +920,6 @@ export default function AgendaPage() {
   const [statusSortFocus, setStatusSortFocus] =
     useState<AgendaStatusSortFocus>('overdue')
   const [isLeadPanelEntering, setIsLeadPanelEntering] = useState<boolean>(false)
-  const [isLeadFollowUpEditing, setIsLeadFollowUpEditing] =
-    useState<boolean>(false)
   const [shouldRefreshOnLeadClose, setShouldRefreshOnLeadClose] =
     useState<boolean>(false)
   const [agendaReloadVersion, setAgendaReloadVersion] = useState<number>(0)
@@ -2431,18 +2429,6 @@ export default function AgendaPage() {
     }
   }, [agendaReloadVersion])
 
-  useEffect(() => {
-    if (isCreatingAgendaFollowUp || isLeadFollowUpEditing) {
-      return
-    }
-
-    const refreshInterval = window.setInterval(() => {
-      setAgendaReloadVersion((current) => current + 1)
-    }, 60_000)
-
-    return () => window.clearInterval(refreshInterval)
-  }, [isCreatingAgendaFollowUp, isLeadFollowUpEditing])
-
   const handleLeadUpdated = () => {
     setShouldRefreshOnLeadClose(true)
   }
@@ -3763,7 +3749,6 @@ export default function AgendaPage() {
           >
             <LeadPage
               onLeadUpdated={handleLeadUpdated}
-              onFollowUpEditingChange={setIsLeadFollowUpEditing}
             />
           </aside>
         ) : null}
@@ -5556,7 +5541,6 @@ export default function AgendaPage() {
           >
             <LeadPage
               onLeadUpdated={handleLeadUpdated}
-              onFollowUpEditingChange={setIsLeadFollowUpEditing}
             />
           </aside>
         ) : null}
