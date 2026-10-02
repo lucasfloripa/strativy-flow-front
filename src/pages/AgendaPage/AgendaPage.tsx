@@ -2536,7 +2536,7 @@ export default function AgendaPage() {
         negotiationId: agendaFollowUpDraft.negotiationId,
         title: agendaFollowUpDraft.title.trim(),
         steps: [toFollowUpActionPayload(agendaFollowUpDraft.action)],
-        dueAt: agendaFollowUpDraft.dueAt,
+        dueAt: new Date(agendaFollowUpDraft.dueAt).toISOString(),
       })
 
       if (agendaAutomations.length > 0) {
